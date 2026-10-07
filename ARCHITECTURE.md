@@ -1,30 +1,31 @@
 # AgenticPay AI - Architecture Specification 📐
 
-This document outlines the system architecture, component breakdown, data flow, security model, and PayPal API integration pattern for **AgenticPay AI**.
+This document outlines the system architecture, component breakdown, data flow, multi-project hierarchy, security model, and PayPal API integration pattern for **AgenticPay AI**.
 
 ---
 
-## 🏛️ System Overview Diagram
+## 🏛️ System Overview & Multi-Project Hierarchy Diagram
 
 ```
                      ┌───────────────────────────────────────────────┐
                      │          Web UI / Client Dashboard            │
-                     │  - Next.js 14 (App Router)                    │
-                     │  - AG Grid Data Engine (Real-Time Logs/Risk) │
-                     │  - PayPal JS SDK Buttons / Checkout Modal     │
+                     │  - Next.js App Router (Modular Monolith)       │
+                     │  - Multi-Project Switcher & Context Selector  │
+                     │  - AG Grid Multi-Contract Audit Ledger         │
                      └───────────────────────┬───────────────────────┘
                                              │ REST API / Server Actions
                      ┌───────────────────────▼───────────────────────┐
                      │           Next.js Server API Backend          │
-                     │  - Agent Execution Engine (Tool Calling)      │
-                     │  - Multimodal Vision Auditor                  │
-                     │  - Deterministic Security Guardrail Enforcer  │
-                     │  - PayPal OAuth & Payment Gateway Adapter     │
+                     │  - Multi-Project Context Isolation Manager    │
+                     │  - Agent Execution & Bargaining Engine        │
+                     │  - Multimodal Vision Deliverable Auditor      │
+                     │  - Dual-Tier Guardrail & Safety Enforcer     │
+                     │  - PayPal OAuth & Payout Gateway Adapter      │
                      └──────────┬─────────────────────────┬──────────┘
                                 │                         │
       ┌─────────────────────────▼────────┐       ┌────────▼────────────────────────┐
       │   PayPal Developer Sandbox       │       │       Multimodal LLM            │
-      │  - Orders API (Checkout / Pre-Auth)│       │  - Gemini / OpenAI API          │
+      │  - Orders API (Checkout / Pre-Auth)│       │  - OpenAI / OpenRouter / Gemini │
       │  - Payouts API (Escrow Release)  │       │  - Vision & Reasoning Engine    │
       │  - Vault API (Tokenization)      │       └─────────────────────────────────┘
       └──────────────────────────────────┘
@@ -32,35 +33,52 @@ This document outlines the system architecture, component breakdown, data flow, 
 
 ---
 
+## 🏢 Multi-Project & Multi-Contract Architecture
+
+To support real-world enterprise operations where a company hires multiple contractors across different initiatives:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 🔴 MASTER EMERGENCY KILL-SWITCH (Global Safety Halt)                        │
+│ » Revokes PayPal OAuth credentials at account level in critical emergencies │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+      ┌────────────────────────────────┼────────────────────────────────┐
+      ▼                                ▼                                ▼
+┌───────────────────────────┐    ┌───────────────────────────┐    ┌───────────────────────────┐
+│ CONTRACT #1: Web Dev      │    │ CONTRACT #2: UI/UX Brand  │    │ CONTRACT #3: Marketing    │
+│ - Vendor: dev@agency.com  │    │ - Vendor: design@studio.com│    │ - Vendor: ad@agency.com   │
+│ - Vault Cap: $250.00 USD  │    │ - Vault Cap: $150.00 USD  │    │ - Vault Cap: $100.00 USD  │
+│ [ ⏸️ Freeze Contract ]    │    │ [ ⏸️ Freeze Contract ]    │    │ [ ⏸️ Freeze Contract ]    │
+└───────────────────────────┘    └───────────────────────────┘    └───────────────────────────┘
+```
+
+### Key Multi-Project Features:
+1. **Isolated Budget Envelopes:** Each project operates with its own pre-authorized Vault budget cap, preventing cross-project budget spillover.
+2. **Dual-Tier Control Hierarchy:**
+   * **Project-Level Escrow Freeze:** Pauses or cancels escrow releases for a specific project/contract without affecting other active projects.
+   * **Master Emergency Kill-Switch:** Account-level circuit breaker that immediately revokes tokens across all active projects.
+
+---
+
 ## 🧩 Core Architectural Components
 
-### 1. Agent Execution Engine (`/lib/agent`)
-* **Role:** Manages the lifecycle of AI agents (Buyer Agent & Seller Agent).
-* **Key Modules:**
-  * `a2aProtocol.ts`: Handles Agent-to-Agent message exchange and bargaining rules.
-  * `toolRegistry.ts`: Exposes executable actions to the LLM (e.g., `check_budget`, `verify_proof`, `create_paypal_order`).
+### 1. Multi-Project Context Manager (`/lib/projects`)
+* **Role:** Isolates project states, vendor contracts, milestones, and active escrow balances.
 
 ### 2. Deterministic Guardrail Enforcer (`/lib/guardrails`)
-* **Role:** Non-AI validation layer that intercepts all AI intents before calling external financial APIs.
-* **Checks:** Enforces hard budget caps, velocity controls, and vendor sanity checks.
+* **Role:** Non-AI validation layer intercepting AI intents before calling PayPal APIs.
+* **Enforces:** Per-project budget caps, OWASP LLM01 prompt injection sanitization, confidence score thresholds (>=85%), and dual-tier kill-switch status.
 
 ### 3. PayPal Gateway Adapter (`/lib/paypal`)
-* **Role:** Secure server-side wrapper for PayPal Developer REST APIs.
-* **Key Functions:**
-  * `getAccessToken()`: OAuth 2.0 authentication with PayPal Sandbox.
-  * `createOrder(amount, currency)`: Generates PayPal checkout session.
-  * `executePayout(receiverEmail, amount)`: Releases escrow funds upon AI audit clearance.
+* **Role:** Server-side client wrapper for PayPal REST APIs (`api-m.sandbox.paypal.com`).
+* **Functions:** OAuth2 token management, Vault tokenization, and Payouts execution (`/v1/payments/payouts`).
 
-### 4. AG Grid Financial Command Center (`/components/grid`)
-* **Role:** Provides high-throughput, real-time visualization of agent activity and risk metrics.
+### 4. AG Grid Multi-Contract Audit Ledger (`/components/CommandCenter.tsx`)
+* **Role:** High-throughput 60 FPS transaction ledger supporting multi-project filtering and real-time risk heatmaps.
 
 ---
 
 ## 🔒 Security Architecture & Compliance
 
-For detailed cybersecurity compliance standards (OWASP Top 10 for LLMs, NIST CSF 2.0, PCI-DSS, ISO 42001), please refer to our dedicated [SECURITY.md](SECURITY.md) policy document.
-
-### Security Highlights:
-1. **Server-Side API Proxying:** All PayPal OAuth client secrets and AI API keys are isolated on the server.
-2. **Zero PCI-DSS Scope:** Card data capture is 100% offloaded to PayPal's secure SDK iframe.
-3. **Emergency Kill-Switch:** Instant token revocation and mission freeze capabilities.
+For detailed security policies (OWASP LLM Top 10, NIST CSF 2.0, PCI-DSS offloading), see [SECURITY.md](SECURITY.md).

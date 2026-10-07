@@ -8,13 +8,13 @@ At **AgenticPay AI**, security is a foundational architectural requirement. Beca
 
 ### 1. Zero-Hallucination Deterministic Enforcer
 * **Design Principle:** The AI Agent is strictly prohibited from executing raw API calls to PayPal REST endpoints directly.
-* **Mechanism:** All AI intents must pass through an immutable, non-AI TypeScript Guardrail Layer (`/lib/guardrails`). This layer enforces hard budget ceilings, rate limits, and sanction checks before any outbound HTTP request is dispatched to PayPal.
+* **Mechanism:** All AI intents must pass through an immutable, non-AI TypeScript Guardrail Layer (`/lib/guardrails`). This layer enforces hard per-project budget ceilings, rate limits, and sanction checks before any outbound HTTP request is dispatched to PayPal.
 
 ### 2. Prompt Injection Defense (OWASP LLM01)
 * **Sanitized Context Isolation:** Third-party deliverables (code PRs, invoice text, images) are parsed inside an isolated evaluation sandbox where system instructions explicitly override untrusted content.
 
 ### 3. Server-Side Credential Isolation (OWASP LLM02)
-* All sensitive API credentials (`PAYPAL_CLIENT_SECRET`, `GEMINI_API_KEY`) remain strictly server-side.
+* All sensitive API credentials (`PAYPAL_CLIENT_SECRET`, `OPENROUTER_API_KEY`) remain strictly server-side.
 * Client-side components interact exclusively with authenticated Next.js Server Actions and API Proxy endpoints.
 
 ### 4. Zero PCI-DSS Scope
@@ -22,11 +22,13 @@ At **AgenticPay AI**, security is a foundational architectural requirement. Beca
 
 ---
 
-## 🚨 Emergency Kill-Switch & Token Revocation
+## 🚨 Dual-Tier Emergency Control Hierarchy
 
-In the event of anomalous AI behavior or suspected risk:
-1. **Interactive Kill-Switch:** Pressing the UI "Emergency Stop" button revokes active PayPal OAuth tokens immediately.
-2. **Confidence Threshold Veto:** Any AI decision with an audit confidence score below **85%** automatically freezes automated payout execution and routes the transaction to the AG Grid manual review queue.
+In the event of anomalous AI behavior or suspected risk, AgenticPay AI provides granular control:
+
+1. **Project-Level Escrow Freeze:** Pauses or cancels milestone payouts for a specific contract or vendor without interrupting other active projects.
+2. **Master Emergency Kill-Switch:** Pressing the global "Emergency Stop" button revokes active PayPal OAuth tokens across the entire account immediately.
+3. **Audit Score Confidence Veto:** Any AI audit score below **85%** automatically freezes payout execution and flags the transaction in the AG Grid audit ledger for human review.
 
 ---
 

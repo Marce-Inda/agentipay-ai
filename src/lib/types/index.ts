@@ -6,12 +6,25 @@ export type TransactionStatus =
   | 'ESCROW_LOCKED'
   | 'PAYOUT_EXECUTED'
   | 'REJECTED'
+  | 'CONTRACT_FROZEN'
   | 'KILL_SWITCH_REVOKED';
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
+export interface ProjectContract {
+  id: string;
+  name: string;
+  vendorName: string;
+  vendorEmail: string;
+  budgetCapUSD: number;
+  spentUSD: number;
+  status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+}
+
 export interface TransactionLog {
   id: string;
+  projectId: string;
+  projectName: string;
   timestamp: string;
   agentRole: 'BUYER_AI' | 'SELLER_AI' | 'GUARDRAIL' | 'PAYPAL_API';
   action: string;

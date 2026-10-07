@@ -5,32 +5,33 @@
 
 ## 🏛️ 1. Software Architecture: Clean Modular Monolith
 
-To avoid the trap of over-engineering (microservices, complex message brokers, or heavy Docker orchestration), **AgenticPay AI** is structured as a **Clean Modular Monolith** using Next.js 14 (App Router).
+To avoid the trap of over-engineering (microservices, complex message brokers, or heavy Docker orchestration), **AgenticPay AI** is structured as a **Clean Modular Monolith** using Next.js 14 / 16 (App Router).
 
 ```
  ┌────────────────────────────────────────────────────────────────────────┐
- │                    NEXT.JS 14 MODULAR MONOLITH                         │
+ │                    NEXT.JS MODULAR MONOLITH                            │
  ├───────────────────────────────────┬────────────────────────────────────┤
  │  Client Components (Frontend)     │  Server Actions & API Routes       │
- │  - Interactive AG Grid Dashboard  │  - /api/agent/stream (SSE)         │
- │  - Chat UI & Agent Controls       │  - /api/paypal/orders (REST)       │
- │  - PayPal Buttons & Vault Modals  │  - /lib/guardrails (TypeScript)    │
+ │  - Multi-Project Context Switcher │  - /api/agent/stream (SSE)         │
+ │  - AG Grid Multi-Contract Ledger  │  - /api/agent/audit (Multimodal)   │
+ │  - Agentic Commerce Assistant UI  │  - /api/paypal/orders (REST)       │
+ │  - Dual-Tier Security Controls    │  - /lib/guardrails (TypeScript)    │
  └───────────────────────────────────┴────────────────────────────────────┘
 ```
 
-### Why Next.js 14 App Router?
-* **End-to-End Type Safety:** Shared TypeScript interfaces across UI components, LLM tool definitions, and PayPal API payloads.
-* **Server-Side Credential Isolation:** All secret keys (`PAYPAL_CLIENT_SECRET`, `GEMINI_API_KEY`) stay strictly on the server.
+### Why Next.js App Router?
+* **End-to-End Type Safety:** Shared TypeScript interfaces across UI components, LLM tool definitions, multi-project context, and PayPal API payloads.
+* **Server-Side Credential Isolation:** All secret keys (`PAYPAL_CLIENT_SECRET`, `OPENROUTER_API_KEY`) stay strictly on the server.
 
 ---
 
-## 🤖 2. AI Engineering: Vercel AI SDK & Gemini Flash
+## 🤖 2. AI Engineering: Vercel AI SDK & Multi-Model Fallback Chain
 
-* **AI Framework:** **Vercel AI SDK (`ai` & `@ai-sdk/google`)**
+* **AI Framework:** **Vercel AI SDK (`ai` & `@ai-sdk/openai`)**
   * *Why Vercel AI SDK instead of LangChain/Haystack?* Zero boilerplate, native streaming support (`streamText`), type-safe Zod schema validation, and lightweight performance.
-* **Model Selection:**
-  * **Primary Model:** `gemini-1.5-flash` / `gemini-2.0-flash` (ultra-fast inference, native multimodal vision, 1M context window, lowest cost).
-  * **Fallback Model:** `gpt-4o-mini`.
+* **Multi-Model Provider Adapter (`/lib/ai/provider.ts`):**
+  * **Primary Model:** `openai/gpt-4o-mini` (ultra-fast inference, ~180ms TTFT, lowest token cost).
+  * **Automated Fallback Model:** `meta-llama/llama-3.3-70b-instruct` (switches automatically if primary endpoint experiences latency or rate limits).
 
 ---
 
@@ -43,7 +44,7 @@ To satisfy the **Best Use of Render** sponsor prize ($1,000 credits) while maint
 ```
 
 * **Zero Docker Overhead:** Render natively detects Next.js applications and handles SSR compilation (`npm run build`).
-* **Environment Secrets:** Injected via Render Dashboard (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `GEMINI_API_KEY`).
+* **Environment Secrets:** Injected via Render Dashboard (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `OPENROUTER_API_KEY`).
 * **Build Time:** ~90 seconds from commit to live production URL.
 
 ---
