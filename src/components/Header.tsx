@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Shield, ShieldAlert, Zap, Lock, DollarSign } from 'lucide-react';
+import { Shield, ShieldAlert, Zap, Lock, DollarSign, CheckCircle2 } from 'lucide-react';
 import { BudgetEnvelope } from '../lib/types';
 
 interface HeaderProps {
@@ -19,26 +19,26 @@ export const Header: React.FC<HeaderProps> = ({ envelope, onToggleKillSwitch }) 
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
               AgenticPay AI
             </h1>
-            <span className="bg-blue-900/60 border border-blue-500/30 text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">
-              PayPal Hackathon 2026
+            <span className="bg-blue-950 text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-800/40">
+              Escrow & Payout Engine
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Autonomous Agentic Commerce & Milestone Payout Engine
+            Autonomous Budget Protection & Intelligent Settlement Platform
           </p>
         </div>
       </div>
 
-      {/* Budget Envelope & Sandbox Status */}
+      {/* Budget Envelope & Security Controls */}
       <div className="flex flex-wrap items-center gap-4 text-xs">
-        {/* Sandbox API Badge */}
+        {/* Status Badge */}
         <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-slate-300 font-medium">PayPal Sandbox API:</span>
-          <span className="text-emerald-400 font-bold">api-m.sandbox.paypal.com</span>
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span className="text-slate-300 font-medium">PayPal Escrow Protection:</span>
+          <span className="text-emerald-400 font-bold">Active</span>
         </div>
 
         {/* Vault Envelope Indicators */}

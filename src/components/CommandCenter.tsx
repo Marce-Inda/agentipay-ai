@@ -6,7 +6,6 @@ import { ColDef, ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { TransactionLog } from '../lib/types';
 import { ShieldCheck, Eye, Terminal, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 
-// Register AG Grid Community modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface CommandCenterProps {
@@ -20,17 +19,17 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs }) => {
     {
       field: 'timestamp',
       headerName: 'Time',
-      width: 110,
+      width: 100,
       valueFormatter: (params) => {
         if (!params.value) return '';
         const date = new Date(params.value);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       },
     },
     {
       field: 'agentRole',
       headerName: 'Actor',
-      width: 140,
+      width: 130,
       cellRenderer: (params: any) => {
         const role = params.value;
         let colorClass = 'bg-slate-700 text-slate-200';
@@ -41,14 +40,14 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs }) => {
         
         return (
           <span className={`px-2 py-0.5 rounded text-xs font-semibold border ${colorClass}`}>
-            {role}
+            {role === 'BUYER_AI' ? 'BUYER AGENT' : role === 'SELLER_AI' ? 'SELLER AGENT' : role === 'GUARDRAIL' ? 'SECURITY GUARD' : 'PAYPAL ESCROW'}
           </span>
         );
       },
     },
     {
       field: 'action',
-      headerName: 'Action / Description',
+      headerName: 'Transaction / Milestone Action',
       flex: 1,
       minWidth: 220,
     },
@@ -62,7 +61,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs }) => {
     {
       field: 'auditConfidenceScore',
       headerName: 'Audit Score',
-      width: 120,
+      width: 110,
       cellRenderer: (params: any) => {
         const score = params.value;
         const color = score >= 85 ? 'text-emerald-400' : 'text-amber-400';
@@ -113,17 +112,17 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs }) => {
       },
     },
     {
-      headerName: 'HTTP Inspector',
-      width: 120,
+      headerName: 'Details',
+      width: 110,
       cellRenderer: (params: any) => {
         if (!params.data?.httpPayloadLog) return null;
         return (
           <button
             onClick={() => setSelectedLog(params.data)}
-            className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs px-2.5 py-1 rounded border border-cyan-500/30 transition-all"
+            className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs px-2 py-1 rounded border border-cyan-500/30 transition-all"
           >
             <Eye className="w-3 h-3" />
-            <span>Inspect</span>
+            <span>View</span>
           </button>
         );
       },
@@ -137,19 +136,16 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs }) => {
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-5 h-5 text-cyan-400" />
           <h2 className="text-lg font-bold text-white tracking-wide">
-            AG Grid Real-Time Audit Command Center
+            Audit Ledger & Transaction Vault
           </h2>
-          <span className="bg-slate-800 text-slate-400 text-xs px-2.5 py-0.5 rounded-full border border-slate-700">
-            60 FPS Reconciler
-          </span>
         </div>
         <div className="text-xs text-slate-400">
-          Total Logs: <strong className="text-cyan-400 font-mono">{logs.length}</strong>
+          Total Records: <strong className="text-cyan-400 font-mono">{logs.length}</strong>
         </div>
       </div>
 
       {/* AG Grid Table Container */}
-      <div className="ag-theme-quartz-dark w-full h-[380px] rounded-lg overflow-hidden border border-slate-800">
+      <div className="ag-theme-quartz-dark w-full h-[410px] rounded-lg overflow-hidden border border-slate-800">
         <AgGridReact
           rowData={logs}
           columnDefs={columnDefs}
@@ -164,7 +160,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs }) => {
         />
       </div>
 
-      {/* HTTP Payload Inspector Modal */}
+      {/* Transaction Details Modal */}
       {selectedLog && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
@@ -172,12 +168,12 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs }) => {
               <div className="flex items-center gap-2 text-cyan-400">
                 <Terminal className="w-5 h-5" />
                 <h3 className="font-bold text-lg text-white">
-                  PayPal REST Network Payload Log
+                  Escrow Transaction Settlement Detail
                 </h3>
               </div>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="text-slate-400 hover:text-white font-bold px-2 py-1 rounded bg-slate-800"
+                className="text-slate-400 hover:text-white font-bold px-2.5 py-1 rounded bg-slate-800"
               >
                 ✕ Close
               </button>
@@ -185,7 +181,8 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs }) => {
 
             <div className="space-y-2 text-xs text-slate-300">
               <div><strong>Action:</strong> {selectedLog.action}</div>
-              <div><strong>PayPal Batch ID:</strong> <span className="font-mono text-emerald-400">{selectedLog.payPalTransactionId || 'N/A'}</span></div>
+              <div><strong>Recipient:</strong> <span className="text-slate-200">{selectedLog.recipientEmail}</span></div>
+              <div><strong>PayPal Settlement Ref:</strong> <span className="font-mono text-emerald-400">{selectedLog.payPalTransactionId || 'N/A'}</span></div>
             </div>
 
             <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 font-mono text-xs text-cyan-300 overflow-x-auto max-h-60">

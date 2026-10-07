@@ -5,7 +5,7 @@ import { Header } from '../components/Header';
 import { CommandCenter } from '../components/CommandCenter';
 import { AgentChat } from '../components/AgentChat';
 import { BudgetEnvelope, TransactionLog } from '../lib/types';
-import { ShieldCheck, Cpu, Code2, Globe } from 'lucide-react';
+import { ShieldCheck, Shield, Lock, CreditCard } from 'lucide-react';
 
 export default function Home() {
   const [envelope, setEnvelope] = useState<BudgetEnvelope>({
@@ -21,7 +21,7 @@ export default function Home() {
       id: 'log-init',
       timestamp: '2026-10-07T12:00:00.000Z',
       agentRole: 'GUARDRAIL',
-      action: 'AgenticPay AI System Initialized & Vault Budget Envelope Enforced ($100 max)',
+      action: 'AgenticPay AI System Active — Pre-authorized budget envelope set ($100.00 max / $500.00 daily)',
       amountUSD: 0,
       recipientEmail: 'system@agenticpay.ai',
       auditConfidenceScore: 100,
@@ -46,7 +46,7 @@ export default function Home() {
 
       {/* Main Content Dashboard */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
-        {/* Banner Announcement */}
+        {/* Product Statement Banner */}
         <div className="bg-gradient-to-r from-blue-950/80 via-indigo-950/70 to-slate-900 border border-blue-800/40 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-blue-600/20 border border-blue-500/30 rounded-lg">
@@ -54,26 +54,32 @@ export default function Home() {
             </div>
             <div>
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                Autonomous Agentic Commerce Engine
+                Autonomous Escrow & Milestone Settlement
                 <span className="bg-emerald-950 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-700/50">
-                  100% Real Sandbox REST Execution
+                  Protected Escrow Active
                 </span>
               </h2>
               <p className="text-xs text-slate-300">
-                Pre-authorized budget envelopes via PayPal Vault with zero-hallucination TypeScript guardrails and multimodal vision auditability.
+                Delegate purchasing and milestone payments to your AI agent with deterministic budget caps, prompt injection defenses, and transparent audit trails.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-            <Cpu className="w-4 h-4 text-purple-400" />
-            <span>Gemini Flash</span>
+          <div className="flex items-center gap-3 text-xs font-medium text-slate-400">
+            <div className="flex items-center gap-1">
+              <Lock className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Vault Envelopes</span>
+            </div>
             <span className="text-slate-600">•</span>
-            <Code2 className="w-4 h-4 text-cyan-400" />
-            <span>AG Grid 60FPS</span>
+            <div className="flex items-center gap-1">
+              <Shield className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Zero-Trust Guardrails</span>
+            </div>
             <span className="text-slate-600">•</span>
-            <Globe className="w-4 h-4 text-emerald-400" />
-            <span>PayPal Sandbox API</span>
+            <div className="flex items-center gap-1">
+              <CreditCard className="w-3.5 h-3.5 text-purple-400" />
+              <span>PayPal Escrow</span>
+            </div>
           </div>
         </div>
 
@@ -88,7 +94,7 @@ export default function Home() {
             />
           </div>
 
-          {/* Right Column: AG Grid Real-Time Audit Command Center */}
+          {/* Right Column: Audit Ledger Command Center */}
           <div className="lg:col-span-7 h-[540px]">
             <CommandCenter logs={logs} />
           </div>
@@ -97,7 +103,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="bg-slate-900 border-t border-slate-800 py-3 px-6 text-center text-xs text-slate-500">
-        AgenticPay AI © 2026 • Built for PayPal AI Hackathon • 100% Open Source MIT License
+        AgenticPay AI © 2026 • Autonomous Agentic Commerce Platform
       </footer>
     </div>
   );
