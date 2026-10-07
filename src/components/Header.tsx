@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Shield, ShieldAlert, Zap, Lock, DollarSign, CheckCircle2, FolderGit2 } from 'lucide-react';
+import { Shield, ShieldAlert, Zap, Lock, DollarSign, CheckCircle2, FolderGit2, FolderPlus } from 'lucide-react';
 import { BudgetEnvelope, ProjectContract } from '../lib/types';
 
 interface HeaderProps {
@@ -9,6 +9,7 @@ interface HeaderProps {
   projects: ProjectContract[];
   selectedProjectId: string;
   onSelectProject: (projectId: string) => void;
+  onOpenCreateProject: () => void;
   onToggleKillSwitch: () => void;
 }
 
@@ -17,6 +18,7 @@ export const Header: React.FC<HeaderProps> = ({
   projects,
   selectedProjectId,
   onSelectProject,
+  onOpenCreateProject,
   onToggleKillSwitch,
 }) => {
   const activeProject = projects.find((p) => p.id === selectedProjectId);
@@ -64,6 +66,15 @@ export const Header: React.FC<HeaderProps> = ({
             ))}
           </select>
         </div>
+
+        {/* Create New Project Button */}
+        <button
+          onClick={onOpenCreateProject}
+          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-all shadow-md active:scale-95"
+        >
+          <FolderPlus className="w-4 h-4" />
+          <span>New Project</span>
+        </button>
 
         {/* Status Badge */}
         <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg">

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Header } from '../components/Header';
 import { CommandCenter } from '../components/CommandCenter';
 import { AgentChat } from '../components/AgentChat';
+import { CreateProjectModal } from '../components/CreateProjectModal';
 import { BudgetEnvelope, ProjectContract, TransactionLog } from '../lib/types';
 import { ShieldCheck, Shield, Lock, CreditCard, FolderGit2 } from 'lucide-react';
 
@@ -39,6 +40,7 @@ export default function Home() {
   ]);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const [envelope, setEnvelope] = useState<BudgetEnvelope>({
     maxPerTransactionUSD: 250,
@@ -92,6 +94,37 @@ export default function Home() {
     );
   };
 
+  const handleCreateProject = (data: Omit<ProjectContract, 'id' | 'spentUSD' | 'status'> & { initialScope?: string }) => {
+    const newId = `proj-${Date.now()}`;
+    const newProject: ProjectContract = {
+      id: newId,
+      name: data.name,
+      vendorName: data.vendorName,
+      vendorEmail: data.vendorEmail,
+      budgetCapUSD: data.budgetCapUSD,
+      spentUSD: 0,
+      status: 'ACTIVE',
+    };
+
+    setProjects((prev) => [newProject, ...prev]);
+    setSelectedProjectId(newId);
+
+    // Add log for creation
+    handleAddLog({
+      id: `log-${Date.now()}`,
+      projectId: newId,
+      projectName: newProject.name,
+      timestamp: new Date().toISOString(),
+      agentRole: 'GUARDRAIL',
+      action: `New Escrow Project Created: "${newProject.name}" (Vendor: ${newProject.vendorEmail} | Vault Cap: $${newProject.budgetCapUSD.toFixed(2)})`,
+      amountUSD: 0,
+      recipientEmail: newProject.vendorEmail,
+      auditConfidenceScore: 100,
+      status: 'IDLE',
+      riskLevel: 'LOW',
+    });
+  };
+
   const handleToggleProjectFreeze = (projectId: string) => {
     setProjects((prev) =>
       prev.map((p) =>
@@ -115,6 +148,7 @@ export default function Home() {
         projects={projects}
         selectedProjectId={selectedProjectId}
         onSelectProject={setSelectedProjectId}
+        onOpenCreateProject={() => setIsCreateModalOpen(true)}
         onToggleKillSwitch={() =>
           setEnvelope((prev) => ({ ...prev, killSwitchActive: !prev.killSwitchActive }))
         }
@@ -130,13 +164,13 @@ export default function Home() {
             </div>
             <div>
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                Multi-Project Escrow & Settlement Engine
+                Multi-Project Escrow Portfolio
                 <span className="bg-emerald-950 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-700/50">
                   {projects.length} Active Contracts
                 </span>
               </h2>
               <p className="text-xs text-slate-300">
-                Manage multiple contractor initiatives simultaneously. Each project enforces an isolated Vault budget envelope and granular contract controls.
+                Manage multiple contractor initiatives simultaneously. Create new projects with custom Vault budget envelopes and granular milestone controls.
               </p>
             </div>
           </div>
@@ -183,6 +217,13 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Create New Project Modal */}
+      <CreateProjectModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreateProject={handleCreateProject}
+      />
 
       {/* Footer */}
       <footer className="bg-slate-900 border-t border-slate-800 py-3 px-6 text-center text-xs text-slate-500">
