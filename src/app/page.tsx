@@ -2,13 +2,16 @@
 
 import React, { useState } from 'react';
 import { Header } from '../components/Header';
-import { CommandCenter } from '../components/CommandCenter';
-import { AgentChat } from '../components/AgentChat';
+import { ProjectPortfolioView } from '../components/ProjectPortfolioView';
+import { ProjectWorkspaceView } from '../components/ProjectWorkspaceView';
 import { CreateProjectModal } from '../components/CreateProjectModal';
 import { BudgetEnvelope, ProjectContract, TransactionLog } from '../lib/types';
-import { ShieldCheck, Shield, Lock, CreditCard, FolderGit2 } from 'lucide-react';
 
 export default function Home() {
+  const [activeView, setActiveView] = useState<'PORTFOLIO' | 'PROJECT_WORKSPACE'>('PORTFOLIO');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
   const [projects, setProjects] = useState<ProjectContract[]>([
     {
       id: 'proj-1',
@@ -38,9 +41,6 @@ export default function Home() {
       status: 'ACTIVE',
     },
   ]);
-
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const [envelope, setEnvelope] = useState<BudgetEnvelope>({
     maxPerTransactionUSD: 250,
@@ -84,7 +84,6 @@ export default function Home() {
   const handleAddLog = (newLog: TransactionLog) => {
     setLogs((prev) => [newLog, ...prev]);
 
-    // Update project spent amount
     setProjects((prev) =>
       prev.map((p) =>
         p.id === newLog.projectId
@@ -92,6 +91,11 @@ export default function Home() {
           : p
       )
     );
+  };
+
+  const handleSelectProject = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    setActiveView('PROJECT_WORKSPACE');
   };
 
   const handleCreateProject = (data: Omit<ProjectContract, 'id' | 'spentUSD' | 'status'> & { initialScope?: string }) => {
@@ -108,15 +112,15 @@ export default function Home() {
 
     setProjects((prev) => [newProject, ...prev]);
     setSelectedProjectId(newId);
+    setActiveView('PROJECT_WORKSPACE');
 
-    // Add log for creation
     handleAddLog({
       id: `log-${Date.now()}`,
       projectId: newId,
       projectName: newProject.name,
       timestamp: new Date().toISOString(),
       agentRole: 'GUARDRAIL',
-      action: `New Escrow Project Created: "${newProject.name}" (Vendor: ${newProject.vendorEmail} | Vault Cap: $${newProject.budgetCapUSD.toFixed(2)})`,
+      action: `New Escrow Contract Created: "${newProject.name}" (Vendor: ${newProject.vendorEmail} | Vault Cap: $${newProject.budgetCapUSD.toFixed(2)})`,
       amountUSD: 0,
       recipientEmail: newProject.vendorEmail,
       auditConfidenceScore: 100,
@@ -135,10 +139,7 @@ export default function Home() {
     );
   };
 
-  // Filter logs based on selected project
-  const filteredLogs = selectedProjectId === 'ALL'
-    ? logs
-    : logs.filter((log) => log.projectId === selectedProjectId);
+  const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-white">
@@ -147,75 +148,36 @@ export default function Home() {
         envelope={envelope}
         projects={projects}
         selectedProjectId={selectedProjectId}
-        onSelectProject={setSelectedProjectId}
+        onSelectProject={handleSelectProject}
         onOpenCreateProject={() => setIsCreateModalOpen(true)}
         onToggleKillSwitch={() =>
           setEnvelope((prev) => ({ ...prev, killSwitchActive: !prev.killSwitchActive }))
         }
       />
 
-      {/* Main Content Dashboard */}
+      {/* Main View Area */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
-        {/* Multi-Project Product Banner */}
-        <div className="bg-gradient-to-r from-blue-950/80 via-indigo-950/70 to-slate-900 border border-blue-800/40 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-600/20 border border-blue-500/30 rounded-lg">
-              <ShieldCheck className="w-6 h-6 text-cyan-400" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                Multi-Project Escrow Portfolio
-                <span className="bg-emerald-950 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-700/50">
-                  {projects.length} Active Contracts
-                </span>
-              </h2>
-              <p className="text-xs text-slate-300">
-                Manage multiple contractor initiatives simultaneously. Create new projects with custom Vault budget envelopes and granular milestone controls.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs font-medium text-slate-400">
-            <div className="flex items-center gap-1">
-              <FolderGit2 className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Isolated Contracts</span>
-            </div>
-            <span className="text-slate-600">•</span>
-            <div className="flex items-center gap-1">
-              <Shield className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Dual-Tier Safety</span>
-            </div>
-            <span className="text-slate-600">•</span>
-            <div className="flex items-center gap-1">
-              <CreditCard className="w-3.5 h-3.5 text-purple-400" />
-              <span>PayPal Escrow</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Dashboard Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Multi-Project Negotiation Engine */}
-          <div className="lg:col-span-5 h-[540px]">
-            <AgentChat
-              envelope={envelope}
-              projects={projects}
-              selectedProjectId={selectedProjectId}
-              onSelectProject={setSelectedProjectId}
-              onToggleProjectFreeze={handleToggleProjectFreeze}
-              onUpdateEnvelope={setEnvelope}
-              onAddLog={handleAddLog}
-            />
-          </div>
-
-          {/* Right Column: Multi-Contract Audit Ledger */}
-          <div className="lg:col-span-7 h-[540px]">
-            <CommandCenter
-              logs={filteredLogs}
-              onToggleProjectFreeze={handleToggleProjectFreeze}
-            />
-          </div>
-        </div>
+        {activeView === 'PORTFOLIO' ? (
+          <ProjectPortfolioView
+            envelope={envelope}
+            projects={projects}
+            onSelectProject={handleSelectProject}
+            onOpenCreateModal={() => setIsCreateModalOpen(true)}
+            onToggleProjectFreeze={handleToggleProjectFreeze}
+          />
+        ) : (
+          <ProjectWorkspaceView
+            project={activeProject}
+            envelope={envelope}
+            projects={projects}
+            logs={logs}
+            onBackToPortfolio={() => setActiveView('PORTFOLIO')}
+            onSelectProject={handleSelectProject}
+            onToggleProjectFreeze={handleToggleProjectFreeze}
+            onUpdateEnvelope={setEnvelope}
+            onAddLog={handleAddLog}
+          />
+        )}
       </main>
 
       {/* Create New Project Modal */}
@@ -227,7 +189,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="bg-slate-900 border-t border-slate-800 py-3 px-6 text-center text-xs text-slate-500">
-        AgenticPay AI © 2026 • Enterprise Multi-Project Escrow Platform
+        AgenticPay AI © 2026 • Enterprise Autonomous Multi-Project Escrow Platform
       </footer>
     </div>
   );
