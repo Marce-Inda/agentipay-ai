@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { ProjectPortfolioView } from '../components/ProjectPortfolioView';
 import { ProjectWorkspaceView } from '../components/ProjectWorkspaceView';
@@ -8,154 +8,209 @@ import { SaaSOnboardingModal } from '../components/SaaSOnboardingModal';
 import { CreateProjectModal } from '../components/CreateProjectModal';
 import { BudgetEnvelope, ProjectContract, TransactionLog, UserProfile } from '../lib/types';
 
+const INITIAL_PROFILE: UserProfile = {
+  id: 'usr-biz-1',
+  name: 'Acme Global Engineering',
+  role: 'BUSINESS',
+  companyOrTitle: 'Enterprise Buyer & Escrow Manager',
+  email: 'billing@acmeglobal.com',
+  payPalAccountEmail: 'sb-buyer-acme@business.example.com',
+};
+
+const INITIAL_PROJECTS: ProjectContract[] = [
+  {
+    id: 'proj-1',
+    name: 'Web Platform Engineering',
+    vendorName: 'Dev Agency LLC',
+    vendorEmail: 'dev@agency.com',
+    budgetCapUSD: 250,
+    spentUSD: 75,
+    status: 'ACTIVE',
+    milestones: [
+      {
+        id: 'ms-1-1',
+        phaseNumber: 1,
+        title: 'Phase 1: Backend API & Database Setup',
+        description: 'OAuth2 authentication, PostgreSQL schema & REST endpoints',
+        amountUSD: 75,
+        status: 'COMPLETED',
+        auditScore: 98,
+        deliverableProof: 'https://github.com/agency/web-platform/pull/1',
+        payPalBatchId: 'AGENTICPAY_PROJ1_BATCH',
+      },
+      {
+        id: 'ms-1-2',
+        phaseNumber: 2,
+        title: 'Phase 2: Frontend Dashboard UI & Components',
+        description: 'Next.js 16 App Router, Tailwind v4 design system & AG Grid integration',
+        amountUSD: 100,
+        status: 'PENDING',
+      },
+      {
+        id: 'ms-1-3',
+        phaseNumber: 3,
+        title: 'Phase 3: PayPal Sandbox Integration & E2E Testing',
+        description: 'Real-time SSE streaming, Vault pre-authorization & E2E test suite',
+        amountUSD: 75,
+        status: 'LOCKED',
+      },
+    ],
+  },
+  {
+    id: 'proj-2',
+    name: 'UI/UX Brand Redesign',
+    vendorName: 'Studio Design Co',
+    vendorEmail: 'design@studio.com',
+    budgetCapUSD: 150,
+    spentUSD: 0,
+    status: 'ACTIVE',
+    milestones: [
+      {
+        id: 'ms-2-1',
+        phaseNumber: 1,
+        title: 'Phase 1: Wireframes & High-Fidelity Figma Prototypes',
+        description: 'Nordic Luxury Fintech design tokens, dark mode palette & typography',
+        amountUSD: 60,
+        status: 'PENDING',
+      },
+      {
+        id: 'ms-2-2',
+        phaseNumber: 2,
+        title: 'Phase 2: Component Library & Design Tokens',
+        description: 'Reusable Tailwind CSS components, icon set & animations',
+        amountUSD: 90,
+        status: 'LOCKED',
+      },
+    ],
+  },
+  {
+    id: 'proj-3',
+    name: 'Digital Marketing Campaign',
+    vendorName: 'Ad Agency Global',
+    vendorEmail: 'ad@agency.com',
+    budgetCapUSD: 100,
+    spentUSD: 0,
+    status: 'ACTIVE',
+    milestones: [
+      {
+        id: 'ms-3-1',
+        phaseNumber: 1,
+        title: 'Phase 1: Campaign Strategy & Copywriting Assets',
+        description: 'Target audience persona definition, ad copy & banner assets',
+        amountUSD: 50,
+        status: 'PENDING',
+      },
+      {
+        id: 'ms-3-2',
+        phaseNumber: 2,
+        title: 'Phase 2: Ad Launch & Performance Analytics Report',
+        description: 'Campaign execution across ad networks & ROI conversion audit',
+        amountUSD: 50,
+        status: 'LOCKED',
+      },
+    ],
+  },
+];
+
+const INITIAL_ENVELOPE: BudgetEnvelope = {
+  maxPerTransactionUSD: 250,
+  dailyCeilingUSD: 1000,
+  spentTodayUSD: 75,
+  activeEscrowUSD: 0,
+  killSwitchActive: false,
+};
+
+const INITIAL_LOGS: TransactionLog[] = [
+  {
+    id: 'log-init-1',
+    projectId: 'proj-1',
+    projectName: 'Web Platform Engineering',
+    timestamp: '2026-10-07T12:00:00.000Z',
+    agentRole: 'GUARDRAIL',
+    action: 'Project Contract Enforced: Web Platform Engineering ($250.00 Vault Cap)',
+    amountUSD: 75,
+    recipientEmail: 'dev@agency.com',
+    auditConfidenceScore: 98,
+    status: 'PAYOUT_EXECUTED',
+    riskLevel: 'LOW',
+    payPalTransactionId: 'AGENTICPAY_PROJ1_BATCH',
+    httpPayloadLog: 'POST https://api-m.sandbox.paypal.com/v1/payments/payouts [201 Created]',
+  },
+  {
+    id: 'log-init-2',
+    projectId: 'proj-2',
+    projectName: 'UI/UX Brand Redesign',
+    timestamp: '2026-10-07T12:05:00.000Z',
+    agentRole: 'GUARDRAIL',
+    action: 'Project Contract Active: UI/UX Brand Redesign ($150.00 Vault Cap)',
+    amountUSD: 0,
+    recipientEmail: 'design@studio.com',
+    auditConfidenceScore: 100,
+    status: 'IDLE',
+    riskLevel: 'LOW',
+  },
+];
+
 export default function Home() {
   const [activeView, setActiveView] = useState<'PORTFOLIO' | 'PROJECT_WORKSPACE'>('PORTFOLIO');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  const [currentProfile, setCurrentProfile] = useState<UserProfile>({
-    id: 'usr-biz-1',
-    name: 'Acme Global Engineering',
-    role: 'BUSINESS',
-    companyOrTitle: 'Enterprise Buyer & Escrow Manager',
-    email: 'billing@acmeglobal.com',
-    payPalAccountEmail: 'sb-buyer-acme@business.example.com',
-  });
+  const [currentProfile, setCurrentProfile] = useState<UserProfile>(INITIAL_PROFILE);
+  const [projects, setProjects] = useState<ProjectContract[]>(INITIAL_PROJECTS);
+  const [envelope, setEnvelope] = useState<BudgetEnvelope>(INITIAL_ENVELOPE);
+  const [logs, setLogs] = useState<TransactionLog[]>(INITIAL_LOGS);
 
-  const [projects, setProjects] = useState<ProjectContract[]>([
-    {
-      id: 'proj-1',
-      name: 'Web Platform Engineering',
-      vendorName: 'Dev Agency LLC',
-      vendorEmail: 'dev@agency.com',
-      budgetCapUSD: 250,
-      spentUSD: 75,
-      status: 'ACTIVE',
-      milestones: [
-        {
-          id: 'ms-1-1',
-          phaseNumber: 1,
-          title: 'Phase 1: Backend API & Database Setup',
-          description: 'OAuth2 authentication, PostgreSQL schema & REST endpoints',
-          amountUSD: 75,
-          status: 'COMPLETED',
-          auditScore: 98,
-          deliverableProof: 'https://github.com/agency/web-platform/pull/1',
-          payPalBatchId: 'AGENTICPAY_PROJ1_BATCH',
-        },
-        {
-          id: 'ms-1-2',
-          phaseNumber: 2,
-          title: 'Phase 2: Frontend Dashboard UI & Components',
-          description: 'Next.js 16 App Router, Tailwind v4 design system & AG Grid integration',
-          amountUSD: 100,
-          status: 'PENDING',
-        },
-        {
-          id: 'ms-1-3',
-          phaseNumber: 3,
-          title: 'Phase 3: PayPal Sandbox Integration & E2E Testing',
-          description: 'Real-time SSE streaming, Vault pre-authorization & E2E test suite',
-          amountUSD: 75,
-          status: 'LOCKED',
-        },
-      ],
-    },
-    {
-      id: 'proj-2',
-      name: 'UI/UX Brand Redesign',
-      vendorName: 'Studio Design Co',
-      vendorEmail: 'design@studio.com',
-      budgetCapUSD: 150,
-      spentUSD: 0,
-      status: 'ACTIVE',
-      milestones: [
-        {
-          id: 'ms-2-1',
-          phaseNumber: 1,
-          title: 'Phase 1: Wireframes & High-Fidelity Figma Prototypes',
-          description: 'Nordic Luxury Fintech design tokens, dark mode palette & typography',
-          amountUSD: 60,
-          status: 'PENDING',
-        },
-        {
-          id: 'ms-2-2',
-          phaseNumber: 2,
-          title: 'Phase 2: Component Library & Design Tokens',
-          description: 'Reusable Tailwind CSS components, icon set & animations',
-          amountUSD: 90,
-          status: 'LOCKED',
-        },
-      ],
-    },
-    {
-      id: 'proj-3',
-      name: 'Digital Marketing Campaign',
-      vendorName: 'Ad Agency Global',
-      vendorEmail: 'ad@agency.com',
-      budgetCapUSD: 100,
-      spentUSD: 0,
-      status: 'ACTIVE',
-      milestones: [
-        {
-          id: 'ms-3-1',
-          phaseNumber: 1,
-          title: 'Phase 1: Campaign Strategy & Copywriting Assets',
-          description: 'Target audience persona definition, ad copy & banner assets',
-          amountUSD: 50,
-          status: 'PENDING',
-        },
-        {
-          id: 'ms-3-2',
-          phaseNumber: 2,
-          title: 'Phase 2: Ad Launch & Performance Analytics Report',
-          description: 'Campaign execution across ad networks & ROI conversion audit',
-          amountUSD: 50,
-          status: 'LOCKED',
-        },
-      ],
-    },
-  ]);
+  // Hydrate state from localStorage on initial client mount
+  useEffect(() => {
+    try {
+      const savedProfile = localStorage.getItem('agenticpay_profile');
+      if (savedProfile) setCurrentProfile(JSON.parse(savedProfile));
 
-  const [envelope, setEnvelope] = useState<BudgetEnvelope>({
-    maxPerTransactionUSD: 250,
-    dailyCeilingUSD: 1000,
-    spentTodayUSD: 75,
-    activeEscrowUSD: 0,
-    killSwitchActive: false,
-  });
+      const savedProjects = localStorage.getItem('agenticpay_projects');
+      if (savedProjects) setProjects(JSON.parse(savedProjects));
 
-  const [logs, setLogs] = useState<TransactionLog[]>([
-    {
-      id: 'log-init-1',
-      projectId: 'proj-1',
-      projectName: 'Web Platform Engineering',
-      timestamp: '2026-10-07T12:00:00.000Z',
-      agentRole: 'GUARDRAIL',
-      action: 'Project Contract Enforced: Web Platform Engineering ($250.00 Vault Cap)',
-      amountUSD: 75,
-      recipientEmail: 'dev@agency.com',
-      auditConfidenceScore: 98,
-      status: 'PAYOUT_EXECUTED',
-      riskLevel: 'LOW',
-      payPalTransactionId: 'AGENTICPAY_PROJ1_BATCH',
-      httpPayloadLog: 'POST https://api-m.sandbox.paypal.com/v1/payments/payouts [201 Created]',
-    },
-    {
-      id: 'log-init-2',
-      projectId: 'proj-2',
-      projectName: 'UI/UX Brand Redesign',
-      timestamp: '2026-10-07T12:05:00.000Z',
-      agentRole: 'GUARDRAIL',
-      action: 'Project Contract Active: UI/UX Brand Redesign ($150.00 Vault Cap)',
-      amountUSD: 0,
-      recipientEmail: 'design@studio.com',
-      auditConfidenceScore: 100,
-      status: 'IDLE',
-      riskLevel: 'LOW',
-    },
-  ]);
+      const savedEnvelope = localStorage.getItem('agenticpay_envelope');
+      if (savedEnvelope) setEnvelope(JSON.parse(savedEnvelope));
+
+      const savedLogs = localStorage.getItem('agenticpay_logs');
+      if (savedLogs) setLogs(JSON.parse(savedLogs));
+    } catch (err) {
+      console.warn('[LocalStorage] Hydration failed, using default mock state:', err);
+    } finally {
+      setIsHydrated(true);
+    }
+  }, []);
+
+  // Save state updates to localStorage
+  useEffect(() => {
+    if (!isHydrated) return;
+    try {
+      localStorage.setItem('agenticpay_profile', JSON.stringify(currentProfile));
+      localStorage.setItem('agenticpay_projects', JSON.stringify(projects));
+      localStorage.setItem('agenticpay_envelope', JSON.stringify(envelope));
+      localStorage.setItem('agenticpay_logs', JSON.stringify(logs));
+    } catch (err) {
+      console.warn('[LocalStorage] Save failed:', err);
+    }
+  }, [currentProfile, projects, envelope, logs, isHydrated]);
+
+  const handleResetDemoData = () => {
+    if (confirm('Reset all projects, transactions, and settings back to initial demo state?')) {
+      setCurrentProfile(INITIAL_PROFILE);
+      setProjects(INITIAL_PROJECTS);
+      setEnvelope(INITIAL_ENVELOPE);
+      setLogs(INITIAL_LOGS);
+      setSelectedProjectId('proj-1');
+      setActiveView('PORTFOLIO');
+      localStorage.removeItem('agenticpay_profile');
+      localStorage.removeItem('agenticpay_projects');
+      localStorage.removeItem('agenticpay_envelope');
+      localStorage.removeItem('agenticpay_logs');
+    }
+  };
 
   const handleAddLog = (newLog: TransactionLog) => {
     setLogs((prev) => [newLog, ...prev]);
@@ -231,6 +286,7 @@ export default function Home() {
           setEnvelope((prev) => ({ ...prev, killSwitchActive: !prev.killSwitchActive }))
         }
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
+        onResetDemoData={handleResetDemoData}
       />
 
       {/* Main View Area */}

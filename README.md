@@ -24,10 +24,11 @@ While traditional chatbots only suggest links or force users to manually click p
 
 ## 🎯 Key Features & Enterprise Capabilities
 
-* **📂 Enterprise Multi-Project Escrow Portfolio:** Multi-tenant dashboard allowing companies to manage multiple contractor initiatives simultaneously, with search filtering and custom project onboarding.
-* **🤖 Agent-to-Agent (A2A) Commerce Protocol:** Real-time negotiation between buyer and seller AI agents with instant server-to-server PayPal Sandbox settlement.
+* **📂 Enterprise Multi-Project Escrow Portfolio:** Multi-tenant dashboard allowing companies to manage multiple contractor initiatives simultaneously, with search filtering, custom project onboarding, and automatic `localStorage` state persistence.
+* **👥 Dual-Account Profile Role Switcher:** Instant workspace adaptation between **Business / Employer Mode** (managing Vault caps & contract freezes) and **Persona / Freelancer Mode** (inspecting Escrow guarantees & submitting deliverable proofs).
+* **🤖 Resilient Multi-Model AI Engine (OpenRouter):** Powered by Vercel AI SDK over OpenRouter featuring automatic fallback from primary (`openai/gpt-4o-mini`) to secondary (`meta-llama/llama-3.3-70b-instruct`) models.
 * **🛡️ Dual-Tier Security & Guardrails:** Non-AI deterministic TypeScript layer enforcing strict per-project Vault caps, granular project-level contract freezing, prompt injection defenses, and master emergency kill-switch overrides.
-* **⚡ 100% Real Sandbox API Execution:** Authenticated execution against PayPal Sandbox REST APIs with live HTTP network request inspection in AG Grid.
+* **⚡ 100% Real Sandbox API Execution:** Authenticated execution against PayPal Sandbox REST APIs with live HTTP network request inspection in AG Grid (plus graceful fallback simulation if credentials are empty).
 * **👁️ Multimodal Proof-of-Execution Audit:** Vision-powered AI verification of code commits, digital assets, or receipt authenticity before releasing escrow funds.
 * **📊 AG Grid Multi-Contract Audit Ledger:** Real-time 60 FPS transaction ledger featuring project context tagging, risk level heatmaps, and payload inspection modals.
 
