@@ -37,6 +37,7 @@ While traditional chatbots only suggest links or force users to manually click p
 
 | Document | Focus & Scope |
 | :--- | :--- |
+| 🎨 [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Nordic Luxury & Warm Fintech Design System & Tokens |
 | 📄 [plan_de_implementacion.md](plan_de_implementacion.md) | Full 11-Dimensional Master Plan & Execution Strategy |
 | 🌟 [INTEGRATED_BLUE_HAT_SYNTHESIS.md](INTEGRATED_BLUE_HAT_SYNTHESIS.md) | Integrated Architectural Synthesis |
 | 📐 [ARCHITECTURE.md](ARCHITECTURE.md) | System Component Breakdown & Data Flow |

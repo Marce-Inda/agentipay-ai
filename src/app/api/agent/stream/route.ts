@@ -6,7 +6,7 @@ import { GuardrailEnforcer } from '@/lib/guardrails/enforcer';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { prompt, maxBudgetUSD = 100 } = body;
+    const { prompt, maxBudgetUSD = 100, targetAmount, projectName = 'General Contract', vendorEmail, envelope } = body;
 
     if (!prompt) {
       return NextResponse.json({ error: 'Missing prompt in request body' }, { status: 400 });
@@ -16,15 +16,19 @@ export async function POST(req: NextRequest) {
     const sanitizedPrompt = GuardrailEnforcer.sanitizePromptInput(prompt);
 
     // Step 2: Deterministic Budget Ceiling Check
-    const dummyEnvelope = {
+    const amountToValidate = typeof targetAmount === 'number' ? targetAmount : maxBudgetUSD;
+    const currentEnvelope = envelope || {
       maxPerTransactionUSD: maxBudgetUSD,
-      dailyCeilingUSD: 500,
+      dailyCeilingUSD: 1000,
       spentTodayUSD: 0,
       activeEscrowUSD: 0,
       killSwitchActive: false,
     };
 
-    const budgetCheck = GuardrailEnforcer.validateTransactionBudget(maxBudgetUSD, dummyEnvelope);
+    const budgetCheck = GuardrailEnforcer.validateTransactionBudget(amountToValidate, {
+      ...currentEnvelope,
+      maxPerTransactionUSD: maxBudgetUSD,
+    });
 
     if (!budgetCheck.allowed) {
       return NextResponse.json(
@@ -39,10 +43,11 @@ export async function POST(req: NextRequest) {
 
     // System instruction defining the AgenticPay AI Buyer Persona
     const systemPrompt = `You are AgenticPay AI, an autonomous financial buyer agent built for the PayPal AI Hackathon 2026.
+Your active project contract is "${projectName}" with vendor (${vendorEmail || 'N/A'}).
 Your responsibility:
 1. Negotiate product/service prices fairly with sellers.
 2. Ensure milestone deliverables meet requirements before escrow funds are released via PayPal Sandbox.
-3. Obey hard budget ceilings ($${maxBudgetUSD} USD max).
+3. Obey hard budget ceilings ($${maxBudgetUSD.toFixed(2)} USD max for this project).
 Keep responses concise, professional, and clear.`;
 
     // Attempt Primary Model (GPT-4o-mini), with automatic Fallback to Llama 3.3 70B on error

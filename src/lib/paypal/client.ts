@@ -26,12 +26,12 @@ export class PayPalSandboxClient {
   private clientSecret: string;
 
   constructor(credentials?: Partial<PayPalCredentials>) {
-    const env = credentials?.environment || process.env.PAYPAL_ENV || 'sandbox';
+    const env = credentials?.environment || process.env.PAYPAL_ENV || process.env.PAYPAL_ENVIRONMENT || 'sandbox';
     this.baseUrl = env === 'production' 
       ? 'https://api-m.paypal.com' 
       : 'https://api-m.sandbox.paypal.com';
       
-    this.clientId = credentials?.clientId || process.env.PAYPAL_CLIENT_ID || '';
+    this.clientId = credentials?.clientId || process.env.PAYPAL_CLIENT_ID || process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
     this.clientSecret = credentials?.clientSecret || process.env.PAYPAL_CLIENT_SECRET || '';
   }
 

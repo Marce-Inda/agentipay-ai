@@ -136,7 +136,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs, onToggleProj
             {log.httpPayloadLog && (
               <button
                 onClick={() => setSelectedLog(log)}
-                className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs px-2 py-1 rounded border border-cyan-500/30 transition-all"
+                className="flex items-center gap-1 bg-[#252830] hover:bg-amber-500/10 text-amber-400 text-xs px-2 py-1 rounded border border-amber-500/30 transition-all"
                 title="View PayPal REST Payload"
               >
                 <Eye className="w-3 h-3" />
@@ -159,22 +159,22 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs, onToggleProj
   ];
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-2xl flex flex-col h-full">
+    <div className="bg-[#16181D] border border-amber-500/20 rounded-xl p-5 shadow-2xl flex flex-col h-full">
       {/* Header Bar */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-cyan-400" />
+          <ShieldCheck className="w-5 h-5 text-amber-400" />
           <h2 className="text-lg font-bold text-white tracking-wide">
             Multi-Contract Audit Ledger
           </h2>
         </div>
         <div className="text-xs text-slate-400">
-          Total Logs: <strong className="text-cyan-400 font-mono">{logs.length}</strong>
+          Total Logs: <strong className="text-amber-400 font-mono">{logs.length}</strong>
         </div>
       </div>
 
       {/* AG Grid Table Container */}
-      <div className="ag-theme-quartz-dark w-full h-[410px] rounded-lg overflow-hidden border border-slate-800">
+      <div className="ag-theme-quartz-dark w-full h-[410px] rounded-lg overflow-hidden border border-amber-500/10">
         <AgGridReact
           rowData={logs}
           columnDefs={columnDefs}
@@ -192,9 +192,9 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs, onToggleProj
       {/* Transaction Details Modal */}
       {selectedLog && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2 text-cyan-400">
+          <div className="bg-[#16181D] border border-amber-500/30 rounded-xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#252830] pb-3">
+              <div className="flex items-center gap-2 text-amber-400">
                 <Terminal className="w-5 h-5" />
                 <h3 className="font-bold text-lg text-white">
                   Escrow Settlement Detail ({selectedLog.projectName})
@@ -202,20 +202,20 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs, onToggleProj
               </div>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="text-slate-400 hover:text-white font-bold px-2.5 py-1 rounded bg-slate-800"
+                className="text-slate-400 hover:text-white font-bold px-2.5 py-1 rounded bg-[#252830]"
               >
                 ✕ Close
               </button>
             </div>
 
             <div className="space-y-2 text-xs text-slate-300">
-              <div><strong>Project:</strong> <span className="text-cyan-400 font-bold">{selectedLog.projectName}</span></div>
+              <div><strong>Project:</strong> <span className="text-amber-400 font-bold">{selectedLog.projectName}</span></div>
               <div><strong>Action:</strong> {selectedLog.action}</div>
               <div><strong>Recipient:</strong> <span className="text-slate-200">{selectedLog.recipientEmail}</span></div>
               <div><strong>PayPal Settlement Ref:</strong> <span className="font-mono text-emerald-400">{selectedLog.payPalTransactionId || 'N/A'}</span></div>
             </div>
 
-            <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 font-mono text-xs text-cyan-300 overflow-x-auto max-h-60">
+            <div className="bg-[#0F1115] p-4 rounded-lg border border-amber-500/20 font-mono text-xs text-amber-300 overflow-x-auto max-h-60">
               <pre>{selectedLog.httpPayloadLog}</pre>
             </div>
           </div>

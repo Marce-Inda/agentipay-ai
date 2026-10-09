@@ -4,13 +4,24 @@ import React, { useState } from 'react';
 import { Header } from '../components/Header';
 import { ProjectPortfolioView } from '../components/ProjectPortfolioView';
 import { ProjectWorkspaceView } from '../components/ProjectWorkspaceView';
+import { SaaSOnboardingModal } from '../components/SaaSOnboardingModal';
 import { CreateProjectModal } from '../components/CreateProjectModal';
-import { BudgetEnvelope, ProjectContract, TransactionLog } from '../lib/types';
+import { BudgetEnvelope, ProjectContract, TransactionLog, UserProfile } from '../lib/types';
 
 export default function Home() {
   const [activeView, setActiveView] = useState<'PORTFOLIO' | 'PROJECT_WORKSPACE'>('PORTFOLIO');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+
+  const [currentProfile, setCurrentProfile] = useState<UserProfile>({
+    id: 'usr-biz-1',
+    name: 'Acme Global Engineering',
+    role: 'BUSINESS',
+    companyOrTitle: 'Enterprise Buyer & Escrow Manager',
+    email: 'billing@acmeglobal.com',
+    payPalAccountEmail: 'sb-buyer-acme@business.example.com',
+  });
 
   const [projects, setProjects] = useState<ProjectContract[]>([
     {
@@ -21,6 +32,35 @@ export default function Home() {
       budgetCapUSD: 250,
       spentUSD: 75,
       status: 'ACTIVE',
+      milestones: [
+        {
+          id: 'ms-1-1',
+          phaseNumber: 1,
+          title: 'Phase 1: Backend API & Database Setup',
+          description: 'OAuth2 authentication, PostgreSQL schema & REST endpoints',
+          amountUSD: 75,
+          status: 'COMPLETED',
+          auditScore: 98,
+          deliverableProof: 'https://github.com/agency/web-platform/pull/1',
+          payPalBatchId: 'AGENTICPAY_PROJ1_BATCH',
+        },
+        {
+          id: 'ms-1-2',
+          phaseNumber: 2,
+          title: 'Phase 2: Frontend Dashboard UI & Components',
+          description: 'Next.js 16 App Router, Tailwind v4 design system & AG Grid integration',
+          amountUSD: 100,
+          status: 'PENDING',
+        },
+        {
+          id: 'ms-1-3',
+          phaseNumber: 3,
+          title: 'Phase 3: PayPal Sandbox Integration & E2E Testing',
+          description: 'Real-time SSE streaming, Vault pre-authorization & E2E test suite',
+          amountUSD: 75,
+          status: 'LOCKED',
+        },
+      ],
     },
     {
       id: 'proj-2',
@@ -30,6 +70,24 @@ export default function Home() {
       budgetCapUSD: 150,
       spentUSD: 0,
       status: 'ACTIVE',
+      milestones: [
+        {
+          id: 'ms-2-1',
+          phaseNumber: 1,
+          title: 'Phase 1: Wireframes & High-Fidelity Figma Prototypes',
+          description: 'Nordic Luxury Fintech design tokens, dark mode palette & typography',
+          amountUSD: 60,
+          status: 'PENDING',
+        },
+        {
+          id: 'ms-2-2',
+          phaseNumber: 2,
+          title: 'Phase 2: Component Library & Design Tokens',
+          description: 'Reusable Tailwind CSS components, icon set & animations',
+          amountUSD: 90,
+          status: 'LOCKED',
+        },
+      ],
     },
     {
       id: 'proj-3',
@@ -39,6 +97,24 @@ export default function Home() {
       budgetCapUSD: 100,
       spentUSD: 0,
       status: 'ACTIVE',
+      milestones: [
+        {
+          id: 'ms-3-1',
+          phaseNumber: 1,
+          title: 'Phase 1: Campaign Strategy & Copywriting Assets',
+          description: 'Target audience persona definition, ad copy & banner assets',
+          amountUSD: 50,
+          status: 'PENDING',
+        },
+        {
+          id: 'ms-3-2',
+          phaseNumber: 2,
+          title: 'Phase 2: Ad Launch & Performance Analytics Report',
+          description: 'Campaign execution across ad networks & ROI conversion audit',
+          amountUSD: 50,
+          status: 'LOCKED',
+        },
+      ],
     },
   ]);
 
@@ -148,11 +224,13 @@ export default function Home() {
         envelope={envelope}
         projects={projects}
         selectedProjectId={selectedProjectId}
+        currentProfile={currentProfile}
         onSelectProject={handleSelectProject}
         onOpenCreateProject={() => setIsCreateModalOpen(true)}
         onToggleKillSwitch={() =>
           setEnvelope((prev) => ({ ...prev, killSwitchActive: !prev.killSwitchActive }))
         }
+        onOpenOnboarding={() => setIsOnboardingOpen(true)}
       />
 
       {/* Main View Area */}
@@ -161,6 +239,7 @@ export default function Home() {
           <ProjectPortfolioView
             envelope={envelope}
             projects={projects}
+            currentProfile={currentProfile}
             onSelectProject={handleSelectProject}
             onOpenCreateModal={() => setIsCreateModalOpen(true)}
             onToggleProjectFreeze={handleToggleProjectFreeze}
@@ -171,6 +250,7 @@ export default function Home() {
             envelope={envelope}
             projects={projects}
             logs={logs}
+            currentProfile={currentProfile}
             onBackToPortfolio={() => setActiveView('PORTFOLIO')}
             onSelectProject={handleSelectProject}
             onToggleProjectFreeze={handleToggleProjectFreeze}
@@ -185,6 +265,14 @@ export default function Home() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreateProject={handleCreateProject}
+      />
+
+      {/* SaaS Onboarding & Profile Modal */}
+      <SaaSOnboardingModal
+        isOpen={isOnboardingOpen}
+        currentProfile={currentProfile}
+        onClose={() => setIsOnboardingOpen(false)}
+        onSelectProfile={(profile) => setCurrentProfile(profile)}
       />
 
       {/* Footer */}

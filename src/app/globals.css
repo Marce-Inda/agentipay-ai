@@ -3,12 +3,92 @@
 @import "ag-grid-community/styles/ag-theme-quartz.css";
 
 :root {
-  --background: #090d16;
-  --foreground: #ededed;
+  --background: #0f1115;
+  --foreground: #f8fafc;
+  --card-bg: #16181d;
+  --copper-primary: #d97706;
+  --copper-light: #f59e0b;
+  --emerald-accent: #10b981;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f1115;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2d36;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d97706;
+}
+
+/* Custom Metallic Gradient Utility */
+.bg-metallic-gradient {
+  background: linear-gradient(135deg, rgba(22, 24, 29, 0.95) 0%, rgba(30, 34, 43, 0.9) 50%, rgba(45, 30, 15, 0.3) 100%);
+}
+
+.border-metallic {
+  border-color: rgba(217, 119, 6, 0.25);
+}
+
+.border-metallic-hover:hover {
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+/* ==========================================
+   AG GRID DARK THEME OVERRIDES (60 FPS LEDGER)
+   ========================================== */
+.ag-theme-quartz-dark,
+.ag-theme-alpine-dark,
+.ag-theme-dark,
+.ag-root-wrapper,
+.ag-root-wrapper-body,
+.ag-body-viewport,
+.ag-paging-panel {
+  --ag-background-color: #0f1115 !important;
+  --ag-foreground-color: #e2e8f0 !important;
+  --ag-header-background-color: #16181d !important;
+  --ag-header-foreground-color: #f59e0b !important;
+  --ag-row-hover-color: #252830 !important;
+  --ag-selected-row-background-color: #2a2d36 !important;
+  --ag-odd-row-background-color: #12141a !important;
+  --ag-border-color: rgba(245, 158, 11, 0.15) !important;
+  --ag-row-border-color: rgba(255, 255, 255, 0.05) !important;
+  --ag-font-size: 12px !important;
+  background-color: #0f1115 !important;
+  color: #e2e8f0 !important;
+}
+
+.ag-header-cell-label {
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+.ag-row {
+  background-color: #0f1115 !important;
+  color: #e2e8f0 !important;
+}
+
+.ag-row-odd {
+  background-color: #12141a !important;
+}
+
+.ag-paging-panel {
+  background-color: #16181d !important;
+  color: #94a3b8 !important;
 }

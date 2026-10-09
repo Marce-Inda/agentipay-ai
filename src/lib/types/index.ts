@@ -11,6 +11,18 @@ export type TransactionStatus =
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
+export interface ProjectMilestone {
+  id: string;
+  phaseNumber: number;
+  title: string;
+  description: string;
+  amountUSD: number;
+  status: 'COMPLETED' | 'PENDING' | 'LOCKED';
+  auditScore?: number;
+  deliverableProof?: string;
+  payPalBatchId?: string;
+}
+
 export interface ProjectContract {
   id: string;
   name: string;
@@ -19,6 +31,7 @@ export interface ProjectContract {
   budgetCapUSD: number;
   spentUSD: number;
   status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+  milestones?: ProjectMilestone[];
 }
 
 export interface TransactionLog {
@@ -53,4 +66,16 @@ export interface A2ANegotiationMessage {
   timestamp: string;
   proposedPrice?: number;
   deliverableUrl?: string;
+}
+
+export type UserRole = 'BUSINESS' | 'FREELANCER';
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  role: UserRole;
+  companyOrTitle: string;
+  email: string;
+  payPalAccountEmail: string;
+  avatarUrl?: string;
 }
