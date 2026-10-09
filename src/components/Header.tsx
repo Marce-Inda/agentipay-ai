@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Shield, ShieldAlert, Zap, Lock, DollarSign, CheckCircle2, FolderGit2, FolderPlus, UserCheck, Building2, User, RotateCcw } from 'lucide-react';
+import { Shield, ShieldAlert, Zap, Lock, DollarSign, CheckCircle2, FolderGit2, FolderPlus, UserCheck, Building2, User } from 'lucide-react';
 import { BudgetEnvelope, ProjectContract, UserProfile } from '../lib/types';
 
 interface HeaderProps {
@@ -13,7 +13,6 @@ interface HeaderProps {
   onOpenCreateProject: () => void;
   onToggleKillSwitch: () => void;
   onOpenOnboarding: () => void;
-  onResetDemoData?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,7 +24,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCreateProject,
   onToggleKillSwitch,
   onOpenOnboarding,
-  onResetDemoData,
 }) => {
   const activeProject = projects.find((p) => p.id === selectedProjectId);
 
@@ -151,18 +149,6 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           )}
         </button>
-
-        {/* Reset Demo Data Button */}
-        {onResetDemoData && (
-          <button
-            onClick={onResetDemoData}
-            className="flex items-center gap-1.5 bg-[#0f1115] hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 px-3 py-2 rounded-lg font-semibold transition-all active:scale-95"
-            title="Reset demo data back to initial state"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-            <span className="hidden lg:inline">Reset Demo</span>
-          </button>
-        )}
       </div>
     </header>
   );

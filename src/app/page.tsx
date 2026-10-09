@@ -286,7 +286,6 @@ export default function Home() {
           setEnvelope((prev) => ({ ...prev, killSwitchActive: !prev.killSwitchActive }))
         }
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
-        onResetDemoData={handleResetDemoData}
       />
 
       {/* Main View Area */}

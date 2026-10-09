@@ -103,7 +103,7 @@ export const SaaSOnboardingModal: React.FC<SaaSOnboardingModalProps> = ({
             </div>
 
             <div className="pt-2 border-t border-amber-500/10 text-[11px] font-mono text-amber-400/90">
-              Demo: Acme Global Corp
+              Account: Acme Global Corp
             </div>
           </div>
 
@@ -137,7 +137,7 @@ export const SaaSOnboardingModal: React.FC<SaaSOnboardingModalProps> = ({
             </div>
 
             <div className="pt-2 border-t border-cyan-500/10 text-[11px] font-mono text-cyan-400/90">
-              Demo: Dev Agency LLC
+              Account: Dev Agency LLC
             </div>
           </div>
         </div>
