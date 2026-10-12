@@ -41,14 +41,17 @@
 
 ### Key Components
 
-#### 1. Metric Cards (Portfolio View)
-- Dark obsidian base `#16181D` with hover scale animation (`hover:scale-[1.01]`).
-- Subtitled with metallic gold icons and currency typography.
+#### 1. Dual Executive Command Panels (Split-Screen Executive Summary)
+- **Side-by-Side 50/50 Split Grid:**
+  - **Left Panel (Managed Contracts / Outbound Escrow):** Warm Copper / Amber Gold accent tones (`border-amber-500`, `bg-gradient-to-br from-[#1c1813]`), dedicated to Accounts Payable, Pre-Authorized Vault limits, and vendor governance.
+  - **Right Panel (Assigned Contracts / Inbound Receivables):** Cyan / Emerald Nordic Tech accent tones (`border-cyan-500`, `bg-gradient-to-br from-[#121b24]`), dedicated to Accounts Receivable, Client Secured Vault reserves, and guaranteed payout tracking.
+- Interactive glow and ring highlighting on the actively focused workspace context (`ACTIVE WORKSPACE`).
+- Single-click context switching that filters the lower operational grid to 100% full width.
 
-#### 2. Metallic Copper Buttons
+#### 2. Metallic Copper & Nordic Cyan Buttons
 ```tsx
 <button className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs px-4 py-2 rounded-lg border border-amber-400/30 transition-all shadow-md active:scale-95">
-  Create New Project
+  + New Contract / Subcontract
 </button>
 ```
 
@@ -64,8 +67,12 @@
 |  AgenticPay AI Header (PayPal OAuth Status | Vault Budget Envelope | Kill-Switch)  |
 +-----------------------------------------------------------------------------------+
 |  [VIEW 1: PORTFOLIO DASHBOARD]                                                    |
-|  - Financial Summary Cards (Total Vault Cap, Spent, Active Contracts, Guardrails)|
-|  - Project Cards Grid (Progress Bar, Vendor Details, Status, Quick Actions)       |
+|  - Legal Entity & Compliance Status Banner (Enterprise Business vs Individual)   |
+|  - DUAL EXECUTIVE COMMAND PANELS (Side-by-Side 50/50 Executive Summary):          |
+|    * Panel A: Managed Contracts (Outbound Escrow / Accounts Payable)              |
+|    * Panel B: Assigned Contracts (Inbound Receivables / Accounts Receivable)      |
+|  - Workspace Focus Toolbar (Managed | Assigned | All + Search & Status Filters)   |
+|  - Full-Width Focused Project Cards Grid (100% Width Density, Responsive 3-Cols)  |
 |                                                                                   |
 |  [VIEW 2: PROJECT WORKSPACE] (Opened upon selecting a project card)               |
 |  - Sub-Header (Back to Portfolio, Project Status, Vault Cap, Freeze Toggle)       |

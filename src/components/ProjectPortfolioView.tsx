@@ -69,9 +69,13 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
     return matchesFilter && matchesSearch;
   });
 
-  const totalVaultCap = filteredProjects.reduce((acc, p) => acc + p.budgetCapUSD, 0);
-  const totalSpent = filteredProjects.reduce((acc, p) => acc + p.spentUSD, 0);
-  const activeCount = filteredProjects.filter((p) => p.status === 'ACTIVE').length;
+  const outgoingCap = outgoingProjects.reduce((acc, p) => acc + p.budgetCapUSD, 0);
+  const outgoingSpent = outgoingProjects.reduce((acc, p) => acc + p.spentUSD, 0);
+  const outgoingActive = outgoingProjects.filter((p) => p.status === 'ACTIVE').length;
+
+  const incomingCap = incomingProjects.reduce((acc, p) => acc + p.budgetCapUSD, 0);
+  const incomingClaimed = incomingProjects.reduce((acc, p) => acc + p.spentUSD, 0);
+  const incomingActive = incomingProjects.filter((p) => p.status === 'ACTIVE').length;
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -124,47 +128,246 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
         </div>
       </div>
 
-      {/* DUAL PERSPECTIVE SELECTOR (Contracts I Manage vs Contracts I Deliver) */}
-      <div className="bg-[#16181d] border border-amber-900/40 rounded-2xl p-2 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          {/* Tab 1: Contracts I Manage (Hiring / Outbound) */}
+      {/* DUAL EXECUTIVE COMMAND PANELS (Side-by-Side 50/50 Split) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Panel A: Managed Contracts (Outbound Escrow / Accounts Payable) */}
+        <div
+          onClick={() => setPerspectiveTab('OUTGOING')}
+          className={`relative rounded-2xl p-6 border transition-all duration-300 cursor-pointer overflow-hidden flex flex-col justify-between group ${
+            perspectiveTab === 'OUTGOING'
+              ? 'bg-gradient-to-br from-[#1c1813] via-[#16181d] to-[#141218] border-amber-500 shadow-2xl shadow-amber-950/50 ring-2 ring-amber-500/40'
+              : 'bg-[#16181d]/90 border-amber-900/30 hover:border-amber-600/50 hover:bg-[#1a1d24]'
+          }`}
+        >
+          {/* Subtle Accent Glow */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
+          <div>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-3 rounded-xl border shadow-inner ${
+                    perspectiveTab === 'OUTGOING'
+                      ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+                      : 'bg-slate-800/80 border-slate-700 text-slate-400 group-hover:text-amber-400'
+                  }`}
+                >
+                  <ArrowUpRight className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded font-mono bg-amber-950/60 border border-amber-700/50 text-amber-300">
+                      Outbound Escrow • Accounts Payable
+                    </span>
+                    {perspectiveTab === 'OUTGOING' && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-400 font-mono">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        ACTIVE WORKSPACE
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-base font-bold text-white group-hover:text-amber-300 transition-colors mt-0.5">
+                    💼 Managed Contracts (Hiring)
+                  </h3>
+                </div>
+              </div>
+
+              <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-black/40 border border-amber-900/40 text-amber-300">
+                {outgoingProjects.length} {outgoingProjects.length === 1 ? 'Contract' : 'Contracts'}
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-300 mb-5 leading-relaxed">
+              Agreements you sponsor and administer. Funds are pre-authorized in PayPal Vault envelopes and released only upon zero-trust AI audit milestone verification.
+            </p>
+
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-3 gap-3 bg-[#0F1115]/80 p-3.5 rounded-xl border border-slate-800/80 mb-4">
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">Vault Cap Authorized</span>
+                <span className="text-base font-bold text-amber-400 font-mono">${outgoingCap.toFixed(2)}</span>
+                <span className="text-[10px] text-slate-500 block">USD Total Limit</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">Settled to Vendors</span>
+                <span className="text-base font-bold text-emerald-400 font-mono">${outgoingSpent.toFixed(2)}</span>
+                <span className="text-[10px] text-slate-500 block">USD Released</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">Active Governance</span>
+                <span className="text-base font-bold text-white font-mono">{outgoingActive} Active</span>
+                <span className="text-[10px] text-slate-500 block">of {outgoingProjects.length} total</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Panel Footer */}
+          <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 mt-1">
+            <span className="text-xs text-amber-400/90 font-medium flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>Zero-Trust LLM Guardrails Active</span>
+            </span>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPerspectiveTab('OUTGOING');
+                  onOpenCreateModal();
+                }}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg transition-all shadow-md active:scale-95 whitespace-nowrap"
+              >
+                <FolderPlus className="w-3.5 h-3.5 text-slate-950" />
+                <span>+ New Contract</span>
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPerspectiveTab('OUTGOING');
+                }}
+                className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                  perspectiveTab === 'OUTGOING'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'bg-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>{perspectiveTab === 'OUTGOING' ? 'Viewing Contracts' : 'View Contracts'}</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Panel B: Assigned Contracts (Inbound Receivables / Accounts Receivable) */}
+        <div
+          onClick={() => setPerspectiveTab('INCOMING')}
+          className={`relative rounded-2xl p-6 border transition-all duration-300 cursor-pointer overflow-hidden flex flex-col justify-between group ${
+            perspectiveTab === 'INCOMING'
+              ? 'bg-gradient-to-br from-[#121b24] via-[#16181d] to-[#12232e] border-cyan-500 shadow-2xl shadow-cyan-950/50 ring-2 ring-cyan-500/40'
+              : 'bg-[#16181d]/90 border-cyan-900/30 hover:border-cyan-600/50 hover:bg-[#1a1d24]'
+          }`}
+        >
+          {/* Subtle Accent Glow */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
+
+          <div>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-3 rounded-xl border shadow-inner ${
+                    perspectiveTab === 'INCOMING'
+                      ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400'
+                      : 'bg-slate-800/80 border-slate-700 text-slate-400 group-hover:text-cyan-400'
+                  }`}
+                >
+                  <ArrowDownLeft className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded font-mono bg-cyan-950/60 border border-cyan-700/50 text-cyan-300">
+                      Inbound Escrow • Accounts Receivable
+                    </span>
+                    {perspectiveTab === 'INCOMING' && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-cyan-400 font-mono">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                        ACTIVE WORKSPACE
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-base font-bold text-white group-hover:text-cyan-300 transition-colors mt-0.5">
+                    🛠️ Assigned Contracts (Contractor)
+                  </h3>
+                </div>
+              </div>
+
+              <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-black/40 border border-cyan-900/40 text-cyan-300">
+                {incomingProjects.length} {incomingProjects.length === 1 ? 'Contract' : 'Contracts'}
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-300 mb-5 leading-relaxed">
+              Contracts where you deliver professional milestones. Client escrow is pre-funded and held in PayPal Vault envelopes, guaranteeing $0 non-payment risk upon verified delivery.
+            </p>
+
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-3 gap-3 bg-[#0F1115]/80 p-3.5 rounded-xl border border-slate-800/80 mb-4">
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">Secured Client Vault</span>
+                <span className="text-base font-bold text-cyan-400 font-mono">${incomingCap.toFixed(2)}</span>
+                <span className="text-[10px] text-slate-500 block">USD Guaranteed</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">Claimed Payouts</span>
+                <span className="text-base font-bold text-emerald-400 font-mono">${incomingClaimed.toFixed(2)}</span>
+                <span className="text-[10px] text-slate-500 block">USD Received</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">Active Deliverables</span>
+                <span className="text-base font-bold text-white font-mono">{incomingActive} Active</span>
+                <span className="text-[10px] text-slate-500 block">of {incomingProjects.length} total</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Panel Footer */}
+          <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 mt-1">
+            <span className="text-xs text-cyan-300/90 font-medium flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>100% Guaranteed Payout ($0 Non-Payment Risk)</span>
+            </span>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setPerspectiveTab('INCOMING');
+              }}
+              className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                perspectiveTab === 'INCOMING'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                  : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>{perspectiveTab === 'INCOMING' ? 'Viewing Contracts' : 'View Contracts'}</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Toolbar & Filter Bar with Workspace Focus Switcher */}
+      <div className="bg-[#16181d] border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Workspace Quick Switcher Tabs */}
+        <div className="flex items-center gap-1.5 bg-[#0f1115] border border-slate-800 p-1 rounded-xl text-xs w-full md:w-auto">
           <button
             onClick={() => setPerspectiveTab('OUTGOING')}
-            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
               perspectiveTab === 'OUTGOING'
-                ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-lg shadow-amber-900/40 ring-1 ring-amber-400/50'
-                : 'text-slate-400 hover:text-white hover:bg-[#252830]'
+                ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow ring-1 ring-amber-400/40'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
-            <ArrowUpRight className="w-4 h-4 text-amber-300" />
-            <span>💼 Contracts I Manage (Hiring)</span>
-            <span className="bg-black/40 text-amber-300 px-2 py-0.5 rounded-full text-[10px] font-mono border border-amber-500/30">
-              {outgoingProjects.length}
-            </span>
+            <ArrowUpRight className="w-3.5 h-3.5 text-amber-300" />
+            <span>💼 Managed ({outgoingProjects.length})</span>
           </button>
 
-          {/* Tab 2: Contracts I Deliver (Contractor / Inbound) */}
           <button
             onClick={() => setPerspectiveTab('INCOMING')}
-            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
               perspectiveTab === 'INCOMING'
-                ? 'bg-gradient-to-r from-cyan-600 to-cyan-700 text-white shadow-lg shadow-cyan-900/40 ring-1 ring-cyan-400/50'
-                : 'text-slate-400 hover:text-white hover:bg-[#252830]'
+                ? 'bg-gradient-to-r from-cyan-600 to-cyan-700 text-white shadow ring-1 ring-cyan-400/40'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
-            <ArrowDownLeft className="w-4 h-4 text-cyan-300" />
-            <span>🛠️ Contracts I Deliver (Contractor)</span>
-            <span className="bg-black/40 text-cyan-300 px-2 py-0.5 rounded-full text-[10px] font-mono border border-cyan-500/30">
-              {incomingProjects.length}
-            </span>
+            <ArrowDownLeft className="w-3.5 h-3.5 text-cyan-300" />
+            <span>🛠️ Assigned ({incomingProjects.length})</span>
           </button>
 
-          {/* Tab 3: All Contracts */}
           <button
             onClick={() => setPerspectiveTab('ALL')}
-            className={`px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
               perspectiveTab === 'ALL'
-                ? 'bg-slate-800 text-white shadow'
+                ? 'bg-slate-800 text-white shadow border border-slate-700'
                 : 'text-slate-500 hover:text-slate-300'
             }`}
           >
@@ -172,124 +375,92 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
           </button>
         </div>
 
-        {/* Action Button: Create / Subcontract */}
-        <button
-          onClick={onOpenCreateModal}
-          className="w-full md:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap"
-        >
-          <FolderPlus className="w-4 h-4 text-slate-950" />
-          <span>+ New Contract / Subcontract</span>
-        </button>
-      </div>
+        {/* Search & Status Filters */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          {/* Search Input */}
+          <div className="flex items-center gap-2 bg-[#0f1115] border border-slate-800 rounded-lg px-3 py-1.5 text-xs w-full sm:w-64">
+            <Search className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by contract, client or vendor..."
+              className="bg-transparent text-white placeholder-slate-500 focus:outline-none w-full"
+            />
+          </div>
 
-      {/* KPI Global Portfolio Metrics Header */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Metric 1: Total Active Projects in View */}
-        <div className="bg-gradient-to-br from-[#16181d] to-[#1c1f27] border border-amber-900/30 rounded-xl p-4 shadow-xl flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-400 block mb-1">
-              {perspectiveTab === 'INCOMING' ? 'Assigned Contracts Active' : 'Active Initiatives'}
-            </span>
-            <span className="text-2xl font-bold text-white font-mono">{activeCount}</span>
-            <span className="text-[11px] text-slate-500 block mt-0.5">of {filteredProjects.length} shown contracts</span>
-          </div>
-          <div className="p-3 bg-amber-950/60 border border-amber-800/40 rounded-xl text-amber-500">
-            <Zap className="w-5 h-5 fill-amber-500/20" />
-          </div>
-        </div>
-
-        {/* Metric 2: Total Escrow Cap */}
-        <div className="bg-gradient-to-br from-[#16181d] to-[#1c1f27] border border-amber-900/30 rounded-xl p-4 shadow-xl flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-400 block mb-1">
-              {perspectiveTab === 'INCOMING' ? 'Client Guaranteed Escrow' : 'Pre-Authorized Vault Cap'}
-            </span>
-            <span className="text-2xl font-bold text-amber-400 font-mono">${totalVaultCap.toFixed(2)} USD</span>
-            <span className="text-[11px] text-slate-500 block mt-0.5">
-              {perspectiveTab === 'INCOMING' ? 'Protected in PayPal Vault' : 'Secured Escrow Envelopes'}
-            </span>
-          </div>
-          <div className="p-3 bg-amber-950/60 border border-amber-800/40 rounded-xl text-amber-500">
-            <Lock className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Metric 3: Total Funds Settled */}
-        <div className="bg-gradient-to-br from-[#16181d] to-[#1c1f27] border border-amber-900/30 rounded-xl p-4 shadow-xl flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-400 block mb-1">
-              {perspectiveTab === 'INCOMING' ? 'Milestone Payouts Claimed' : 'Released Escrow Settlements'}
-            </span>
-            <span className="text-2xl font-bold text-emerald-400 font-mono">${totalSpent.toFixed(2)} USD</span>
-            <span className="text-[11px] text-slate-500 block mt-0.5">Settled via PayPal REST API</span>
-          </div>
-          <div className="p-3 bg-emerald-950/60 border border-emerald-800/40 rounded-xl text-emerald-400">
-            <DollarSign className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Metric 4: Protection Shield Status */}
-        <div className="bg-gradient-to-br from-[#16181d] to-[#1c1f27] border border-amber-900/30 rounded-xl p-4 shadow-xl flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-400 block mb-1">AI Audit & Safety Guard</span>
-            <span className="text-sm font-bold text-emerald-400 flex items-center gap-1 mt-1">
-              <CheckCircle2 className="w-4 h-4" /> 100% Protected
-            </span>
-            <span className="text-[11px] text-slate-500 block mt-0.5">Zero-Trust Guardrails</span>
-          </div>
-          <div className="p-3 bg-[#0f1115] border border-slate-800 rounded-xl text-emerald-400">
-            <ShieldCheck className="w-5 h-5" />
+          {/* Status Filter Tabs */}
+          <div className="flex items-center bg-[#0f1115] border border-slate-800 p-1 rounded-lg text-xs shrink-0">
+            <button
+              onClick={() => setFilterStatus('ALL')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                filterStatus === 'ALL'
+                  ? 'bg-slate-800 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              All ({filteredProjects.length})
+            </button>
+            <button
+              onClick={() => setFilterStatus('ACTIVE')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                filterStatus === 'ACTIVE'
+                  ? 'bg-slate-800 text-emerald-300 shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Active ({filteredProjects.filter((p) => p.status === 'ACTIVE').length})
+            </button>
+            <button
+              onClick={() => setFilterStatus('PAUSED')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                filterStatus === 'PAUSED'
+                  ? 'bg-slate-800 text-amber-300 shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Paused ({filteredProjects.filter((p) => p.status === 'PAUSED').length})
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Toolbar & Filter Bar */}
-      <div className="bg-[#16181d] border border-amber-900/30 rounded-xl p-4 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
-        {/* Search Input */}
-        <div className="flex items-center gap-2 bg-[#0f1115] border border-slate-800 rounded-lg px-3 py-2 text-xs w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-500" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by project, client, or vendor..."
-            className="bg-transparent text-white placeholder-slate-500 focus:outline-none w-full"
-          />
+      {/* Focused Context Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1">
+        <div>
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            {perspectiveTab === 'OUTGOING' && (
+              <>
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                <span>Managed Contracts Ledger (Accounts Payable)</span>
+              </>
+            )}
+            {perspectiveTab === 'INCOMING' && (
+              <>
+                <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                <span>Assigned Contracts Ledger (Accounts Receivable)</span>
+              </>
+            )}
+            {perspectiveTab === 'ALL' && (
+              <>
+                <span className="w-2 h-2 rounded-full bg-slate-400" />
+                <span>Consolidated Enterprise Contracts Portfolio</span>
+              </>
+            )}
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {perspectiveTab === 'OUTGOING' &&
+              'Review vendor progress, verify milestone deliverables against zero-trust AI audit guards, and release PayPal Vault funds.'}
+            {perspectiveTab === 'INCOMING' &&
+              'Submit verifiable milestone pull requests/diffs to trigger autonomous audit verification and claim pre-funded client payouts.'}
+            {perspectiveTab === 'ALL' &&
+              'Unified view showing all active inbound escrow and outbound vendor contracts across the organization.'}
+          </p>
         </div>
 
-        {/* Status Filter Tabs */}
-        <div className="flex items-center bg-[#0f1115] border border-slate-800 p-1 rounded-lg text-xs">
-          <button
-            onClick={() => setFilterStatus('ALL')}
-            className={`px-3 py-1 rounded-md font-semibold transition-all ${
-              filterStatus === 'ALL'
-                ? 'bg-gradient-to-r from-amber-700 to-amber-600 text-slate-950 shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            All ({filteredProjects.length})
-          </button>
-          <button
-            onClick={() => setFilterStatus('ACTIVE')}
-            className={`px-3 py-1 rounded-md font-semibold transition-all ${
-              filterStatus === 'ACTIVE'
-                ? 'bg-gradient-to-r from-amber-700 to-amber-600 text-slate-950 shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Active ({filteredProjects.filter((p) => p.status === 'ACTIVE').length})
-          </button>
-          <button
-            onClick={() => setFilterStatus('PAUSED')}
-            className={`px-3 py-1 rounded-md font-semibold transition-all ${
-              filterStatus === 'PAUSED'
-                ? 'bg-gradient-to-r from-amber-700 to-amber-600 text-slate-950 shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Paused ({filteredProjects.filter((p) => p.status === 'PAUSED').length})
-          </button>
-        </div>
+        <span className="text-xs font-mono text-slate-400 bg-[#16181d] px-2.5 py-1 rounded-lg border border-slate-800 shrink-0">
+          Showing {filteredProjects.length} of {projects.length} contracts
+        </span>
       </div>
 
       {/* Project Cards Grid */}
