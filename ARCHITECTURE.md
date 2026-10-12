@@ -4,56 +4,57 @@ This document outlines the system architecture, component breakdown, data flow, 
 
 ---
 
-## 🏛️ System Overview & Multi-Project Hierarchy Diagram
+## System Overview & Component Diagram
 
 ```
-                     ┌───────────────────────────────────────────────┐
-                     │          Web UI / Client Dashboard            │
-                     │  - Next.js App Router (Modular Monolith)       │
-                     │  - Multi-Project Switcher & Context Selector  │
-                     │  - AG Grid Multi-Contract Audit Ledger         │
-                     └───────────────────────┬───────────────────────┘
-                                             │ REST API / Server Actions
-                     ┌───────────────────────▼───────────────────────┐
-                     │           Next.js Server API Backend          │
-                     │  - Multi-Project Context Isolation Manager    │
-                     │  - Agent Execution & Bargaining Engine        │
-                     │  - Multimodal Vision Deliverable Auditor      │
-                     │  - Dual-Tier Guardrail & Safety Enforcer     │
-                     │  - PayPal OAuth & Payout Gateway Adapter      │
-                     └──────────┬─────────────────────────┬──────────┘
-                                │                         │
-      ┌─────────────────────────▼────────┐       ┌────────▼────────────────────────┐
-      │   PayPal Developer Sandbox       │       │       Multimodal LLM            │
-      │  - Orders API (Checkout / Pre-Auth)│       │  - OpenAI / OpenRouter / Gemini │
-      │  - Payouts API (Escrow Release)  │       │  - Vision & Reasoning Engine    │
-      │  - Vault API (Tokenization)      │       └─────────────────────────────────┘
-      └──────────────────────────────────┘
+                     +-----------------------------------------------+
+                     |          Web UI / Client Dashboard            |
+                     |  - Next.js App Router (Modular Monolith)       |
+                     |  - Multi-Project Context Selector & Portfolio |
+                     |  - AG Grid Multi-Contract Audit Ledger         |
+                     |  - Organization & Account Settings Modal      |
+                     +-----------------------+-----------------------+
+                                             | REST API / Server Actions
+                     +-----------------------v-----------------------+
+                     |           Next.js Server API Backend          |
+                     |  - Multi-Project Context Isolation Manager    |
+                     |  - Agent Execution & Bargaining Engine        |
+                     |  - Multimodal Vision & Deliverable Auditor    |
+                     |  - Dual-Tier Guardrail & Safety Enforcer     |
+                     |  - PayPal OAuth & Payout Gateway Adapter      |
+                     +----------+-------------------------+----------+
+                                |                         |
+      +-------------------------v--------+       +--------v------------------------+
+      |   PayPal Developer Sandbox       |       |       Multimodal LLM            |
+      |  - Orders API (Checkout / Pre-Auth)|       |  - OpenAI / OpenRouter / Gemini |
+      |  - Payouts API (Escrow Release)  |       |  - Vision & Reasoning Engine    |
+      |  - Vault API (Tokenization)      |       +---------------------------------+
+      +----------------------------------+
 ```
 
 ---
 
-## 🏢 Multi-Project & Multi-Contract Architecture
+## Multi-Project & Multi-Contract Architecture
 
-To support real-world enterprise operations where an account can both hire contractors and deliver client projects (including subcontracting chains):
+To support real-world enterprise operations where an organization can both hire contractors and deliver client projects (including cascading subcontracting chains):
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 🔴 MASTER EMERGENCY KILL-SWITCH (Global Safety Halt)                        │
-│ » Revokes PayPal OAuth credentials at account level in critical emergencies │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-      ┌────────────────────────────────┴────────────────────────────────┐
-      ▼                                                                 ▼
-┌───────────────────────────────────────────────┐     ┌───────────────────────────────────────────────┐
-│ 💼 PROYECTOS QUE CONTRATO (Outgoing Escrow)   │     │ 🛠️ PROYECTOS QUE REALIZO (Incoming Escrow)    │
-│ » Vault Pre-Authorized by User's Account      │     │ » Vault Locked by Client's Account            │
-│ » Deliverables audited before payout release  │     │ » Milestones verified & funds claimed         │
-├───────────────────────┬───────────────────────┤     ├───────────────────────┬───────────────────────┤
-│ Contract: Web Dev     │ Contract: Copywriting │     │ Contract: FinTech App │ Contract: Design QA   │
-│ Vendor: dev@agency    │ Vendor: copy@pro.io   │     │ Client: Acme Corp     │ Client: Global Ret.   │
-│ Vault Cap: $250.00    │ Vault Cap: $100.00    │     │ Escrow: $1,500.00     │ Escrow: $450.00       │
-└───────────────────────┴───────────────────────┘     └───────────────────────┴───────────────────────┘
++-----------------------------------------------------------------------------+
+| MASTER EMERGENCY KILL-SWITCH (Global Safety Halt)                           |
+| Revokes PayPal OAuth credentials at account level in critical emergencies   |
++--------------------------------------+--------------------------------------+
+                                       |
+       +-------------------------------+-------------------------------+
+       v                                                               v
++-----------------------------------------------+     +-----------------------------------------------+
+| CONTRACTS I MANAGE (Outgoing Escrow - Hiring) |     | CONTRACTS I DELIVER (Incoming Escrow - Vendor)|
+| Vault Pre-Authorized by User's Account        |     | Vault Locked by Client's Account              |
+| Deliverables audited before payout release    |     | Milestones verified & funds claimed           |
++-----------------------+-----------------------+     +-----------------------+-----------------------+
+| Contract: Web Dev     | Contract: Copywriting |     | Contract: FinTech App | Contract: Subcontract |
+| Vendor: dev@agency    | Vendor: copy@pro.io   |     | Client: Apex Holding  | Client: Acme Global   |
+| Vault Cap: $250.00    | Vault Cap: $100.00    |     | Escrow: $1,200.00     | Escrow: $150.00       |
++-----------------------+-----------------------+     +-----------------------+-----------------------+
 ```
 
 ### Key Multi-Project & Entity Features:
@@ -63,14 +64,19 @@ To support real-world enterprise operations where an account can both hire contr
 2. **Dual-Perspective Relationship Model:**
    * **Outgoing (`CONTRACTING`):** The account acts as Buyer/Principal. Funds are tokenized and deposited into escrow; AI audits deliverables submitted by third parties.
    * **Incoming (`CONTRACTOR`):** The account acts as Vendor/Freelancer. Escrow funds are guaranteed upfront ($0 payment default risk); deliverables are submitted to trigger PayPal payout execution.
-3. **Cascading Subcontracting Engine:** An incoming project can spawn child outgoing contracts (e.g., delegating a component), preserving end-to-end milestone traceability.
-4. **Dual-Tier Control Hierarchy:**
+3. **Milestone Deliverable Audit & Settlement Pipeline:**
+   * **Acceptance Criteria Specification:** Principal defines phase requirements (e.g. test coverage, OpenAPI specifications, build artifacts).
+   * **Contractor Deliverable Submission:** Contractor submits PR links, commit hashes, or technical execution proofs.
+   * **AI Audit Agent Verification:** Sanitizes input against OWASP LLM01 injection attacks, evaluates compliance against acceptance criteria, and calculates confidence score (0-100%).
+   * **Automated PayPal Payout:** If score >= 85%, automatically invokes PayPal Payouts API (`/v1/payments/payouts`), records batch ID, marks milestone as completed, and appends an immutable transaction log to AG Grid.
+4. **Cascading Subcontracting Engine:** An incoming project can spawn child outgoing contracts (e.g., delegating a component), preserving end-to-end milestone traceability.
+5. **Dual-Tier Control Hierarchy:**
    * **Project-Level Escrow Freeze:** Pauses or cancels escrow releases for a specific project/contract without affecting other active projects.
    * **Master Emergency Kill-Switch:** Account-level circuit breaker that immediately revokes tokens across all active projects.
 
 ---
 
-## 🧩 Core Architectural Components
+## Core Architectural Components
 
 ### 1. Multi-Project Context Manager (`/lib/projects`)
 * **Role:** Isolates project states, vendor contracts, milestones, and active escrow balances.
@@ -79,15 +85,18 @@ To support real-world enterprise operations where an account can both hire contr
 * **Role:** Non-AI validation layer intercepting AI intents before calling PayPal APIs.
 * **Enforces:** Per-project budget caps, OWASP LLM01 prompt injection sanitization, confidence score thresholds (>=85%), and dual-tier kill-switch status.
 
-### 3. PayPal Gateway Adapter (`/lib/paypal`)
+### 3. AI Deliverable Auditor (`/api/agent/audit`)
+* **Role:** Semantic code and document evaluator comparing submitted deliverables against client criteria with automated PayPal payout dispatching.
+
+### 4. PayPal Gateway Adapter (`/lib/paypal`)
 * **Role:** Server-side client wrapper for PayPal REST APIs (`api-m.sandbox.paypal.com`).
 * **Functions:** OAuth2 token management, Vault tokenization, and Payouts execution (`/v1/payments/payouts`).
 
-### 4. AG Grid Multi-Contract Audit Ledger (`/components/CommandCenter.tsx`)
+### 5. AG Grid Multi-Contract Audit Ledger (`/components/CommandCenter.tsx`)
 * **Role:** High-throughput 60 FPS transaction ledger supporting multi-project filtering and real-time risk heatmaps.
 
 ---
 
-## 🔒 Security Architecture & Compliance
+## Security Architecture & Compliance
 
 For detailed security policies (OWASP LLM Top 10, NIST CSF 2.0, PCI-DSS offloading), see [SECURITY.md](SECURITY.md).

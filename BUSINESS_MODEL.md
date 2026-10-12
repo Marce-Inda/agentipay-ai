@@ -42,8 +42,8 @@ AgenticPay AI decouples the **Account Entity Type** (Personal vs. Business) from
 
 ### 🔄 Dual-Perspective Project Model & Subcontracting
 In standard freelancer ecosystems, users are artificially locked into either "Buyer" or "Seller". In AgenticPay AI:
-1. **"Proyectos que Contrato" (Outgoing / Escrow Provider):** The user pre-authorizes funds in PayPal Vault, configures AI guardrails, and authorizes milestone payouts upon deliverable audit.
-2. **"Proyectos que Realizo" (Incoming / Contractor):** The user views guaranteed locked PayPal Escrow funds ($0 counterparty risk), submits deliverable proofs (PRs, Figma links, diffs), and collects automated payouts.
+1. **"Contracts I Manage (Hiring)" (Outgoing / Escrow Provider):** The user pre-authorizes funds in PayPal Vault, defines phase-specific Acceptance Criteria, configures AI guardrails, and authorizes milestone payouts upon deliverable audit.
+2. **"Contracts I Deliver (Contractor)" (Incoming / Contractor):** The user views guaranteed locked PayPal Escrow funds ($0 counterparty risk), inspects client specifications, submits deliverable proofs (PRs, Figma links, diffs), and collects automated payouts upon AI audit approval.
 3. **Cascading Subcontracting:** An agency or lead developer hired for a $5,000 project (Incoming) can seamlessly open a $500 sub-project (Outgoing) to outsource copywriting or graphics, managing both from one unified dashboard.
 
 ### Pricing Structure:

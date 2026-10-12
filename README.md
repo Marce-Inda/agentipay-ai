@@ -24,12 +24,13 @@ While traditional chatbots only suggest links or force users to manually click p
 
 ## 🎯 Key Features & Enterprise Capabilities
 
-* **📂 Enterprise Multi-Project Escrow Portfolio:** Multi-tenant dashboard allowing users to toggle between **"Proyectos que Contrato"** (Outbound / Escrow Provider) and **"Proyectos que Realizo"** (Inbound / Contractor), with cascading subcontracting support and automatic `localStorage` persistence.
-* **👥 Account Tiers & Legal-Tech Integration:** Choose between **Personal Account** (individual freelancers/creators with swift terms) and **Business Account** (corporate entities with Tax ID/VAT, automated MSA/SOW legal contracts, multi-user approval governance, and pooled Vault caps).
+* **📂 Enterprise Multi-Project Escrow Portfolio:** Multi-tenant dashboard allowing users to toggle between **"Contracts I Manage (Hiring)"** (Outbound / Escrow Provider) and **"Contracts I Deliver (Contractor)"** (Inbound / Contractor), with cascading subcontracting support and automatic `localStorage` persistence.
+* **👥 Organization & Account Settings:** Choose between **Individual Professional Account** (freelancers/creators with swift terms) and **Enterprise Business Account** (corporate entities with Tax ID/VAT, automated binding Master MSA & SOW contracts, multi-user approval governance, and pooled Vault caps). Includes multi-tenant workspace session switching.
+* **🔍 Milestone Deliverable Audit & Automated Settlement:** Principal defines strict **Acceptance Criteria** per milestone; Contractor views specifications and submits proofs (GitHub PRs, commit diffs, architectural docs). An **AI Audit Agent** validates compliance with OWASP LLM01 injection defense and automatically releases the PayPal Escrow payout when confidence >=85%.
 * **🤖 Resilient Multi-Model AI Engine (OpenRouter):** Powered by Vercel AI SDK over OpenRouter featuring automatic fallback from primary (`openai/gpt-4o-mini`) to secondary (`meta-llama/llama-3.3-70b-instruct`) models.
 * **🛡️ Dual-Tier Security & Guardrails:** Non-AI deterministic TypeScript layer enforcing strict per-project Vault caps, granular project-level contract freezing, prompt injection defenses, and master emergency kill-switch overrides.
 * **⚡ 100% Real Sandbox API Execution:** Authenticated execution against PayPal Sandbox REST APIs with live HTTP network request inspection in AG Grid (plus graceful fallback simulation if credentials are empty).
-* **👁️ Multimodal Proof-of-Execution Audit:** Vision-powered AI verification of code commits, digital assets, or receipt authenticity before releasing escrow funds.
+* **👁️ Multimodal Proof-of-Execution Audit:** Vision & code verification of pull requests, commits, and digital deliverables before releasing escrow funds.
 * **📊 AG Grid Multi-Contract Audit Ledger:** Real-time 60 FPS transaction ledger featuring project context tagging, risk level heatmaps, and payload inspection modals.
 
 ---
