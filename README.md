@@ -45,7 +45,9 @@ While traditional chatbots only suggest links or force users to manually click p
 | 📄 [plan_de_implementacion.md](plan_de_implementacion.md) | Full 11-Dimensional Master Plan & Execution Strategy |
 | 🌟 [INTEGRATED_BLUE_HAT_SYNTHESIS.md](INTEGRATED_BLUE_HAT_SYNTHESIS.md) | Integrated Architectural Synthesis |
 | 📐 [ARCHITECTURE.md](ARCHITECTURE.md) | System Component Breakdown & Data Flow |
+| 🏛️ [COMPLIANCE.md](COMPLIANCE.md) | Regulatory Compliance, Non-Custodial TSP Model & Chargeback Protection |
 | 🛡️ [SECURITY.md](SECURITY.md) | Financial Guardrails, OWASP Defenses & Risk Policy |
+| 🎙️ [PITCH_STRATEGY.md](PITCH_STRATEGY.md) | Hackathon Video Script, Winning Moats & Devpost Delivery Playbook |
 | 📊 [DATA_GOVERNANCE.md](DATA_GOVERNANCE.md) | Data Governance, GDPR PII Scrubbing & Lineage |
 | 🤝 [ETHICS_AND_RESPONSIBLE_AI.md](ETHICS_AND_RESPONSIBLE_AI.md) | Responsible AI (UNESCO, EU AI Act, OECD) |
 | 💼 [BUSINESS_MODEL.md](BUSINESS_MODEL.md) | Commercial Strategy, TAM & PayPal TPV Alignment |
