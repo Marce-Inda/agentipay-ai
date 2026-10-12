@@ -73,9 +73,11 @@ To support real-world enterprise operations where an organization can both hire 
 5. **Dual-Tier Control Hierarchy:**
    * **Project-Level Escrow Freeze:** Pauses or cancels escrow releases for a specific project/contract without affecting other active projects.
    * **Master Emergency Kill-Switch:** Account-level circuit breaker that immediately revokes tokens across all active projects.
-6. **Dual Executive Command Panels (Split-Screen Executive Summary):**
-   * **Executive Layer:** Side-by-side 50/50 dual summary cards displaying high-level corporate metrics for Accounts Payable (`OUTGOING` Vault Cap) and Accounts Receivable (`INCOMING` Client Escrow) without requiring pagination or hiding critical figures.
-   * **Focused Operational Workspace:** Selecting an executive card instantly focuses the full-width workspace (100% density grid), eliminating visual clutter and asymmetric scrolling while maintaining clear operational role separation.
+6. **Two-Column Master Swimlanes Architecture:**
+   * **Parallel Account Workspaces:** The portfolio dashboard renders two synchronized columns:
+     - **Left Swimlane (Outbound Escrow / Accounts Payable):** Contains the Outbound Executive Summary Card and all active agreements where the entity hires and audits vendors.
+     - **Right Swimlane (Inbound Escrow / Accounts Receivable):** Contains the Inbound Executive Summary Card, guaranteed client deposit reserves, and contracts where the entity delivers milestones.
+   * **Zero Redundant Navigation:** Replaces redundant secondary tab bars with a clean global search and utility toolbar, offering optional focus toggles (`Dual Split View | Managed Only | Assigned Only`).
 
 ---
 

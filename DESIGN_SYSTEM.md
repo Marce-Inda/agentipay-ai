@@ -41,12 +41,17 @@
 
 ### Key Components
 
-#### 1. Dual Executive Command Panels (Split-Screen Executive Summary)
-- **Side-by-Side 50/50 Split Grid:**
-  - **Left Panel (Managed Contracts / Outbound Escrow):** Warm Copper / Amber Gold accent tones (`border-amber-500`, `bg-gradient-to-br from-[#1c1813]`), dedicated to Accounts Payable, Pre-Authorized Vault limits, and vendor governance.
-  - **Right Panel (Assigned Contracts / Inbound Receivables):** Cyan / Emerald Nordic Tech accent tones (`border-cyan-500`, `bg-gradient-to-br from-[#121b24]`), dedicated to Accounts Receivable, Client Secured Vault reserves, and guaranteed payout tracking.
-- Interactive glow and ring highlighting on the actively focused workspace context (`ACTIVE WORKSPACE`).
-- Single-click context switching that filters the lower operational grid to 100% full width.
+#### 1. Integrated Two-Column Master Swimlanes (Dual Accounts Architecture)
+- **Side-by-Side 50/50 Dual Swimlanes:**
+  - **Left Swimlane (Managed Contracts / Outbound Escrow / Accounts Payable):** 
+    - Warm Copper / Amber Gold accent tones (`border-amber-500/40`, `bg-gradient-to-br from-[#1c1813]`).
+    - Dedicated Executive Summary header displaying pre-authorized Vault caps, released vendor settlements, and active governance stats.
+    - Vertically stacked full-width project cards for agreements where the user hires and audits vendors.
+  - **Right Swimlane (Assigned Contracts / Inbound Receivables / Accounts Receivable):** 
+    - Cyan / Emerald Nordic Tech accent tones (`border-cyan-500/40`, `bg-gradient-to-br from-[#121b24]`).
+    - Dedicated Executive Summary header displaying client secured escrow deposits and claimed milestone payouts with guaranteed $0 non-payment risk.
+    - Vertically stacked full-width project cards for agreements where the user delivers milestones.
+- **Unified Global Utilities Toolbar:** Search and status filtering apply simultaneously across both swimlanes with zero redundant tab controls, including a focus toggle (`Dual Split View | Managed Only | Assigned Only`).
 
 #### 2. Metallic Copper & Nordic Cyan Buttons
 ```tsx
@@ -68,11 +73,19 @@
 +-----------------------------------------------------------------------------------+
 |  [VIEW 1: PORTFOLIO DASHBOARD]                                                    |
 |  - Legal Entity & Compliance Status Banner (Enterprise Business vs Individual)   |
-|  - DUAL EXECUTIVE COMMAND PANELS (Side-by-Side 50/50 Executive Summary):          |
-|    * Panel A: Managed Contracts (Outbound Escrow / Accounts Payable)              |
-|    * Panel B: Assigned Contracts (Inbound Receivables / Accounts Receivable)      |
-|  - Workspace Focus Toolbar (Managed | Assigned | All + Search & Status Filters)   |
-|  - Full-Width Focused Project Cards Grid (100% Width Density, Responsive 3-Cols)  |
+|  - Global Utilities Toolbar (Search across all contracts | Status Filter | Focus) |
+|                                                                                   |
+|  [TWO-COLUMN MASTER SWIMLANES]                                                    |
+|  ┌───────────────────────────────────────┬──────────────────────────────────────┐  |
+|  │ COLUMN A: MANAGED CONTRACTS (OUTBOUND)│ COLUMN B: ASSIGNED CONTRACTS (INBOUND)│  |
+|  ├───────────────────────────────────────┼──────────────────────────────────────┤  |
+|  │ [ Executive Summary: $550 Vault Cap ] │ [ Executive Summary: $1,200 Escrow ] │  |
+|  │ • 3 Active Contracts | $75 Settled    │ • 1 Active Contract | $400 Claimed   │  |
+|  ├───────────────────────────────────────┼──────────────────────────────────────┤  |
+|  │ [ Contract Card 1: Web Platform Eng ] │ [ Contract Card 1: FinTech Core ]    │  |
+|  │ [ Contract Card 2: UI/UX Redesign ]   │ [ Capacity Card: Accepting Mandates ]│  |
+|  │ [ Contract Card 3: Subcontract Docs ] │                                      │  |
+|  └───────────────────────────────────────┴──────────────────────────────────────┘  |
 |                                                                                   |
 |  [VIEW 2: PROJECT WORKSPACE] (Opened upon selecting a project card)               |
 |  - Sub-Header (Back to Portfolio, Project Status, Vault Cap, Freeze Toggle)       |

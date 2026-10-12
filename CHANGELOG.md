@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.4.1] - 2026-10-12 (Enterprise UX: Two-Column Master Swimlanes)
+
+### Added
+- **Integrated Two-Column Master Swimlanes:** Seamlessly embedded the Executive Summary cards with their respective contract feeds in two parallel 50/50 columns (Left: Outbound Accounts Payable / Right: Inbound Accounts Receivable).
+- **Global Utilities Toolbar:** Search and status filtering work simultaneously across both swimlanes with zero redundant tab controls.
+- **Swimlane Focus Toggle:** Added interactive toggle (`Dual Split View | Managed Only | Assigned Only`) allowing users to inspect both streams side-by-side or maximize either stream.
+
+### Changed
+- Eliminated redundant secondary tab controls beneath the executive summaries.
+- Updated `DESIGN_SYSTEM.md`, `ARCHITECTURE.md`, and `README.md` to reflect the Master Swimlane layout.
+
+---
+
 ## [0.4.0] - 2026-10-12 (Enterprise UX: Dual Executive Split)
 
 ### Added
