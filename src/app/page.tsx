@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { ProjectPortfolioView } from '../components/ProjectPortfolioView';
 import { ProjectWorkspaceView } from '../components/ProjectWorkspaceView';
-import { SaaSOnboardingModal } from '../components/SaaSOnboardingModal';
+import { AccountSettingsModal } from '../components/AccountSettingsModal';
 import { CreateProjectModal } from '../components/CreateProjectModal';
 import { BudgetEnvelope, ProjectContract, TransactionLog, UserProfile } from '../lib/types';
 
@@ -415,12 +415,19 @@ export default function Home() {
         onCreateProject={handleCreateProject}
       />
 
-      {/* SaaS Onboarding & Profile Modal */}
-      <SaaSOnboardingModal
+      {/* Organization & Account Settings Modal */}
+      <AccountSettingsModal
         isOpen={isOnboardingOpen}
         currentProfile={currentProfile}
         onClose={() => setIsOnboardingOpen(false)}
-        onSelectProfile={(profile) => setCurrentProfile(profile)}
+        onUpdateProfile={(profile) => {
+          setCurrentProfile(profile);
+          try {
+            localStorage.setItem('agenticpay_profile_v2', JSON.stringify(profile));
+          } catch (e) {
+            console.error('Failed to sync updated profile to localStorage', e);
+          }
+        }}
       />
 
       {/* Footer */}

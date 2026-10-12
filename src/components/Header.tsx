@@ -12,7 +12,8 @@ import {
   Building2, 
   User,
   ArrowLeft,
-  LayoutGrid
+  LayoutGrid,
+  Settings,
 } from 'lucide-react';
 import { BudgetEnvelope, ProjectContract, UserProfile } from '../lib/types';
 
@@ -70,7 +71,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Multi-Project Selector & Controls */}
       <div className="flex flex-wrap items-center gap-3 text-xs">
-        {/* User Account Role Switcher Badge */}
+        {/* User Account & Organization Settings Button */}
         <button
           onClick={onOpenOnboarding}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border font-bold transition-all shadow-inner active:scale-95 ${
@@ -78,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({
               ? 'bg-amber-500/10 border-amber-500/40 text-amber-300 hover:bg-amber-500/20'
               : 'bg-cyan-500/10 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20'
           }`}
-          title="Click to Switch SaaS Account Profile (Business Enterprise vs Personal)"
+          title="Organization & Account Settings"
         >
           {isBusiness ? (
             <Building2 className="w-4 h-4 text-amber-400" />
@@ -87,13 +88,14 @@ export const Header: React.FC<HeaderProps> = ({
           )}
           <span>{currentProfile.name}</span>
           <span className="text-[10px] opacity-75 font-mono px-1.5 py-0.5 rounded bg-black/40 border border-current">
-            {isBusiness ? 'BUSINESS (Enterprise)' : 'PERSONAL'}
+            {isBusiness ? 'ENTERPRISE' : 'INDIVIDUAL'}
           </span>
           {currentProfile.taxId && (
             <span className="hidden lg:inline text-[9px] font-mono text-slate-400 border border-slate-700 px-1 py-0.5 rounded bg-black/30">
               {currentProfile.taxId}
             </span>
           )}
+          <Settings className="w-3.5 h-3.5 text-slate-400 ml-0.5 hover:text-white transition" />
         </button>
 
         {/* Project Context Navigation / Selector */}
