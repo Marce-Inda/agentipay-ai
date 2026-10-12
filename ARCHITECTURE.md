@@ -78,6 +78,7 @@ To support real-world enterprise operations where an organization can both hire 
      - **Left Swimlane (Outbound Escrow / Accounts Payable):** Contains the Outbound Executive Summary Card and all active agreements where the entity hires and audits vendors.
      - **Right Swimlane (Inbound Escrow / Accounts Receivable):** Contains the Inbound Executive Summary Card, guaranteed client deposit reserves, and contracts where the entity delivers milestones.
    * **Zero Redundant Navigation:** Replaces redundant secondary tab bars with a clean global search and utility toolbar, offering optional focus toggles (`Dual Split View | Managed Only | Assigned Only`).
+   * **Asymmetric Swimlane Resilience & Empty State Hubs:** Avoids unpopulated dead spaces by transforming empty or shorter columns into Actionable Enterprise Onboarding Hubs (e.g. Inbound Escrow Intake Links, Outbound Procurement Mandates), maintaining visual equilibrium across varying portfolio volumes.
 
 ---
 

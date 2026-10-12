@@ -51,6 +51,9 @@
     - Cyan / Emerald Nordic Tech accent tones (`border-cyan-500/40`, `bg-gradient-to-br from-[#121b24]`).
     - Dedicated Executive Summary header displaying client secured escrow deposits and claimed milestone payouts with guaranteed $0 non-payment risk.
     - Vertically stacked full-width project cards for agreements where the user delivers milestones.
+- **Actionable Onboarding & Asymmetry Balancing (Zero Dead Space Principle):**
+  - Columns with 0 contracts render proactive institutional onboarding hubs (*Accounts Payable Procurement Hub* on the left, *Accounts Receivable Intake Hub* on the right) with zero-trust benefit badges and direct action buttons (e.g. *Copy Client Escrow Intake Link*).
+  - When one column has fewer contracts than the other, an *Enterprise Capacity & Intake Card* dynamically populates the shorter column, preserving visual symmetry and providing a live link generator for client escrow intake.
 - **Unified Global Utilities Toolbar:** Search and status filtering apply simultaneously across both swimlanes with zero redundant tab controls, including a focus toggle (`Dual Split View | Managed Only | Assigned Only`).
 
 #### 2. Metallic Copper & Nordic Cyan Buttons

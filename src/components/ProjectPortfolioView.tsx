@@ -17,6 +17,11 @@ import {
   ArrowUpRight,
   Briefcase,
   Layers,
+  Copy,
+  Share2,
+  Sparkles,
+  RotateCcw,
+  Lock,
 } from 'lucide-react';
 import { BudgetEnvelope, ProjectContract, UserProfile } from '../lib/types';
 
@@ -40,8 +45,17 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'ACTIVE' | 'PAUSED'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [columnFocus, setColumnFocus] = useState<'DUAL' | 'OUTGOING' | 'INCOMING'>('DUAL');
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const isBusiness = currentProfile?.role === 'BUSINESS' || currentProfile?.accountType === 'BUSINESS';
+
+  const handleCopyEscrowLink = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(`https://agenticpay.ai/escrow/intake/${currentProfile?.id || 'enterprise'}`);
+    }
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
 
   // Separate Outgoing (Managed / Hiring) and Incoming (Assigned / Contractor)
   const outgoingProjectsRaw = projects.filter((p) => p.perspective !== 'INCOMING');
@@ -303,10 +317,61 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
             {/* List of Outbound Contracts */}
             <div className="space-y-4">
               {filteredOutgoing.length === 0 ? (
-                <div className="p-8 text-center bg-[#16181d]/60 border border-dashed border-slate-800 rounded-2xl text-slate-400">
-                  <Briefcase className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                  <p className="text-xs font-medium">No managed contracts match your current filter.</p>
-                </div>
+                searchTerm || filterStatus !== 'ALL' ? (
+                  <div className="p-8 text-center bg-[#16181d]/60 border border-dashed border-slate-800 rounded-2xl text-slate-400">
+                    <Search className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-slate-300">
+                      No managed contracts match &ldquo;{searchTerm || filterStatus}&rdquo;
+                    </p>
+                    <button
+                      onClick={() => {
+                        setSearchTerm('');
+                        setFilterStatus('ALL');
+                      }}
+                      className="mt-3 text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 mx-auto font-bold"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reset Filters</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-6 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-[#1c1813] via-[#16181d] to-[#141218] shadow-xl text-left space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold font-mono uppercase tracking-wider text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/40">
+                          Accounts Payable • Procurement Hub
+                        </span>
+                        <h4 className="text-sm font-bold text-white mt-1">
+                          Deploy Pre-Authorized Vault Envelopes for Agency Partners
+                        </h4>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Pre-authorize milestone budget envelopes in PayPal Vault to contract engineering agencies or design studios. Tokens are locked with deterministic non-AI ceilings and disburse only upon verified AI audit proof.
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 font-mono bg-[#0f1115]/80 p-3 rounded-xl border border-slate-800">
+                      <span className="flex items-center gap-1.5 text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Zero-Trust LLM Defense
+                      </span>
+                      <span className="flex items-center gap-1.5 text-amber-400">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Granular Kill-Switch
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={onOpenCreateModal}
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs py-2.5 px-4 rounded-xl shadow-md transition-all active:scale-95"
+                    >
+                      <FolderPlus className="w-4 h-4 text-slate-950" />
+                      <span>+ Issue Outbound MSA & SOW Contract</span>
+                    </button>
+                  </div>
+                )
               ) : (
                 filteredOutgoing.map((project) => {
                   const percentSpent = Math.min(
@@ -498,10 +563,63 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
             {/* List of Inbound Contracts */}
             <div className="space-y-4">
               {filteredIncoming.length === 0 ? (
-                <div className="p-8 text-center bg-[#16181d]/60 border border-dashed border-slate-800 rounded-2xl text-slate-400">
-                  <Briefcase className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                  <p className="text-xs font-medium">No assigned contracts match your current filter.</p>
-                </div>
+                searchTerm || filterStatus !== 'ALL' ? (
+                  <div className="p-8 text-center bg-[#16181d]/60 border border-dashed border-slate-800 rounded-2xl text-slate-400">
+                    <Search className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-slate-300">
+                      No assigned contracts match &ldquo;{searchTerm || filterStatus}&rdquo;
+                    </p>
+                    <button
+                      onClick={() => {
+                        setSearchTerm('');
+                        setFilterStatus('ALL');
+                      }}
+                      className="mt-3 text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1 mx-auto font-bold"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reset Filters</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-6 rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-[#121b24] via-[#16181d] to-[#12232e] shadow-xl text-left space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-400">
+                        <ShieldCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold font-mono uppercase tracking-wider text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-500/40">
+                          Accounts Receivable • Intake Hub
+                        </span>
+                        <h4 className="text-sm font-bold text-white mt-1">
+                          Secure Guaranteed Client Escrow & Eliminate Default Risk
+                        </h4>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Require corporate clients to pre-fund project milestones into PayPal Vault before kicking off development or delivery. Funds are safely locked in neutral escrow, guaranteeing $0 non-payment risk upon verified pull request or deliverable submission.
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 font-mono bg-[#0f1115]/80 p-3 rounded-xl border border-slate-800">
+                      <span className="flex items-center gap-1.5 text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> $0 Non-Payment Risk
+                      </span>
+                      <span className="flex items-center gap-1.5 text-cyan-400">
+                        <Lock className="w-3.5 h-3.5" /> Pre-Funded Vault Lock
+                      </span>
+                    </div>
+
+                    <div className="pt-1">
+                      <button
+                        onClick={handleCopyEscrowLink}
+                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-slate-950 font-bold text-xs py-2.5 px-4 rounded-xl shadow-md transition-all active:scale-95"
+                      >
+                        {copiedLink ? <CheckCircle2 className="w-4 h-4 text-slate-950" /> : <Copy className="w-4 h-4 text-slate-950" />}
+                        <span>{copiedLink ? '✓ Escrow Intake Link Copied to Clipboard!' : 'Copy Client Escrow Intake Link'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )
               ) : (
                 filteredIncoming.map((project) => {
                   const percentSpent = Math.min(
@@ -617,20 +735,39 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                 })
               )}
 
-              {/* Enterprise Capacity / Expansion Card to balance visual height */}
-              <div className="p-4 rounded-2xl border border-dashed border-cyan-800/40 bg-gradient-to-br from-[#121b24]/40 to-transparent flex items-center justify-between text-xs text-slate-400">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-cyan-950/80 border border-cyan-500/30 text-cyan-400">
-                    <CheckCircle2 className="w-4 h-4" />
+              {/* Enterprise Client Capacity & Intake Link Card (Balances visual column height) */}
+              <div className="p-5 rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-[#121b24]/80 via-[#16181d] to-[#12232e]/40 shadow-xl space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-cyan-950 border border-cyan-500/40 text-cyan-400">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-white block">Enterprise Client Capacity Available</span>
+                      <span className="text-[11px] text-slate-400">PayPal Vault escrow pre-funding ready for new incoming SOW mandates</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="font-bold text-slate-200 block">Accepting Client Mandates</span>
-                    <span className="text-[11px] text-slate-400">PayPal Vault escrow pre-funding ready for inbound SOW agreements.</span>
-                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 font-bold shrink-0">
+                    PRE-AUTHENTICATED
+                  </span>
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 font-bold shrink-0">
-                  AUTO-SECURED
-                </span>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Accepting additional client contracts with guaranteed escrow locks. Share your pre-verified escrow intake link with prospective buyers to initiate automated milestone settlements.
+                </p>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+                  <span className="text-[11px] text-slate-400 font-mono truncate">
+                    Intake: <strong className="text-cyan-300">agenticpay.ai/escrow/{currentProfile?.id || 'enterprise'}</strong>
+                  </span>
+                  <button
+                    onClick={handleCopyEscrowLink}
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 font-bold text-xs transition-all shrink-0 active:scale-95"
+                  >
+                    {copiedLink ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-cyan-300" />}
+                    <span>{copiedLink ? 'Copied!' : 'Copy Intake Link'}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

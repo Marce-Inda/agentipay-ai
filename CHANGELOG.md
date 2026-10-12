@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.4.2] - 2026-10-12 (Enterprise UX: Actionable Onboarding & Asymmetry Balancing)
+
+### Added
+- **Actionable Onboarding Empty States:** Replaced inert empty messages with institutional onboarding hubs (*Accounts Payable Procurement Hub* on Outbound / *Accounts Receivable Intake Hub* on Inbound).
+- **Interactive Client Escrow Intake Link:** Integrated one-click link generator (`agenticpay.ai/escrow/...`) with clipboard feedback for inviting prospective enterprise clients to pre-fund escrow envelopes.
+- **Enterprise Capacity & Intake Card:** Dynamic visual expansion card in shorter columns balancing visual height and eliminating dead space.
+- **Instant Search Filter Reset:** Contextual filter reset button (`Reset Filters`) when searches yield zero results.
+
+---
+
 ## [0.4.1] - 2026-10-12 (Enterprise UX: Two-Column Master Swimlanes)
 
 ### Added
