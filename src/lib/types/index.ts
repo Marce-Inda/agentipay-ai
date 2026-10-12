@@ -18,19 +18,32 @@ export interface ProjectMilestone {
   description: string;
   amountUSD: number;
   status: 'COMPLETED' | 'PENDING' | 'LOCKED';
+  acceptanceCriteria?: string;
   auditScore?: number;
+  auditRationale?: string;
   deliverableProof?: string;
+  submittedAt?: string;
   payPalBatchId?: string;
 }
+
+export type ProjectPerspective = 'OUTGOING' | 'INCOMING';
+export type ContractLegalType = 'MSA_SOW' | 'STANDARD_AGREEMENT';
 
 export interface ProjectContract {
   id: string;
   name: string;
   vendorName: string;
   vendorEmail: string;
+  clientName?: string;
+  clientEmail?: string;
   budgetCapUSD: number;
   spentUSD: number;
   status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+  perspective?: ProjectPerspective; // 'OUTGOING' = Proyectos que contrato | 'INCOMING' = Proyectos que realizo
+  contractType?: ContractLegalType;
+  contractReferenceId?: string;
+  isSubcontracted?: boolean;
+  parentProjectId?: string;
   milestones?: ProjectMilestone[];
 }
 
@@ -59,6 +72,13 @@ export interface BudgetEnvelope {
   killSwitchActive: boolean;
 }
 
+export interface GuardrailCheckResult {
+  allowed: boolean;
+  reason: string;
+  riskLevel: RiskLevel;
+  sanitizedText?: string;
+}
+
 export interface A2ANegotiationMessage {
   id: string;
   sender: 'BUYER_AGENT' | 'SELLER_AGENT' | 'SYSTEM';
@@ -68,14 +88,21 @@ export interface A2ANegotiationMessage {
   deliverableUrl?: string;
 }
 
-export type UserRole = 'BUSINESS' | 'FREELANCER';
+export type UserRole = 'BUSINESS' | 'PERSONAL' | 'FREELANCER';
+export type AccountType = 'BUSINESS' | 'PERSONAL';
 
 export interface UserProfile {
   id: string;
   name: string;
   role: UserRole;
+  accountType?: AccountType;
   companyOrTitle: string;
   email: string;
   payPalAccountEmail: string;
   avatarUrl?: string;
+  taxId?: string;
+  legalCompanyName?: string;
+  billingAddress?: string;
+  complianceStatus?: 'VERIFIED' | 'PENDING';
 }
+

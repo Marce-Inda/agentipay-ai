@@ -1,8 +1,27 @@
 'use client';
 
-import React from 'react';
-import { ArrowLeft, Building2, User, Lock, DollarSign, CheckCircle2, PauseCircle, PlayCircle, ShieldCheck, Layers } from 'lucide-react';
-import { BudgetEnvelope, ProjectContract, TransactionLog, UserProfile } from '../lib/types';
+import React, { useState } from 'react';
+import {
+  ArrowLeft,
+  Building2,
+  User,
+  Lock,
+  DollarSign,
+  CheckCircle2,
+  PauseCircle,
+  PlayCircle,
+  ShieldCheck,
+  Layers,
+  FileText,
+  Send,
+  Edit3,
+  AlertTriangle,
+  ExternalLink,
+  X,
+  Sparkles,
+  Check,
+} from 'lucide-react';
+import { BudgetEnvelope, ProjectContract, ProjectMilestone, TransactionLog, UserProfile } from '../lib/types';
 import { AgentChat } from './AgentChat';
 import { CommandCenter } from './CommandCenter';
 
@@ -17,26 +36,122 @@ interface ProjectWorkspaceViewProps {
   onToggleProjectFreeze: (projectId: string) => void;
   onUpdateEnvelope: (newEnvelope: BudgetEnvelope) => void;
   onAddLog: (log: TransactionLog) => void;
+  onUpdateProject?: (updatedProject: ProjectContract) => void;
 }
 
-interface DeliverableAuditFormProps {
+// -------------------------------------------------------------
+// Modal: Edit Milestone Acceptance Criteria (Principal / Buyer)
+// -------------------------------------------------------------
+interface EditCriteriaModalProps {
+  milestone: ProjectMilestone;
+  onClose: () => void;
+  onSave: (milestoneId: string, criteria: string) => void;
+}
+
+const EditCriteriaModal: React.FC<EditCriteriaModalProps> = ({ milestone, onClose, onSave }) => {
+  const [criteria, setCriteria] = useState(milestone.acceptanceCriteria || '');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-[#16181D] border border-amber-500/30 rounded-2xl w-full max-w-xl shadow-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#252830]">
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-amber-400" />
+            <h3 className="text-base font-bold text-white">Define Acceptance Criteria</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span className="font-semibold text-white">{milestone.title}</span>
+            <span className="font-mono text-emerald-400 font-bold">${milestone.amountUSD.toFixed(2)} USD</span>
+          </div>
+          <p className="text-xs text-slate-400">{milestone.description}</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-slate-300">
+            Acceptance Criteria & Audit Requirements
+          </label>
+          <textarea
+            rows={5}
+            value={criteria}
+            onChange={(e) => setCriteria(e.target.value)}
+            placeholder="e.g., OpenAPI 3.0 endpoints, passing test suite with >80% coverage, Dockerfile setup, and zero prompt injection vulnerabilities."
+            className="w-full bg-[#0F1115] border border-[#252830] focus:border-amber-500/50 rounded-xl p-3 text-xs text-white placeholder-slate-500 outline-none resize-none leading-relaxed"
+          />
+          <p className="text-[11px] text-slate-500">
+            The AI Audit Agent will verify the contractor&apos;s submitted proof against these exact criteria before approving the escrow release.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#252830]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onSave(milestone.id, criteria)}
+            className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-lg transition active:scale-95 flex items-center gap-1.5"
+          >
+            <Check className="w-4 h-4" />
+            <span>Save Specifications</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// -------------------------------------------------------------
+// Modal: Submit Deliverable for AI Audit (Contractor / Vendor)
+// -------------------------------------------------------------
+interface SubmitProofModalProps {
+  milestone: ProjectMilestone;
   project: ProjectContract;
+  onClose: () => void;
+  onAuditSuccess: (
+    milestoneId: string,
+    proofUrl: string,
+    proofText: string,
+    score: number,
+    rationale: string,
+    batchId: string
+  ) => void;
   onAddLog: (log: TransactionLog) => void;
 }
 
-const DeliverableAuditForm: React.FC<DeliverableAuditFormProps> = ({ project, onAddLog }) => {
-  const [deliverableText, setDeliverableText] = React.useState('');
-  const [isAuditing, setIsAuditing] = React.useState(false);
-  const [auditResult, setAuditResult] = React.useState<{
+const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
+  milestone,
+  project,
+  onClose,
+  onAuditSuccess,
+  onAddLog,
+}) => {
+  const [proofUrl, setProofUrl] = useState('');
+  const [proofText, setProofText] = useState('');
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [auditResult, setAuditResult] = useState<{
     success: boolean;
     auditConfidenceScore: number;
     reason: string;
     riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    simulatedBatchId?: string;
   } | null>(null);
 
-  const handleRunAudit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!deliverableText.trim() || isAuditing) return;
+    if (!proofText.trim() && !proofUrl.trim()) return;
 
     setIsAuditing(true);
     setAuditResult(null);
@@ -46,27 +161,297 @@ const DeliverableAuditForm: React.FC<DeliverableAuditFormProps> = ({ project, on
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          deliverableText,
-          expectedRequirements: `Milestone completion for ${project.name}`,
+          deliverableText: proofText,
+          deliverableUrl: proofUrl,
+          expectedRequirements: milestone.acceptanceCriteria || milestone.description,
+          milestoneTitle: milestone.title,
+          milestoneAmountUSD: milestone.amountUSD,
         }),
       });
 
       const data = await res.json();
       setAuditResult(data);
 
-      onAddLog({
-        id: `log-audit-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        projectId: project.id,
-        projectName: project.name,
-        agentRole: 'BUYER_AI',
-        action: `Multimodal Deliverable Audit Evaluated (Score: ${data.auditConfidenceScore || 0}%) - ${data.reason || ''}`,
-        amountUSD: 0,
-        recipientEmail: project.vendorEmail,
-        auditConfidenceScore: data.auditConfidenceScore || 0,
-        status: data.success ? 'AUDITING_DELIVERABLE' : 'GUARDRAIL_CHECKING',
-        riskLevel: data.riskLevel || 'LOW',
+      if (data.success && data.auditConfidenceScore >= 85) {
+        const batchId =
+          data.simulatedBatchId ||
+          `PAYPAL-BATCH-${Date.now().toString(36).toUpperCase()}`;
+
+        onAuditSuccess(
+          milestone.id,
+          proofUrl,
+          proofText,
+          data.auditConfidenceScore,
+          data.reason,
+          batchId
+        );
+
+        onAddLog({
+          id: `log-audit-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          projectId: project.id,
+          projectName: project.name,
+          agentRole: 'BUYER_AI',
+          action: `Milestone Audit Approved (${data.auditConfidenceScore}% Score): "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD Released via PayPal Vault)`,
+          amountUSD: milestone.amountUSD,
+          recipientEmail: project.vendorEmail,
+          auditConfidenceScore: data.auditConfidenceScore,
+          status: 'PAYOUT_EXECUTED',
+          riskLevel: data.riskLevel || 'LOW',
+          payPalTransactionId: batchId,
+          httpPayloadLog: `POST https://api-m.sandbox.paypal.com/v1/payments/payouts [201 Created Batch: ${batchId}]`,
+        });
+      } else {
+        onAddLog({
+          id: `log-audit-rej-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          projectId: project.id,
+          projectName: project.name,
+          agentRole: 'GUARDRAIL',
+          action: `Milestone Audit Rejected (${data.auditConfidenceScore || 0}% Score): ${data.reason || 'Criteria not met'}`,
+          amountUSD: 0,
+          recipientEmail: project.vendorEmail,
+          auditConfidenceScore: data.auditConfidenceScore || 0,
+          status: 'GUARDRAIL_CHECKING',
+          riskLevel: data.riskLevel || 'HIGH',
+        });
+      }
+    } catch (err: any) {
+      console.error('[Audit Modal Error]:', err);
+    } finally {
+      setIsAuditing(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-[#16181D] border border-cyan-500/30 rounded-2xl w-full max-w-xl shadow-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#252830]">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-cyan-400" />
+            <h3 className="text-base font-bold text-white">Submit Milestone Deliverable</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Milestone overview */}
+        <div className="bg-[#0F1115] border border-[#252830] rounded-xl p-3.5 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-white">{milestone.title}</span>
+            <span className="font-mono text-emerald-400 font-bold text-sm">
+              ${milestone.amountUSD.toFixed(2)} USD
+            </span>
+          </div>
+          <div className="text-[11px] text-slate-400">
+            <strong className="text-slate-300">Phase Objective:</strong> {milestone.description}
+          </div>
+          {milestone.acceptanceCriteria && (
+            <div className="text-[11px] bg-cyan-950/30 border border-cyan-500/30 rounded-lg p-2.5 text-cyan-200">
+              <strong className="text-cyan-300 block mb-0.5">Client Acceptance Criteria:</strong>
+              {milestone.acceptanceCriteria}
+            </div>
+          )}
+        </div>
+
+        {/* Submission Form */}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-300">
+              Artifact URL (GitHub PR / Commit / Deployment Link)
+            </label>
+            <input
+              type="url"
+              value={proofUrl}
+              onChange={(e) => setProofUrl(e.target.value)}
+              placeholder="https://github.com/organization/repo/pull/42"
+              className="w-full bg-[#0F1115] border border-[#252830] focus:border-cyan-500/50 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 outline-none"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-300">
+              Technical Verification & Proof Details
+            </label>
+            <textarea
+              rows={4}
+              value={proofText}
+              onChange={(e) => setProofText(e.target.value)}
+              placeholder="Summarize the implementation: endpoints built, test suite pass rate (e.g. 92% coverage), schema migrations, and Docker configurations..."
+              className="w-full bg-[#0F1115] border border-[#252830] focus:border-cyan-500/50 rounded-xl p-3 text-xs text-white placeholder-slate-500 outline-none resize-none leading-relaxed"
+            />
+          </div>
+
+          <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+            <span>Protected by OWASP LLM01 Prompt Injection Guardrails. Minimum 85% confidence required for automated settlement.</span>
+          </div>
+
+          {/* Audit Result Display */}
+          {auditResult && (
+            <div
+              className={`p-3.5 rounded-xl border text-xs space-y-1.5 ${
+                auditResult.success
+                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                  : 'bg-rose-950/40 border-rose-500/40 text-rose-300'
+              }`}
+            >
+              <div className="flex items-center justify-between font-bold">
+                <span>
+                  {auditResult.success ? '✅ Audit Passed & Escrow Released' : '⚠️ Audit Verification Rejected'}
+                </span>
+                <span className="font-mono bg-black/40 px-2 py-0.5 rounded border border-current">
+                  Score: {auditResult.auditConfidenceScore}%
+                </span>
+              </div>
+              <p className="text-[11px] leading-relaxed">{auditResult.reason}</p>
+              {auditResult.simulatedBatchId && (
+                <div className="text-[10px] font-mono text-emerald-400/90 pt-1">
+                  PayPal Payout Batch: {auditResult.simulatedBatchId}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#252830]">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition"
+            >
+              Close
+            </button>
+            <button
+              type="submit"
+              disabled={isAuditing || (!proofText.trim() && !proofUrl.trim())}
+              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-lg transition active:scale-95 flex items-center gap-1.5"
+            >
+              {isAuditing ? (
+                <>
+                  <Sparkles className="w-4 h-4 animate-spin text-slate-950" />
+                  <span>Auditing Deliverable...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  <span>Run AI Audit & Release Escrow</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// -------------------------------------------------------------
+// DeliverableAuditForm Component (Quick inspection tool)
+// -------------------------------------------------------------
+interface DeliverableAuditFormProps {
+  project: ProjectContract;
+  onAddLog: (log: TransactionLog) => void;
+  onUpdateProject?: (updatedProject: ProjectContract) => void;
+}
+
+const DeliverableAuditForm: React.FC<DeliverableAuditFormProps> = ({
+  project,
+  onAddLog,
+  onUpdateProject,
+}) => {
+  const [deliverableText, setDeliverableText] = useState('');
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [auditResult, setAuditResult] = useState<{
+    success: boolean;
+    auditConfidenceScore: number;
+    reason: string;
+    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    simulatedBatchId?: string;
+  } | null>(null);
+
+  const pendingMilestone = (project.milestones || []).find((m) => m.status === 'PENDING');
+
+  const handleRunAudit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deliverableText.trim() || isAuditing) return;
+
+    setIsAuditing(true);
+    setAuditResult(null);
+
+    const expectedReqs = pendingMilestone?.acceptanceCriteria || `Milestone completion for ${project.name}`;
+
+    try {
+      const res = await fetch('/api/agent/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deliverableText,
+          expectedRequirements: expectedReqs,
+          milestoneTitle: pendingMilestone?.title || project.name,
+          milestoneAmountUSD: pendingMilestone?.amountUSD || 0,
+        }),
       });
+
+      const data = await res.json();
+      setAuditResult(data);
+
+      if (data.success && pendingMilestone && onUpdateProject) {
+        const batchId =
+          data.simulatedBatchId ||
+          `PAYPAL-BATCH-${Date.now().toString(36).toUpperCase()}`;
+
+        const updatedMilestones = (project.milestones || []).map((m) =>
+          m.id === pendingMilestone.id
+            ? {
+                ...m,
+                status: 'COMPLETED' as const,
+                auditScore: data.auditConfidenceScore,
+                auditRationale: data.reason,
+                deliverableProof: deliverableText,
+                payPalBatchId: batchId,
+              }
+            : m
+        );
+
+        onUpdateProject({
+          ...project,
+          spentUSD: project.spentUSD + pendingMilestone.amountUSD,
+          milestones: updatedMilestones,
+        });
+
+        onAddLog({
+          id: `log-audit-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          projectId: project.id,
+          projectName: project.name,
+          agentRole: 'BUYER_AI',
+          action: `Milestone Settled via AI Audit: "${pendingMilestone.title}" ($${pendingMilestone.amountUSD.toFixed(2)} USD via PayPal Vault)`,
+          amountUSD: pendingMilestone.amountUSD,
+          recipientEmail: project.vendorEmail,
+          auditConfidenceScore: data.auditConfidenceScore || 0,
+          status: 'PAYOUT_EXECUTED',
+          riskLevel: data.riskLevel || 'LOW',
+          payPalTransactionId: batchId,
+        });
+      } else {
+        onAddLog({
+          id: `log-audit-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          projectId: project.id,
+          projectName: project.name,
+          agentRole: 'BUYER_AI',
+          action: `Deliverable Audit Evaluated (Score: ${data.auditConfidenceScore || 0}%) - ${data.reason || ''}`,
+          amountUSD: 0,
+          recipientEmail: project.vendorEmail,
+          auditConfidenceScore: data.auditConfidenceScore || 0,
+          status: data.success ? 'AUDITING_DELIVERABLE' : 'GUARDRAIL_CHECKING',
+          riskLevel: data.riskLevel || 'LOW',
+        });
+      }
     } catch (err: any) {
       console.error('[Audit Form Error]:', err);
     } finally {
@@ -81,13 +466,17 @@ const DeliverableAuditForm: React.FC<DeliverableAuditFormProps> = ({ project, on
           type="text"
           value={deliverableText}
           onChange={(e) => setDeliverableText(e.target.value)}
-          placeholder="Paste Pull Request URL, code diff snippet, or deliverable proof text..."
+          placeholder={
+            pendingMilestone
+              ? `Paste deliverable proof for ${pendingMilestone.title} (PR link, commit, code summary)...`
+              : 'Paste Pull Request URL, code diff snippet, or deliverable proof text...'
+          }
           className="flex-1 bg-[#0F1115] border border-[#252830] focus:border-amber-500/50 rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-500 outline-none"
         />
         <button
           type="submit"
           disabled={isAuditing || !deliverableText.trim()}
-          className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95"
+          className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap"
         >
           {isAuditing ? 'Auditing Deliverable...' : 'Run Audit Inspection'}
         </button>
@@ -115,6 +504,9 @@ const DeliverableAuditForm: React.FC<DeliverableAuditFormProps> = ({ project, on
   );
 };
 
+// -------------------------------------------------------------
+// ProjectWorkspaceView Main Component
+// -------------------------------------------------------------
 export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
   project,
   envelope,
@@ -126,8 +518,81 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
   onToggleProjectFreeze,
   onUpdateEnvelope,
   onAddLog,
+  onUpdateProject,
 }) => {
-  const isBusiness = currentProfile?.role !== 'FREELANCER';
+  const isIncoming = project.perspective === 'INCOMING';
+
+  // Modal states
+  const [editingMilestone, setEditingMilestone] = useState<ProjectMilestone | null>(null);
+  const [submittingMilestone, setSubmittingMilestone] = useState<ProjectMilestone | null>(null);
+
+  // Handle saving edited acceptance criteria (Principal side)
+  const handleSaveCriteria = (milestoneId: string, criteria: string) => {
+    if (!onUpdateProject) return;
+
+    const updatedMilestones = (project.milestones || []).map((m) =>
+      m.id === milestoneId ? { ...m, acceptanceCriteria: criteria } : m
+    );
+
+    const updatedProject = {
+      ...project,
+      milestones: updatedMilestones,
+    };
+
+    onUpdateProject(updatedProject);
+    setEditingMilestone(null);
+
+    onAddLog({
+      id: `log-criteria-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      projectId: project.id,
+      projectName: project.name,
+      agentRole: 'GUARDRAIL',
+      action: `Acceptance Criteria Updated for Phase #${milestoneId}: Specifications locked in Escrow Envelope.`,
+      amountUSD: 0,
+      recipientEmail: project.vendorEmail,
+      auditConfidenceScore: 100,
+      status: 'IDLE',
+      riskLevel: 'LOW',
+    });
+  };
+
+  // Handle successful audit submission (Contractor side)
+  const handleAuditSuccess = (
+    milestoneId: string,
+    proofUrl: string,
+    proofText: string,
+    score: number,
+    rationale: string,
+    batchId: string
+  ) => {
+    if (!onUpdateProject) return;
+
+    const targetMilestone = (project.milestones || []).find((m) => m.id === milestoneId);
+    if (!targetMilestone) return;
+
+    const updatedMilestones = (project.milestones || []).map((m) =>
+      m.id === milestoneId
+        ? {
+            ...m,
+            status: 'COMPLETED' as const,
+            auditScore: score,
+            auditRationale: rationale,
+            deliverableProof: proofUrl || proofText,
+            payPalBatchId: batchId,
+            submittedAt: new Date().toISOString(),
+          }
+        : m
+    );
+
+    const updatedProject = {
+      ...project,
+      spentUSD: project.spentUSD + targetMilestone.amountUSD,
+      milestones: updatedMilestones,
+    };
+
+    onUpdateProject(updatedProject);
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -145,7 +610,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
           <div className="h-6 w-px bg-slate-800 hidden md:block" />
 
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-bold text-white tracking-wide">
                 {project.name}
               </h2>
@@ -160,25 +625,51 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
               </span>
               <span
                 className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono border ${
-                  isBusiness
-                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                    : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                  isIncoming
+                    ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                    : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                 }`}
               >
-                {isBusiness ? '🏢 Employer Mode' : '💼 Freelancer Mode'}
+                {isIncoming ? '🛠️ Role: Contractor (Escrow Claim)' : '💼 Role: Principal (Vault Funder)'}
               </span>
+              {project.contractType === 'MSA_SOW' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-purple-950/50 text-purple-300 border border-purple-500/30">
+                  📜 Binding MSA & SOW ({project.contractReferenceId || 'Enforced'})
+                </span>
+              )}
+              {project.isSubcontracted && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-indigo-950/50 text-indigo-300 border border-indigo-500/30">
+                  🔀 Subcontracted from #{project.parentProjectId}
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
-              <span className="flex items-center gap-1">
-                <Building2 className="w-3.5 h-3.5 text-amber-500/70" />
-                {project.vendorName}
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <User className="w-3.5 h-3.5 text-slate-500" />
-                <strong className="text-slate-300 font-mono">{project.vendorEmail}</strong>
-              </span>
+            <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
+              {isIncoming ? (
+                <>
+                  <span className="flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+                    Client (Payer): <strong className="text-white">{project.clientName || 'Corporate Buyer'}</strong>
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-slate-500" />
+                    <strong className="text-slate-300 font-mono">{project.clientEmail || 'treasury@client.example'}</strong>
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-amber-500/70" />
+                    Contractor (Vendor): <strong className="text-white">{project.vendorName}</strong>
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-slate-500" />
+                    <strong className="text-slate-300 font-mono">{project.vendorEmail}</strong>
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -188,14 +679,14 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
           <div className="flex items-center gap-2 bg-[#0F1115] border border-amber-500/20 px-3.5 py-2 rounded-lg">
             <div className="flex items-center text-slate-300">
               <Lock className="w-3.5 h-3.5 text-amber-400 mr-1" />
-              <span>Vault Cap: </span>
-              <strong className="text-white ml-1">${project.budgetCapUSD.toFixed(2)} USD</strong>
+              <span>{isIncoming ? 'Escrow Guarantee:' : 'Vault Ceiling:'} </span>
+              <strong className="text-white ml-1 font-mono">${project.budgetCapUSD.toFixed(2)} USD</strong>
             </div>
             <div className="h-3 w-px bg-slate-800" />
             <div className="flex items-center text-slate-300">
               <DollarSign className="w-3.5 h-3.5 text-emerald-400 mr-0.5" />
-              <span>Spent: </span>
-              <strong className="text-emerald-400 ml-1">${project.spentUSD.toFixed(2)}</strong>
+              <span>{isIncoming ? 'Claimed:' : 'Settled:'} </span>
+              <strong className="text-emerald-400 ml-1 font-mono">${project.spentUSD.toFixed(2)}</strong>
             </div>
           </div>
 
@@ -210,106 +701,182 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
             {project.status === 'PAUSED' ? (
               <>
                 <PlayCircle className="w-4 h-4 text-amber-300" />
-                <span>Resume Contract Escrow</span>
+                <span>Resume Escrow Releases</span>
               </>
             ) : (
               <>
                 <PauseCircle className="w-4 h-4 text-amber-400" />
-                <span>Freeze Contract Escrow</span>
+                <span>Freeze Escrow Releases</span>
               </>
             )}
           </button>
         </div>
       </div>
 
-      {/* Milestone Phases & Partial Payouts Timeline */}
-      <div className="bg-[#16181D] border border-amber-500/20 rounded-xl p-4 shadow-xl space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-[#252830]">
+      {/* Milestone Phases & Scheduled Settlement Timeline */}
+      <div className="bg-[#16181D] border border-amber-500/20 rounded-xl p-5 shadow-xl space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#252830]">
           <div className="flex items-center gap-2">
             <Layers className="w-5 h-5 text-amber-400" />
             <h3 className="text-sm font-bold text-white tracking-wide">
-              Hitos del Proyecto y Pagos Parciales (Milestone Escrow Timeline)
+              Milestone Escrow & Proof-of-Execution Timeline
             </h3>
           </div>
           <span className="text-xs text-slate-400">
-            Total Presupuesto Vault: <strong className="text-white">${project.budgetCapUSD.toFixed(2)} USD</strong>
+            Total Vault Allocation: <strong className="text-white font-mono">${project.budgetCapUSD.toFixed(2)} USD</strong>
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {(project.milestones || []).map((ms) => (
-            <div
-              key={ms.id}
-              className={`p-3.5 rounded-xl border flex flex-col justify-between space-y-2 transition-all ${
-                ms.status === 'COMPLETED'
-                  ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300'
-                  : ms.status === 'PENDING'
-                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-200 ring-1 ring-amber-500/30'
-                  : 'bg-[#0F1115] border-[#252830] text-slate-500 opacity-60'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider font-mono">
-                  {ms.title.split(':')[0] || `Phase ${ms.phaseNumber}`}
-                </span>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    ms.status === 'COMPLETED'
-                      ? 'bg-emerald-950 text-emerald-400 border-emerald-500/50'
-                      : ms.status === 'PENDING'
-                      ? 'bg-amber-950 text-amber-300 border-amber-500/50'
-                      : 'bg-slate-900 text-slate-500 border-slate-700'
-                  }`}
-                >
-                  {ms.status === 'COMPLETED'
-                    ? '✅ PAGADO'
-                    : ms.status === 'PENDING'
-                    ? '⏳ EN AUDITORÍA'
-                    : '🔒 BLOQUEADO'}
-                </span>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {(project.milestones || []).map((ms) => {
+            const isCompleted = ms.status === 'COMPLETED';
+            const isPending = ms.status === 'PENDING';
 
-              <div>
-                <h4 className="text-xs font-bold text-white mb-1">
-                  {ms.title.split(':')[1] || ms.title}
-                </h4>
-                <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-                  {ms.description}
-                </p>
-              </div>
-
-              <div className="pt-2 border-t border-current/10 flex items-center justify-between text-xs">
-                <span className="font-medium text-slate-300">Pago Parcial:</span>
-                <span className="font-bold text-emerald-400 font-mono">
-                  ${ms.amountUSD.toFixed(2)} USD
-                </span>
-              </div>
-
-              {ms.payPalBatchId && (
-                <div className="text-[10px] font-mono text-emerald-400/90 truncate bg-black/40 px-2 py-1 rounded border border-emerald-500/20">
-                  PayPal Batch: {ms.payPalBatchId}
+            return (
+              <div
+                key={ms.id}
+                className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all ${
+                  isCompleted
+                    ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300'
+                    : isPending
+                    ? 'bg-amber-500/10 border-amber-500/40 text-amber-200 ring-1 ring-amber-500/30'
+                    : 'bg-[#0F1115] border-[#252830] text-slate-500 opacity-60'
+                }`}
+              >
+                {/* Milestone Header */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider font-mono">
+                    {ms.title.split(':')[0] || `Phase ${ms.phaseNumber}`}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      isCompleted
+                        ? 'bg-emerald-950 text-emerald-400 border-emerald-500/50'
+                        : isPending
+                        ? 'bg-amber-950 text-amber-300 border-amber-500/50'
+                        : 'bg-slate-900 text-slate-500 border-slate-700'
+                    }`}
+                  >
+                    {isCompleted
+                      ? '✅ PAID / SETTLED'
+                      : isPending
+                      ? '⏳ READY FOR AUDIT'
+                      : '🔒 ESCROW LOCKED'}
+                  </span>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* Title & Description */}
+                <div>
+                  <h4 className="text-xs font-bold text-white mb-1">
+                    {ms.title.split(':')[1] || ms.title}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                    {ms.description}
+                  </p>
+                </div>
+
+                {/* Acceptance Criteria Box */}
+                <div className="bg-[#0F1115] border border-white/5 rounded-lg p-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                      <FileText className="w-3 h-3 text-amber-400" />
+                      Acceptance Criteria:
+                    </span>
+                    {!isIncoming && (
+                      <button
+                        onClick={() => setEditingMilestone(ms)}
+                        className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-0.5 font-semibold transition"
+                      >
+                        <Edit3 className="w-2.5 h-2.5" />
+                        <span>Edit</span>
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-300 line-clamp-2 leading-relaxed italic">
+                    {ms.acceptanceCriteria || 'Standard specifications: Deliverable must meet architecture and quality criteria.'}
+                  </p>
+                </div>
+
+                {/* Completed Details or Action Buttons */}
+                {isCompleted ? (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Confidence Score:
+                      </span>
+                      <strong className="font-mono text-emerald-300 font-bold">
+                        {ms.auditScore || 98}%
+                      </strong>
+                    </div>
+
+                    {ms.deliverableProof && (
+                      <div className="text-[10px] text-slate-400 truncate flex items-center gap-1 bg-black/30 p-1.5 rounded">
+                        <ExternalLink className="w-3 h-3 text-cyan-400 shrink-0" />
+                        <span className="truncate">{ms.deliverableProof}</span>
+                      </div>
+                    )}
+
+                    {ms.payPalBatchId && (
+                      <div className="text-[10px] font-mono text-emerald-400/90 truncate bg-black/40 px-2 py-1 rounded border border-emerald-500/20">
+                        Batch: {ms.payPalBatchId}
+                      </div>
+                    )}
+                  </div>
+                ) : isPending ? (
+                  <div className="pt-2">
+                    {isIncoming ? (
+                      <button
+                        onClick={() => setSubmittingMilestone(ms)}
+                        className="w-full bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-slate-950 font-bold text-xs py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-md active:scale-95"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Submit Deliverable for Audit</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setSubmittingMilestone(ms)}
+                        className="w-full bg-[#252830] hover:bg-amber-500/10 text-amber-300 hover:text-amber-200 border border-amber-500/30 font-bold text-xs py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Inspect & Audit Deliverable</span>
+                      </button>
+                    )}
+                  </div>
+                ) : null}
+
+                {/* Payout Footer */}
+                <div className="pt-2 border-t border-current/10 flex items-center justify-between text-xs">
+                  <span className="font-medium text-slate-400">Milestone Payout:</span>
+                  <span className="font-bold text-emerald-400 font-mono">
+                    ${ms.amountUSD.toFixed(2)} USD
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Deliverable Proof-of-Execution Audit Panel */}
+      {/* Deliverable Proof-of-Execution Audit Panel (Quick Input) */}
       <div className="bg-[#16181D] border border-amber-500/20 rounded-xl p-4 shadow-xl">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-amber-400" />
             <h3 className="text-sm font-bold text-white tracking-wide">
-              Proof-of-Execution Deliverable Audit (Multimodal Vision/Code Inspection)
+              Proof-of-Execution Deliverable Audit (Multimodal Vision / Code Inspection)
             </h3>
           </div>
           <span className="text-xs text-amber-400 bg-amber-950/60 px-2.5 py-1 rounded-md border border-amber-500/30">
-            Escrow Threshold: ≥ 95% Confidence Required
+            Escrow Threshold: ≥ 85% Confidence Required
           </span>
         </div>
 
-        <DeliverableAuditForm project={project} onAddLog={onAddLog} />
+        <DeliverableAuditForm
+          project={project}
+          onAddLog={onAddLog}
+          onUpdateProject={onUpdateProject}
+        />
       </div>
 
       {/* Main Workspace Layout (Left: Negotiation Chat, Right: Audit Ledger) */}
@@ -335,6 +902,25 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
           />
         </div>
       </div>
+
+      {/* Modals */}
+      {editingMilestone && (
+        <EditCriteriaModal
+          milestone={editingMilestone}
+          onClose={() => setEditingMilestone(null)}
+          onSave={handleSaveCriteria}
+        />
+      )}
+
+      {submittingMilestone && (
+        <SubmitProofModal
+          milestone={submittingMilestone}
+          project={project}
+          onClose={() => setSubmittingMilestone(null)}
+          onAuditSuccess={handleAuditSuccess}
+          onAddLog={onAddLog}
+        />
+      )}
     </div>
   );
 };

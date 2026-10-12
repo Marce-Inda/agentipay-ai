@@ -24,8 +24,8 @@ While traditional chatbots only suggest links or force users to manually click p
 
 ## 🎯 Key Features & Enterprise Capabilities
 
-* **📂 Enterprise Multi-Project Escrow Portfolio:** Multi-tenant dashboard allowing companies to manage multiple contractor initiatives simultaneously, with search filtering, custom project onboarding, and automatic `localStorage` state persistence.
-* **👥 Dual-Account Profile Role Switcher:** Instant workspace adaptation between **Business / Employer Mode** (managing Vault caps & contract freezes) and **Persona / Freelancer Mode** (inspecting Escrow guarantees & submitting deliverable proofs).
+* **📂 Enterprise Multi-Project Escrow Portfolio:** Multi-tenant dashboard allowing users to toggle between **"Proyectos que Contrato"** (Outbound / Escrow Provider) and **"Proyectos que Realizo"** (Inbound / Contractor), with cascading subcontracting support and automatic `localStorage` persistence.
+* **👥 Account Tiers & Legal-Tech Integration:** Choose between **Personal Account** (individual freelancers/creators with swift terms) and **Business Account** (corporate entities with Tax ID/VAT, automated MSA/SOW legal contracts, multi-user approval governance, and pooled Vault caps).
 * **🤖 Resilient Multi-Model AI Engine (OpenRouter):** Powered by Vercel AI SDK over OpenRouter featuring automatic fallback from primary (`openai/gpt-4o-mini`) to secondary (`meta-llama/llama-3.3-70b-instruct`) models.
 * **🛡️ Dual-Tier Security & Guardrails:** Non-AI deterministic TypeScript layer enforcing strict per-project Vault caps, granular project-level contract freezing, prompt injection defenses, and master emergency kill-switch overrides.
 * **⚡ 100% Real Sandbox API Execution:** Authenticated execution against PayPal Sandbox REST APIs with live HTTP network request inspection in AG Grid (plus graceful fallback simulation if credentials are empty).
@@ -38,6 +38,8 @@ While traditional chatbots only suggest links or force users to manually click p
 
 | Document | Focus & Scope |
 | :--- | :--- |
+| 🧪 [TESTING_AND_VERIFICATION.md](TESTING_AND_VERIFICATION.md) | Phase-Gate Verification Matrix & QA Checklist |
+| 📑 [E2E_DUAL_ROLE_GRID_TEST_PLAN.md](E2E_DUAL_ROLE_GRID_TEST_PLAN.md) | Full E2E Dual-Role & AG Grid Ledger Test Plan (Low-Resource Sequential) |
 | 🎨 [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Nordic Luxury & Warm Fintech Design System & Tokens |
 | 📄 [plan_de_implementacion.md](plan_de_implementacion.md) | Full 11-Dimensional Master Plan & Execution Strategy |
 | 🌟 [INTEGRATED_BLUE_HAT_SYNTHESIS.md](INTEGRATED_BLUE_HAT_SYNTHESIS.md) | Integrated Architectural Synthesis |

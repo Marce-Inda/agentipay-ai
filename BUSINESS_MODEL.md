@@ -17,24 +17,44 @@ Why PayPal benefits directly from **AgenticPay AI**:
 
 ---
 
-## 💰 2. Monetization & Pricing Model
+## 💰 2. Account Tiers & Monetization Structure
+
+AgenticPay AI decouples the **Account Entity Type** (Personal vs. Business) from the **Transaction Direction** (Contracting / Outbound Escrow vs. Being Hired / Inbound Deliverables). Every user can both hire talent and work on contracts, supporting cascading subcontracting.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                 MONETIZATION STRUCTURE                      │
-├───────────────────┬─────────────────────────────────────────┤
-│ Tier              │ Pricing & Feature Allocation            │
-├───────────────────┼─────────────────────────────────────────┤
-│ 1. Starter (Free) │ Up to $500/mo budget cap, basic audit   │
-│ 2. Pro ($29/mo)   │ Up to $10k/mo cap, Multimodal Vision    │
-│ 3. Enterprise     │ $199/mo + 0.5% Escrow Fee, Custom Rules │
-└───────────────────┴─────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                          ACCOUNT TIERS & VALUE PROPOSITION                             │
+├────────────────────────────┬───────────────────────────────────────────────────────────┤
+│ Tier                       │ Profile & Value Proposition                               │
+├────────────────────────────┼───────────────────────────────────────────────────────────┤
+│ 👤 Personal (Solopreneur / │ • Dual Mode: Hire & Be Hired in parallel                  │
+│    Freelancer)             │ • Simplified terms of service & direct milestone escrow   │
+│                            │ • Direct individual PayPal account settlement             │
+│                            │ • Ideal for solo developers, designers & creators         │
+├────────────────────────────┼───────────────────────────────────────────────────────────┤
+│ 🏢 Business (Enterprise /  │ • Dual Mode + Cascading Subcontracting pipelines          │
+│    Agencies & Startups)    │ • Formal Legal-Tech: Automated MSA & SOW contracts        │
+│                            │ • Corporate Tax ID & Invoicing compliance (VAT / EIN)     │
+│                            │ • Multi-user governance & dual-signature vault approvals  │
+│                            │ • Departmental budget envelopes & pooled Vault controls   │
+└────────────────────────────┴───────────────────────────────────────────────────────────┘
 ```
+
+### 🔄 Dual-Perspective Project Model & Subcontracting
+In standard freelancer ecosystems, users are artificially locked into either "Buyer" or "Seller". In AgenticPay AI:
+1. **"Proyectos que Contrato" (Outgoing / Escrow Provider):** The user pre-authorizes funds in PayPal Vault, configures AI guardrails, and authorizes milestone payouts upon deliverable audit.
+2. **"Proyectos que Realizo" (Incoming / Contractor):** The user views guaranteed locked PayPal Escrow funds ($0 counterparty risk), submits deliverable proofs (PRs, Figma links, diffs), and collects automated payouts.
+3. **Cascading Subcontracting:** An agency or lead developer hired for a $5,000 project (Incoming) can seamlessly open a $500 sub-project (Outgoing) to outsource copywriting or graphics, managing both from one unified dashboard.
+
+### Pricing Structure:
+* **Starter (Free):** Up to $500/mo active escrow, standard individual guardrails.
+* **Pro ($29/mo):** Up to $10,000/mo active escrow, Multimodal Vision Deliverable Auditor, priority PayPal Sandbox/Production webhook processing.
+* **Enterprise ($199/mo + 0.5% Escrow Take-Rate):** Unlimited vault envelopes, custom MSA/SOW legal contract generation, multi-seat team governance, and dedicated compliance exports.
 
 ### Revenue Streams:
 * **SaaS Subscription Fees:** Recurring monthly subscriptions for Pro and Enterprise management dashboards.
 * **Escrow Processing Take-Rate:** 0.5% platform fee on automated milestone payouts exceeding $1,000 USD.
-* **B2B API Licensing:** Licensing the *Zero-Hallucination Guardrail Engine* to e-commerce platforms wanting to accept AI agent payments securely.
+* **B2B API Licensing:** Licensing the *Zero-Hallucination Guardrail Engine* to e-commerce and freelance platforms wanting to accept autonomous AI agent payments.
 
 ---
 
@@ -58,4 +78,6 @@ Why PayPal benefits directly from **AgenticPay AI**:
 ## 🛡️ 5. Competitive Moat (Defensibilidad)
 
 * **Proprietary Trust Guardrail Layer:** Standard chatbots cannot offer financial delegation due to hallucination risks. Our deterministic TypeScript guardrail layer creates an unassailable security barrier.
+* **Decoupled Dual-Role Architecture:** Unlike rigid gig platforms, users operate bidirectionally with zero friction between contracting and performing work.
 * **Multi-Sponsor Synergy:** Seamless integration of PayPal APIs, AG Grid visualization, and Render cloud architecture creates a high barrier to entry for generic competitors.
+

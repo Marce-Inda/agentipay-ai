@@ -35,7 +35,7 @@ This document outlines the system architecture, component breakdown, data flow, 
 
 ## 🏢 Multi-Project & Multi-Contract Architecture
 
-To support real-world enterprise operations where a company hires multiple contractors across different initiatives:
+To support real-world enterprise operations where an account can both hire contractors and deliver client projects (including subcontracting chains):
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -43,19 +43,28 @@ To support real-world enterprise operations where a company hires multiple contr
 │ » Revokes PayPal OAuth credentials at account level in critical emergencies │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │
-      ┌────────────────────────────────┼────────────────────────────────┐
-      ▼                                ▼                                ▼
-┌───────────────────────────┐    ┌───────────────────────────┐    ┌───────────────────────────┐
-│ CONTRACT #1: Web Dev      │    │ CONTRACT #2: UI/UX Brand  │    │ CONTRACT #3: Marketing    │
-│ - Vendor: dev@agency.com  │    │ - Vendor: design@studio.com│    │ - Vendor: ad@agency.com   │
-│ - Vault Cap: $250.00 USD  │    │ - Vault Cap: $150.00 USD  │    │ - Vault Cap: $100.00 USD  │
-│ [ ⏸️ Freeze Contract ]    │    │ [ ⏸️ Freeze Contract ]    │    │ [ ⏸️ Freeze Contract ]    │
-└───────────────────────────┘    └───────────────────────────┘    └───────────────────────────┘
+      ┌────────────────────────────────┴────────────────────────────────┐
+      ▼                                                                 ▼
+┌───────────────────────────────────────────────┐     ┌───────────────────────────────────────────────┐
+│ 💼 PROYECTOS QUE CONTRATO (Outgoing Escrow)   │     │ 🛠️ PROYECTOS QUE REALIZO (Incoming Escrow)    │
+│ » Vault Pre-Authorized by User's Account      │     │ » Vault Locked by Client's Account            │
+│ » Deliverables audited before payout release  │     │ » Milestones verified & funds claimed         │
+├───────────────────────┬───────────────────────┤     ├───────────────────────┬───────────────────────┤
+│ Contract: Web Dev     │ Contract: Copywriting │     │ Contract: FinTech App │ Contract: Design QA   │
+│ Vendor: dev@agency    │ Vendor: copy@pro.io   │     │ Client: Acme Corp     │ Client: Global Ret.   │
+│ Vault Cap: $250.00    │ Vault Cap: $100.00    │     │ Escrow: $1,500.00     │ Escrow: $450.00       │
+└───────────────────────┴───────────────────────┘     └───────────────────────┴───────────────────────┘
 ```
 
-### Key Multi-Project Features:
-1. **Isolated Budget Envelopes:** Each project operates with its own pre-authorized Vault budget cap, preventing cross-project budget spillover.
-2. **Dual-Tier Control Hierarchy:**
+### Key Multi-Project & Entity Features:
+1. **Account Entity Model (Personal vs. Business):**
+   * **Personal Accounts:** Individual profile, standard terms of service, direct PayPal account settlement, streamlined single-operator escrow.
+   * **Business Accounts:** Corporate legal entity, Tax ID/VAT registration, formal **MSA (Master Services Agreement)** and **SOW (Statement of Work)** binding contracts, multi-user approval governance, and pooled departmental Vault envelopes.
+2. **Dual-Perspective Relationship Model:**
+   * **Outgoing (`CONTRACTING`):** The account acts as Buyer/Principal. Funds are tokenized and deposited into escrow; AI audits deliverables submitted by third parties.
+   * **Incoming (`CONTRACTOR`):** The account acts as Vendor/Freelancer. Escrow funds are guaranteed upfront ($0 payment default risk); deliverables are submitted to trigger PayPal payout execution.
+3. **Cascading Subcontracting Engine:** An incoming project can spawn child outgoing contracts (e.g., delegating a component), preserving end-to-end milestone traceability.
+4. **Dual-Tier Control Hierarchy:**
    * **Project-Level Escrow Freeze:** Pauses or cancels escrow releases for a specific project/contract without affecting other active projects.
    * **Master Emergency Kill-Switch:** Account-level circuit breaker that immediately revokes tokens across all active projects.
 

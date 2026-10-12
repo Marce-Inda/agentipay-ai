@@ -10,14 +10,20 @@ import { BudgetEnvelope, ProjectContract, TransactionLog, UserProfile } from '..
 
 const INITIAL_PROFILE: UserProfile = {
   id: 'usr-biz-1',
-  name: 'Acme Global Engineering',
+  name: 'Acme Global Engineering Corp.',
   role: 'BUSINESS',
-  companyOrTitle: 'Enterprise Buyer & Escrow Manager',
+  accountType: 'BUSINESS',
+  companyOrTitle: 'Enterprise Treasury & Escrow Accounts',
   email: 'billing@acmeglobal.com',
   payPalAccountEmail: 'sb-buyer-acme@business.example.com',
+  taxId: 'US-EIN-94-2849102',
+  legalCompanyName: 'Acme Global Engineering Inc.',
+  billingAddress: '500 Financial Center Blvd, Wilmington, DE',
+  complianceStatus: 'VERIFIED',
 };
 
 const INITIAL_PROJECTS: ProjectContract[] = [
+  // 1. Proyectos que Contrato (OUTGOING)
   {
     id: 'proj-1',
     name: 'Web Platform Engineering',
@@ -26,6 +32,9 @@ const INITIAL_PROJECTS: ProjectContract[] = [
     budgetCapUSD: 250,
     spentUSD: 75,
     status: 'ACTIVE',
+    perspective: 'OUTGOING',
+    contractType: 'MSA_SOW',
+    contractReferenceId: 'MSA-2026-089A',
     milestones: [
       {
         id: 'ms-1-1',
@@ -34,7 +43,9 @@ const INITIAL_PROJECTS: ProjectContract[] = [
         description: 'OAuth2 authentication, PostgreSQL schema & REST endpoints',
         amountUSD: 75,
         status: 'COMPLETED',
+        acceptanceCriteria: 'OAuth2 authentication flow, PostgreSQL relational schema, Dockerfile, and integration test suite with >80% coverage.',
         auditScore: 98,
+        auditRationale: 'VERIFIED: Automated inspection confirmed OAuth2 token handling, PostgreSQL migrations, and 94% test suite coverage.',
         deliverableProof: 'https://github.com/agency/web-platform/pull/1',
         payPalBatchId: 'AGENTICPAY_PROJ1_BATCH',
       },
@@ -42,9 +53,10 @@ const INITIAL_PROJECTS: ProjectContract[] = [
         id: 'ms-1-2',
         phaseNumber: 2,
         title: 'Phase 2: Frontend Dashboard UI & Components',
-        description: 'Next.js 16 App Router, Tailwind v4 design system & AG Grid integration',
+        description: 'Next.js App Router, Tailwind design system & AG Grid integration',
         amountUSD: 100,
         status: 'PENDING',
+        acceptanceCriteria: 'Next.js App Router dashboard, responsive Tailwind CSS tokens, real-time AG Grid audit ledger, and zero TypeScript compilation errors.',
       },
       {
         id: 'ms-1-3',
@@ -53,6 +65,7 @@ const INITIAL_PROJECTS: ProjectContract[] = [
         description: 'Real-time SSE streaming, Vault pre-authorization & E2E test suite',
         amountUSD: 75,
         status: 'LOCKED',
+        acceptanceCriteria: 'PayPal Sandbox REST API Vault integration, automated webhook handler with idempotent processing, and passing Jest test suite.',
       },
     ],
   },
@@ -64,6 +77,9 @@ const INITIAL_PROJECTS: ProjectContract[] = [
     budgetCapUSD: 150,
     spentUSD: 0,
     status: 'ACTIVE',
+    perspective: 'OUTGOING',
+    contractType: 'MSA_SOW',
+    contractReferenceId: 'MSA-2026-104C',
     milestones: [
       {
         id: 'ms-2-1',
@@ -72,6 +88,7 @@ const INITIAL_PROJECTS: ProjectContract[] = [
         description: 'Nordic Luxury Fintech design tokens, dark mode palette & typography',
         amountUSD: 60,
         status: 'PENDING',
+        acceptanceCriteria: 'Figma interactive prototypes for desktop & mobile, dark mode HSL palette tokens, and typography design guide.',
       },
       {
         id: 'ms-2-2',
@@ -80,33 +97,90 @@ const INITIAL_PROJECTS: ProjectContract[] = [
         description: 'Reusable Tailwind CSS components, icon set & animations',
         amountUSD: 90,
         status: 'LOCKED',
+        acceptanceCriteria: 'Production-ready Tailwind CSS component library, micro-animations, and accessibility compliance WCAG 2.1 AA.',
       },
     ],
   },
+  // 2. Proyectos que Realizo como Contratista (INCOMING - Fondos de cliente garantizados)
   {
-    id: 'proj-3',
-    name: 'Digital Marketing Campaign',
-    vendorName: 'Ad Agency Global',
-    vendorEmail: 'ad@agency.com',
-    budgetCapUSD: 100,
-    spentUSD: 0,
+    id: 'proj-4',
+    name: 'FinTech Settlement Core Microservice',
+    clientName: 'Apex Financial Holdings Inc.',
+    clientEmail: 'treasury@apexholding.example',
+    vendorName: 'Acme Global Engineering Corp.',
+    vendorEmail: 'billing@acmeglobal.com',
+    budgetCapUSD: 1200,
+    spentUSD: 400,
     status: 'ACTIVE',
+    perspective: 'INCOMING',
+    contractType: 'MSA_SOW',
+    contractReferenceId: 'MSA-2026-APEX-01',
     milestones: [
       {
-        id: 'ms-3-1',
+        id: 'ms-4-1',
         phaseNumber: 1,
-        title: 'Phase 1: Campaign Strategy & Copywriting Assets',
-        description: 'Target audience persona definition, ad copy & banner assets',
-        amountUSD: 50,
-        status: 'PENDING',
+        title: 'Phase 1: Architecture Blueprint & API Spec',
+        description: 'OpenAPI specification and OAuth security envelope',
+        amountUSD: 400,
+        status: 'COMPLETED',
+        acceptanceCriteria: 'OpenAPI 3.0 specification, OAuth2 security envelope, and architectural data flow blueprint.',
+        auditScore: 99,
+        auditRationale: 'VERIFIED: Architecture blueprint verified against financial security standards and OpenAPI 3.0 specs.',
+        deliverableProof: 'https://github.com/apex/settlement/pull/12',
+        payPalBatchId: 'APEX_BATCH_001',
       },
       {
-        id: 'ms-3-2',
+        id: 'ms-4-2',
         phaseNumber: 2,
-        title: 'Phase 2: Ad Launch & Performance Analytics Report',
-        description: 'Campaign execution across ad networks & ROI conversion audit',
-        amountUSD: 50,
+        title: 'Phase 2: Payment Gateway & Microservice Worker',
+        description: 'Real-time PayPal Vault integration and automated settlement worker',
+        amountUSD: 500,
+        status: 'PENDING',
+        acceptanceCriteria: 'PayPal Sandbox REST API Vault integration, automated webhook handler with idempotent processing, and unit test coverage >= 85%.',
+      },
+      {
+        id: 'ms-4-3',
+        phaseNumber: 3,
+        title: 'Phase 3: Production Hardening & Security Audit',
+        description: 'OWASP LLM and PCI-DSS compliance verification',
+        amountUSD: 300,
         status: 'LOCKED',
+        acceptanceCriteria: 'OWASP Top 10 for LLM compliance report, prompt injection sanitization tests, and PCI-DSS readiness checklist.',
+      },
+    ],
+  },
+  // 3. Subcontratación en Cascada (OUTGOING subcontratado para alimentar proj-4)
+  {
+    id: 'proj-5',
+    name: 'Subcontract: Technical Documentation & Blog',
+    vendorName: 'Content Pro Studio',
+    vendorEmail: 'editor@contentpro.example',
+    budgetCapUSD: 150,
+    spentUSD: 0,
+    status: 'ACTIVE',
+    perspective: 'OUTGOING',
+    isSubcontracted: true,
+    parentProjectId: 'proj-4',
+    contractType: 'STANDARD_AGREEMENT',
+    contractReferenceId: 'SUB-2026-DOCS-01',
+    milestones: [
+      {
+        id: 'ms-5-1',
+        phaseNumber: 1,
+        title: 'Phase 1: OpenAPI Developer Markdown Documentation',
+        description: 'Comprehensive integration guide and OpenAPI 3.0 endpoint documentation',
+        amountUSD: 75,
+        status: 'PENDING',
+        acceptanceCriteria: 'Complete Markdown docs, endpoint curl examples, and authentication flow diagrams.',
+      },
+      {
+        id: 'ms-5-2',
+        phaseNumber: 2,
+        title: 'Phase 2: 3 Technical Launch Deep-Dive Articles',
+        description: 'Technical architecture deep-dive and fintech escrow use cases',
+        amountUSD: 75,
+        status: 'LOCKED',
+        acceptanceCriteria: '3 technical articles in Markdown format detailing dual-role escrow and settlement.',
       },
     ],
   },
@@ -163,54 +237,52 @@ export default function Home() {
   const [envelope, setEnvelope] = useState<BudgetEnvelope>(INITIAL_ENVELOPE);
   const [logs, setLogs] = useState<TransactionLog[]>(INITIAL_LOGS);
 
-  // Hydrate state from localStorage on initial client mount
+  // Hydrate state from localStorage on initial client mount with v2 schema migration
   useEffect(() => {
     try {
-      const savedProfile = localStorage.getItem('agenticpay_profile');
-      if (savedProfile) setCurrentProfile(JSON.parse(savedProfile));
+      const savedProfile = localStorage.getItem('agenticpay_profile_v2');
+      if (savedProfile) {
+        setCurrentProfile(JSON.parse(savedProfile));
+      } else {
+        setCurrentProfile(INITIAL_PROFILE);
+      }
 
-      const savedProjects = localStorage.getItem('agenticpay_projects');
-      if (savedProjects) setProjects(JSON.parse(savedProjects));
+      const savedProjects = localStorage.getItem('agenticpay_projects_v2');
+      if (savedProjects) {
+        const parsed: ProjectContract[] = JSON.parse(savedProjects);
+        if (parsed.length >= 4 && parsed.some((p) => p.perspective === 'INCOMING')) {
+          setProjects(parsed);
+        } else {
+          setProjects(INITIAL_PROJECTS);
+        }
+      } else {
+        setProjects(INITIAL_PROJECTS);
+      }
 
-      const savedEnvelope = localStorage.getItem('agenticpay_envelope');
+      const savedEnvelope = localStorage.getItem('agenticpay_envelope_v2');
       if (savedEnvelope) setEnvelope(JSON.parse(savedEnvelope));
 
-      const savedLogs = localStorage.getItem('agenticpay_logs');
+      const savedLogs = localStorage.getItem('agenticpay_logs_v2');
       if (savedLogs) setLogs(JSON.parse(savedLogs));
     } catch (err) {
-      console.warn('[LocalStorage] Hydration failed, using default mock state:', err);
+      console.warn('[LocalStorage] Hydration failed, using default state:', err);
     } finally {
       setIsHydrated(true);
     }
   }, []);
 
-  // Save state updates to localStorage
+  // Save state updates to localStorage v2
   useEffect(() => {
     if (!isHydrated) return;
     try {
-      localStorage.setItem('agenticpay_profile', JSON.stringify(currentProfile));
-      localStorage.setItem('agenticpay_projects', JSON.stringify(projects));
-      localStorage.setItem('agenticpay_envelope', JSON.stringify(envelope));
-      localStorage.setItem('agenticpay_logs', JSON.stringify(logs));
+      localStorage.setItem('agenticpay_profile_v2', JSON.stringify(currentProfile));
+      localStorage.setItem('agenticpay_projects_v2', JSON.stringify(projects));
+      localStorage.setItem('agenticpay_envelope_v2', JSON.stringify(envelope));
+      localStorage.setItem('agenticpay_logs_v2', JSON.stringify(logs));
     } catch (err) {
       console.warn('[LocalStorage] Save failed:', err);
     }
   }, [currentProfile, projects, envelope, logs, isHydrated]);
-
-  const handleResetDemoData = () => {
-    if (confirm('Reset all projects, transactions, and settings back to initial demo state?')) {
-      setCurrentProfile(INITIAL_PROFILE);
-      setProjects(INITIAL_PROJECTS);
-      setEnvelope(INITIAL_ENVELOPE);
-      setLogs(INITIAL_LOGS);
-      setSelectedProjectId('proj-1');
-      setActiveView('PORTFOLIO');
-      localStorage.removeItem('agenticpay_profile');
-      localStorage.removeItem('agenticpay_projects');
-      localStorage.removeItem('agenticpay_envelope');
-      localStorage.removeItem('agenticpay_logs');
-    }
-  };
 
   const handleAddLog = (newLog: TransactionLog) => {
     setLogs((prev) => [newLog, ...prev]);
@@ -239,6 +311,11 @@ export default function Home() {
       budgetCapUSD: data.budgetCapUSD,
       spentUSD: 0,
       status: 'ACTIVE',
+      perspective: data.perspective || 'OUTGOING',
+      contractType: data.contractType,
+      contractReferenceId: data.contractReferenceId,
+      isSubcontracted: data.isSubcontracted,
+      parentProjectId: data.parentProjectId,
     };
 
     setProjects((prev) => [newProject, ...prev]);
@@ -251,7 +328,7 @@ export default function Home() {
       projectName: newProject.name,
       timestamp: new Date().toISOString(),
       agentRole: 'GUARDRAIL',
-      action: `New Escrow Contract Created: "${newProject.name}" (Vendor: ${newProject.vendorEmail} | Vault Cap: $${newProject.budgetCapUSD.toFixed(2)})`,
+      action: `New Escrow Contract Created: "${newProject.name}" (Vendor: ${newProject.vendorEmail} | Vault Cap: $${newProject.budgetCapUSD.toFixed(2)}${newProject.contractType ? ` | ${newProject.contractType}` : ''})`,
       amountUSD: 0,
       recipientEmail: newProject.vendorEmail,
       auditConfidenceScore: 100,
@@ -270,6 +347,18 @@ export default function Home() {
     );
   };
 
+  const handleUpdateProject = (updatedProject: ProjectContract) => {
+    setProjects((prev) => {
+      const next = prev.map((p) => (p.id === updatedProject.id ? updatedProject : p));
+      try {
+        localStorage.setItem('agenticpay_projects_v2', JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to sync updated project to localStorage', e);
+      }
+      return next;
+    });
+  };
+
   const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
 
   return (
@@ -280,8 +369,9 @@ export default function Home() {
         projects={projects}
         selectedProjectId={selectedProjectId}
         currentProfile={currentProfile}
+        activeView={activeView}
+        onNavigatePortfolio={() => setActiveView('PORTFOLIO')}
         onSelectProject={handleSelectProject}
-        onOpenCreateProject={() => setIsCreateModalOpen(true)}
         onToggleKillSwitch={() =>
           setEnvelope((prev) => ({ ...prev, killSwitchActive: !prev.killSwitchActive }))
         }
@@ -311,6 +401,7 @@ export default function Home() {
             onToggleProjectFreeze={handleToggleProjectFreeze}
             onUpdateEnvelope={setEnvelope}
             onAddLog={handleAddLog}
+            onUpdateProject={handleUpdateProject}
           />
         )}
       </main>
@@ -318,6 +409,8 @@ export default function Home() {
       {/* Create New Project Modal */}
       <CreateProjectModal
         isOpen={isCreateModalOpen}
+        existingProjects={projects}
+        isBusinessAccount={currentProfile.role === 'BUSINESS' || currentProfile.accountType === 'BUSINESS'}
         onClose={() => setIsCreateModalOpen(false)}
         onCreateProject={handleCreateProject}
       />
