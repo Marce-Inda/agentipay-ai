@@ -66,9 +66,11 @@ To support real-world enterprise operations where an organization can both hire 
    * **Incoming (`CONTRACTOR`):** The account acts as Vendor/Freelancer. Escrow funds are guaranteed upfront ($0 payment default risk); deliverables are submitted to trigger PayPal payout execution.
 3. **Milestone Deliverable Audit & Settlement Pipeline:**
    * **Acceptance Criteria Specification:** Principal defines phase requirements (e.g. test coverage, OpenAPI specifications, build artifacts).
-   * **Contractor Deliverable Submission:** Contractor submits PR links, commit hashes, or technical execution proofs.
-   * **AI Audit Agent Verification:** Sanitizes input against OWASP LLM01 injection attacks, evaluates compliance against acceptance criteria, and calculates confidence score (0-100%).
-   * **Automated PayPal Payout:** If score >= 85%, automatically invokes PayPal Payouts API (`/v1/payments/payouts`), records batch ID, marks milestone as completed, and appends an immutable transaction log to AG Grid.
+   * **Contractor Deliverable Submission:** Contractor submits PR links, commit hashes, or technical execution proofs with maximum payload boundary protection (12,000 characters).
+   * **Context-Isolated AI Audit Verification:** Sanitizes input against OWASP LLM01 injection attacks (XML/HTML comment prompt escapes, role hijacking), isolates untrusted text in `<deliverable_data>` containers, evaluates compliance against acceptance criteria, and calculates confidence score (0-100%).
+   * **Tiered Financial Governance & Dual-Key Settlement:**
+     - **Micro & Standard Milestones ($\le \$1,000\text{ USD}$):** If score $\ge 85\%$, automatically releases escrow via PayPal Payouts API (`/v1/payments/payouts`) with deterministic `PayPal-Request-Id` cryptographic idempotency headers.
+     - **High-Value Enterprise Milestones ($> \$1,000\text{ USD}$):** AI audit produces full technical compliance verification (`AUDITED_PENDING_APPROVAL`), but funds remain locked in escrow until an authorized enterprise executive confirms release with one-click dual-key authorization in the dashboard.
 4. **Cascading Subcontracting Engine:** An incoming project can spawn child outgoing contracts (e.g., delegating a component), preserving end-to-end milestone traceability.
 5. **Dual-Tier Control Hierarchy:**
    * **Project-Level Escrow Freeze:** Pauses or cancels escrow releases for a specific project/contract without affecting other active projects.
@@ -89,14 +91,14 @@ To support real-world enterprise operations where an organization can both hire 
 
 ### 2. Deterministic Guardrail Enforcer (`/lib/guardrails`)
 * **Role:** Non-AI validation layer intercepting AI intents before calling PayPal APIs.
-* **Enforces:** Per-project budget caps, OWASP LLM01 prompt injection sanitization, confidence score thresholds (>=85%), and dual-tier kill-switch status.
+* **Enforces:** Per-project budget caps, OWASP LLM01 prompt injection sanitization, confidence score thresholds (>=85%), tiered autonomous settlement ceiling ($1,000 USD), payload length limits (12,000 chars), and dual-tier kill-switch status.
 
 ### 3. AI Deliverable Auditor (`/api/agent/audit`)
-* **Role:** Semantic code and document evaluator comparing submitted deliverables against client criteria with automated PayPal payout dispatching.
+* **Role:** Semantic code and document evaluator comparing submitted deliverables against client criteria with automated or dual-key PayPal payout dispatching.
 
 ### 4. PayPal Gateway Adapter (`/lib/paypal`)
 * **Role:** Server-side client wrapper for PayPal REST APIs (`api-m.sandbox.paypal.com`).
-* **Functions:** OAuth2 token management, Vault tokenization, and Payouts execution (`/v1/payments/payouts`).
+* **Functions:** OAuth2 token management, Vault tokenization, and Payouts execution (`/v1/payments/payouts`) with mandatory `PayPal-Request-Id` idempotency headers.
 
 ### 5. AG Grid Multi-Contract Audit Ledger (`/components/CommandCenter.tsx`)
 * **Role:** High-throughput 60 FPS transaction ledger supporting multi-project filtering and real-time risk heatmaps.

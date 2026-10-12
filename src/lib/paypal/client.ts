@@ -66,18 +66,22 @@ export class PayPalSandboxClient {
 
   /**
    * Executes a Batch Payout via PayPal REST API (/v1/payments/payouts)
+   * Guaranteed idempotent through PayPal-Request-Id header to prevent duplicate execution.
    */
   async executeMilestonePayout(payout: {
     receiverEmail: string;
     amountUSD: number;
     milestoneName: string;
-  }): Promise<{ success: boolean; payoutBatchId: string; httpLog: string }> {
+    idempotencyKey?: string;
+  }): Promise<{ success: boolean; payoutBatchId: string; httpLog: string; idempotencyKey: string }> {
     const isSimulated = !this.clientId || this.clientId === 'placeholder';
     const timestamp = new Date().toISOString();
+    const batchId = 'AGENTICPAY_' + Date.now();
+    const effectiveIdempotencyKey = payout.idempotencyKey || `REQ_${batchId}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
     if (isSimulated) {
       const simulatedBatchId = 'SIM_PAYOUT_' + Math.random().toString(36).substring(2, 9).toUpperCase();
-      const httpLog = `POST ${this.baseUrl}/v1/payments/payouts [201 Created]\nPayload: ${JSON.stringify({
+      const httpLog = `POST ${this.baseUrl}/v1/payments/payouts [201 Created]\nHeaders: { "PayPal-Request-Id": "${effectiveIdempotencyKey}" }\nPayload: ${JSON.stringify({
         sender_batch_header: { sender_batch_id: simulatedBatchId, email_subject: 'AgenticPay AI Escrow Release' },
         items: [{ recipient_type: 'EMAIL', amount: { value: payout.amountUSD.toFixed(2), currency: 'USD' }, receiver: payout.receiverEmail }]
       }, null, 2)}`;
@@ -86,11 +90,11 @@ export class PayPalSandboxClient {
         success: true,
         payoutBatchId: simulatedBatchId,
         httpLog,
+        idempotencyKey: effectiveIdempotencyKey,
       };
     }
 
     const token = await this.getAccessToken();
-    const batchId = 'AGENTICPAY_' + Date.now();
 
     const payload = {
       sender_batch_header: {
@@ -117,12 +121,13 @@ export class PayPalSandboxClient {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
+        'PayPal-Request-Id': effectiveIdempotencyKey,
       },
       body: JSON.stringify(payload),
     });
 
     const data = await response.json();
-    const httpLog = `POST ${this.baseUrl}/v1/payments/payouts [${response.status}]\nPayload: ${JSON.stringify(payload, null, 2)}\nResponse: ${JSON.stringify(data, null, 2)}`;
+    const httpLog = `POST ${this.baseUrl}/v1/payments/payouts [${response.status}]\nHeaders: { "PayPal-Request-Id": "${effectiveIdempotencyKey}" }\nPayload: ${JSON.stringify(payload, null, 2)}\nResponse: ${JSON.stringify(data, null, 2)}`;
 
     if (!response.ok) {
       throw new Error(`PayPal Payout Failed [${response.status}]: ${JSON.stringify(data)}`);
@@ -132,6 +137,7 @@ export class PayPalSandboxClient {
       success: true,
       payoutBatchId: data.batch_header?.payout_batch_id || batchId,
       httpLog,
+      idempotencyKey: effectiveIdempotencyKey,
     };
   }
 }

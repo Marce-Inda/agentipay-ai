@@ -126,7 +126,8 @@ interface SubmitProofModalProps {
     proofText: string,
     score: number,
     rationale: string,
-    batchId: string
+    batchId?: string,
+    requiresHumanApproval?: boolean
   ) => void;
   onAddLog: (log: TransactionLog) => void;
 }
@@ -147,6 +148,9 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
     reason: string;
     riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
     simulatedBatchId?: string;
+    requiresHumanApproval?: boolean;
+    settlementMode?: string;
+    idempotencyKey?: string;
   } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -173,34 +177,62 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
       setAuditResult(data);
 
       if (data.success && data.auditConfidenceScore >= 85) {
-        const batchId =
-          data.simulatedBatchId ||
-          `PAYPAL-BATCH-${Date.now().toString(36).toUpperCase()}`;
+        if (data.requiresHumanApproval) {
+          onAuditSuccess(
+            milestone.id,
+            proofUrl,
+            proofText,
+            data.auditConfidenceScore,
+            data.reason,
+            undefined,
+            true
+          );
 
-        onAuditSuccess(
-          milestone.id,
-          proofUrl,
-          proofText,
-          data.auditConfidenceScore,
-          data.reason,
-          batchId
-        );
+          onAddLog({
+            id: `log-audit-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            projectId: project.id,
+            projectName: project.name,
+            agentRole: 'GUARDRAIL',
+            action: `Milestone Audited (${data.auditConfidenceScore}% Score) — Dual-Key Human Signature Required: "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD exceeds $1,000 autonomous threshold)`,
+            amountUSD: milestone.amountUSD,
+            recipientEmail: project.vendorEmail,
+            auditConfidenceScore: data.auditConfidenceScore,
+            status: 'ESCROW_LOCKED',
+            riskLevel: 'MEDIUM',
+            httpPayloadLog: `AUDIT VERIFIED: Score ${data.auditConfidenceScore}%. Settlement held in escrow pending client manual authorization. (Idempotency Key: ${data.idempotencyKey || 'REQ_IDEMPOTENT'})`,
+          });
+        } else {
+          const batchId =
+            data.simulatedBatchId ||
+            `PAYPAL-BATCH-${Date.now().toString(36).toUpperCase()}`;
 
-        onAddLog({
-          id: `log-audit-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          projectId: project.id,
-          projectName: project.name,
-          agentRole: 'BUYER_AI',
-          action: `Milestone Audit Approved (${data.auditConfidenceScore}% Score): "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD Released via PayPal Vault)`,
-          amountUSD: milestone.amountUSD,
-          recipientEmail: project.vendorEmail,
-          auditConfidenceScore: data.auditConfidenceScore,
-          status: 'PAYOUT_EXECUTED',
-          riskLevel: data.riskLevel || 'LOW',
-          payPalTransactionId: batchId,
-          httpPayloadLog: `POST https://api-m.sandbox.paypal.com/v1/payments/payouts [201 Created Batch: ${batchId}]`,
-        });
+          onAuditSuccess(
+            milestone.id,
+            proofUrl,
+            proofText,
+            data.auditConfidenceScore,
+            data.reason,
+            batchId,
+            false
+          );
+
+          onAddLog({
+            id: `log-audit-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            projectId: project.id,
+            projectName: project.name,
+            agentRole: 'BUYER_AI',
+            action: `Milestone Audit Approved (${data.auditConfidenceScore}% Score): "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD Released via PayPal Vault)`,
+            amountUSD: milestone.amountUSD,
+            recipientEmail: project.vendorEmail,
+            auditConfidenceScore: data.auditConfidenceScore,
+            status: 'PAYOUT_EXECUTED',
+            riskLevel: data.riskLevel || 'LOW',
+            payPalTransactionId: batchId,
+            httpPayloadLog: `POST https://api-m.sandbox.paypal.com/v1/payments/payouts [201 Created Batch: ${batchId}] (PayPal-Request-Id: ${data.idempotencyKey || 'IDEMPOTENT'})`,
+          });
+        }
       } else {
         onAddLog({
           id: `log-audit-rej-${Date.now()}`,
@@ -400,43 +432,80 @@ const DeliverableAuditForm: React.FC<DeliverableAuditFormProps> = ({
       setAuditResult(data);
 
       if (data.success && pendingMilestone && onUpdateProject) {
-        const batchId =
-          data.simulatedBatchId ||
-          `PAYPAL-BATCH-${Date.now().toString(36).toUpperCase()}`;
+        if (data.requiresHumanApproval) {
+          const updatedMilestones = (project.milestones || []).map((m) =>
+            m.id === pendingMilestone.id
+              ? {
+                  ...m,
+                  status: 'AUDITED_PENDING_APPROVAL' as const,
+                  auditScore: data.auditConfidenceScore,
+                  auditRationale: data.reason,
+                  deliverableProof: deliverableText,
+                  requiresHumanApproval: true,
+                  submittedAt: new Date().toISOString(),
+                }
+              : m
+          );
 
-        const updatedMilestones = (project.milestones || []).map((m) =>
-          m.id === pendingMilestone.id
-            ? {
-                ...m,
-                status: 'COMPLETED' as const,
-                auditScore: data.auditConfidenceScore,
-                auditRationale: data.reason,
-                deliverableProof: deliverableText,
-                payPalBatchId: batchId,
-              }
-            : m
-        );
+          onUpdateProject({
+            ...project,
+            milestones: updatedMilestones,
+          });
 
-        onUpdateProject({
-          ...project,
-          spentUSD: project.spentUSD + pendingMilestone.amountUSD,
-          milestones: updatedMilestones,
-        });
+          onAddLog({
+            id: `log-audit-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            projectId: project.id,
+            projectName: project.name,
+            agentRole: 'GUARDRAIL',
+            action: `Milestone Audited (${data.auditConfidenceScore}% Score) — Dual-Key Human Signature Required: "${pendingMilestone.title}" ($${pendingMilestone.amountUSD.toFixed(2)} USD exceeds $1,000 threshold)`,
+            amountUSD: pendingMilestone.amountUSD,
+            recipientEmail: project.vendorEmail,
+            auditConfidenceScore: data.auditConfidenceScore || 0,
+            status: 'ESCROW_LOCKED',
+            riskLevel: 'MEDIUM',
+            httpPayloadLog: `AUDIT VERIFIED: Score ${data.auditConfidenceScore}%. Settlement held in escrow pending client manual authorization. (Idempotency Key: ${data.idempotencyKey || 'REQ_IDEMPOTENT'})`,
+          });
+        } else {
+          const batchId =
+            data.simulatedBatchId ||
+            `PAYPAL-BATCH-${Date.now().toString(36).toUpperCase()}`;
 
-        onAddLog({
-          id: `log-audit-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          projectId: project.id,
-          projectName: project.name,
-          agentRole: 'BUYER_AI',
-          action: `Milestone Settled via AI Audit: "${pendingMilestone.title}" ($${pendingMilestone.amountUSD.toFixed(2)} USD via PayPal Vault)`,
-          amountUSD: pendingMilestone.amountUSD,
-          recipientEmail: project.vendorEmail,
-          auditConfidenceScore: data.auditConfidenceScore || 0,
-          status: 'PAYOUT_EXECUTED',
-          riskLevel: data.riskLevel || 'LOW',
-          payPalTransactionId: batchId,
-        });
+          const updatedMilestones = (project.milestones || []).map((m) =>
+            m.id === pendingMilestone.id
+              ? {
+                  ...m,
+                  status: 'COMPLETED' as const,
+                  auditScore: data.auditConfidenceScore,
+                  auditRationale: data.reason,
+                  deliverableProof: deliverableText,
+                  payPalBatchId: batchId,
+                }
+              : m
+          );
+
+          onUpdateProject({
+            ...project,
+            spentUSD: project.spentUSD + pendingMilestone.amountUSD,
+            milestones: updatedMilestones,
+          });
+
+          onAddLog({
+            id: `log-audit-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            projectId: project.id,
+            projectName: project.name,
+            agentRole: 'BUYER_AI',
+            action: `Milestone Settled via AI Audit: "${pendingMilestone.title}" ($${pendingMilestone.amountUSD.toFixed(2)} USD via PayPal Vault)`,
+            amountUSD: pendingMilestone.amountUSD,
+            recipientEmail: project.vendorEmail,
+            auditConfidenceScore: data.auditConfidenceScore || 0,
+            status: 'PAYOUT_EXECUTED',
+            riskLevel: data.riskLevel || 'LOW',
+            payPalTransactionId: batchId,
+            httpPayloadLog: `POST https://api-m.sandbox.paypal.com/v1/payments/payouts [201 Created Batch: ${batchId}] (PayPal-Request-Id: ${data.idempotencyKey || 'IDEMPOTENT'})`,
+          });
+        }
       } else {
         onAddLog({
           id: `log-audit-${Date.now()}`,
@@ -558,40 +627,85 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
   };
 
   // Handle successful audit submission (Contractor side)
+  // Handle successful audit submission (Contractor side)
   const handleAuditSuccess = (
     milestoneId: string,
     proofUrl: string,
     proofText: string,
     score: number,
     rationale: string,
-    batchId: string
+    batchId?: string,
+    requiresHumanApproval?: boolean
   ) => {
     if (!onUpdateProject) return;
 
     const targetMilestone = (project.milestones || []).find((m) => m.id === milestoneId);
     if (!targetMilestone) return;
 
+    const isPendingApproval = Boolean(requiresHumanApproval);
+
     const updatedMilestones = (project.milestones || []).map((m) =>
       m.id === milestoneId
         ? {
             ...m,
-            status: 'COMPLETED' as const,
+            status: isPendingApproval ? ('AUDITED_PENDING_APPROVAL' as const) : ('COMPLETED' as const),
             auditScore: score,
             auditRationale: rationale,
             deliverableProof: proofUrl || proofText,
             payPalBatchId: batchId,
             submittedAt: new Date().toISOString(),
+            requiresHumanApproval: isPendingApproval,
           }
         : m
     );
 
     const updatedProject = {
       ...project,
-      spentUSD: project.spentUSD + targetMilestone.amountUSD,
+      spentUSD: isPendingApproval ? project.spentUSD : project.spentUSD + targetMilestone.amountUSD,
       milestones: updatedMilestones,
     };
 
     onUpdateProject(updatedProject);
+  };
+
+  // Dual-Key Human Authorization Handler (Hiring Client / Accounts Payable side)
+  const handleAuthorizeMilestone = (milestone: ProjectMilestone) => {
+    if (!onUpdateProject) return;
+
+    const batchId = `PAYPAL-BATCH-${Date.now().toString(36).toUpperCase()}-HUMAN`;
+
+    const updatedMilestones = (project.milestones || []).map((m) =>
+      m.id === milestone.id
+        ? {
+            ...m,
+            status: 'COMPLETED' as const,
+            payPalBatchId: batchId,
+            requiresHumanApproval: false,
+          }
+        : m
+    );
+
+    onUpdateProject({
+      ...project,
+      spentUSD: project.spentUSD + milestone.amountUSD,
+      milestones: updatedMilestones,
+    });
+
+    onAddLog({
+      id: `log-auth-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      projectId: project.id,
+      projectName: project.name,
+      agentRole: 'BUYER_AI',
+      action: `Human-in-the-Loop Escrow Release Authorized: "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD disbursed via PayPal Vault)`,
+      amountUSD: milestone.amountUSD,
+      recipientEmail: project.vendorEmail,
+      auditConfidenceScore: milestone.auditScore || 100,
+      status: 'PAYOUT_EXECUTED',
+      riskLevel: 'LOW',
+      payPalTransactionId: batchId,
+      httpPayloadLog: `POST https://api-m.sandbox.paypal.com/v1/payments/payouts [201 Created Batch: ${batchId}] (Dual-Key Authorization Signed)`,
+    });
   };
 
   return (
@@ -730,6 +844,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {(project.milestones || []).map((ms) => {
             const isCompleted = ms.status === 'COMPLETED';
+            const isAuditedPending = ms.status === 'AUDITED_PENDING_APPROVAL';
             const isPending = ms.status === 'PENDING';
 
             return (
@@ -738,6 +853,8 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                 className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all ${
                   isCompleted
                     ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300'
+                    : isAuditedPending
+                    ? 'bg-amber-500/15 border-amber-400 text-amber-200 ring-2 ring-amber-400/40 shadow-lg shadow-amber-500/10'
                     : isPending
                     ? 'bg-amber-500/10 border-amber-500/40 text-amber-200 ring-1 ring-amber-500/30'
                     : 'bg-[#0F1115] border-[#252830] text-slate-500 opacity-60'
@@ -752,6 +869,8 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                     className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                       isCompleted
                         ? 'bg-emerald-950 text-emerald-400 border-emerald-500/50'
+                        : isAuditedPending
+                        ? 'bg-amber-950 text-amber-300 border-amber-400 shadow-sm animate-pulse'
                         : isPending
                         ? 'bg-amber-950 text-amber-300 border-amber-500/50'
                         : 'bg-slate-900 text-slate-500 border-slate-700'
@@ -759,6 +878,8 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                   >
                     {isCompleted
                       ? '✅ PAID / SETTLED'
+                      : isAuditedPending
+                      ? '🛡️ DUAL-KEY SIGNATURE REQ.'
                       : isPending
                       ? '⏳ READY FOR AUDIT'
                       : '🔒 ESCROW LOCKED'}
@@ -820,6 +941,32 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                     {ms.payPalBatchId && (
                       <div className="text-[10px] font-mono text-emerald-400/90 truncate bg-black/40 px-2 py-1 rounded border border-emerald-500/20">
                         Batch: {ms.payPalBatchId}
+                      </div>
+                    )}
+                  </div>
+                ) : isAuditedPending ? (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-[11px] bg-amber-950/40 px-2.5 py-1 rounded border border-amber-500/30">
+                      <span className="text-amber-300 font-semibold flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                        AI Audit Passed:
+                      </span>
+                      <strong className="font-mono text-amber-300 font-bold">
+                        {ms.auditScore || 96}%
+                      </strong>
+                    </div>
+                    {!isIncoming ? (
+                      <button
+                        onClick={() => handleAuthorizeMilestone(ms)}
+                        className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-md active:scale-95"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Authorize & Release (${ms.amountUSD.toFixed(2)})</span>
+                      </button>
+                    ) : (
+                      <div className="w-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-semibold py-2 px-2.5 rounded-lg text-center flex items-center justify-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Audit Passed ({ms.auditScore || 96}%). Awaiting Client Signature.</span>
                       </div>
                     )}
                   </div>

@@ -17,13 +17,14 @@ export interface ProjectMilestone {
   title: string;
   description: string;
   amountUSD: number;
-  status: 'COMPLETED' | 'PENDING' | 'LOCKED';
+  status: 'COMPLETED' | 'PENDING' | 'LOCKED' | 'AUDITED_PENDING_APPROVAL';
   acceptanceCriteria?: string;
   auditScore?: number;
   auditRationale?: string;
   deliverableProof?: string;
   submittedAt?: string;
   payPalBatchId?: string;
+  requiresHumanApproval?: boolean;
 }
 
 export type ProjectPerspective = 'OUTGOING' | 'INCOMING';
@@ -77,6 +78,8 @@ export interface GuardrailCheckResult {
   reason: string;
   riskLevel: RiskLevel;
   sanitizedText?: string;
+  requiresHumanApproval?: boolean;
+  settlementMode?: 'AUTONOMOUS' | 'HUMAN_APPROVAL_REQUIRED' | 'REJECTED';
 }
 
 export interface A2ANegotiationMessage {

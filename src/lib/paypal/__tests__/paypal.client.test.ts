@@ -255,5 +255,61 @@ describe('PayPalSandboxClient', () => {
 
       expect(result1.payoutBatchId).not.toBe(result2.payoutBatchId);
     });
+
+    it('should send PayPal-Request-Id header in REST API payout calls for idempotency', async () => {
+      const mockAccessToken = 'REAL_ACCESS_TOKEN';
+      const mockOAuthResponse = {
+        access_token: mockAccessToken,
+        token_type: 'Bearer',
+        expires_in: 32400,
+      };
+
+      const mockPayoutResponse = {
+        batch_header: {
+          payout_batch_id: 'PAYPAL_BATCH_IDEMPOTENT',
+          batch_status: 'SUCCESS',
+        },
+      };
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce(new Response(JSON.stringify(mockOAuthResponse), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify(mockPayoutResponse), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        }));
+
+      const client = new PayPalSandboxClient({
+        clientId: 'test-client-id',
+        clientSecret: 'test-client-secret',
+      });
+
+      const customKey = 'CUSTOM_IDEMPOTENCY_KEY_999';
+      const result = await client.executeMilestonePayout({
+        ...mockPayoutRequest,
+        idempotencyKey: customKey,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.idempotencyKey).toBe(customKey);
+
+      // Check second fetch call headers
+      const payoutFetchCall = (global.fetch as jest.Mock).mock.calls[1];
+      const headers = payoutFetchCall[1].headers;
+      expect(headers['PayPal-Request-Id']).toBe(customKey);
+    });
+
+    it('should generate and return idempotencyKey in simulated mode', async () => {
+      const client = new PayPalSandboxClient({
+        clientId: 'placeholder',
+        clientSecret: 'placeholder',
+      });
+
+      const result = await client.executeMilestonePayout(mockPayoutRequest);
+      expect(result.idempotencyKey).toBeDefined();
+      expect(result.httpLog).toContain('PayPal-Request-Id');
+    });
   });
 });
