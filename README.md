@@ -48,6 +48,7 @@ While traditional chatbots only suggest links or force users to manually click p
 | 📊 [DATA_GOVERNANCE.md](DATA_GOVERNANCE.md) | Data Lineage, Privacy Standards & Audit Trail Persistence |
 | 🤝 [ETHICS_AND_RESPONSIBLE_AI.md](ETHICS_AND_RESPONSIBLE_AI.md) | Responsible AI Governance & Transparency Matrix |
 | 💼 [BUSINESS_MODEL.md](BUSINESS_MODEL.md) | Commercial Model, Institutional Account Tiers & Revenue Drivers |
+| 📋 [NEXT_SESSION_TASKS.md](NEXT_SESSION_TASKS.md) | Prioritized Blue Hat Action Checklist & Launch Roadmap |
 
 ---
 
