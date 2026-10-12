@@ -1,6 +1,6 @@
 # Business Model & Commercial Strategy Specification 💼
 
-At **AgenticPay AI**, technical innovation is paired with a clear, scalable **Business Model**. In a hackathon context, demonstrating strong commercial viability, market fit, and alignment with PayPal's revenue drivers significantly increases score potential in the **Impact & Utility (25%)** evaluation category.
+At **AgenticPay AI**, technical innovation is paired with a clear, scalable **Commercial Strategy**. By demonstrating institutional viability, enterprise product-market fit, and total alignment with PayPal's revenue drivers, the platform unlocks high-velocity B2B Total Payment Volume (TPV).
 
 ---
 

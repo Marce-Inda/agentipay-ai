@@ -26,9 +26,11 @@ next-env.d.ts
 plan_de_implementacion.md
 INTEGRATED_BLUE_HAT_SYNTHESIS.md
 PRE_MORTEM_ANALYSIS.md
+PITCH_STRATEGY.md
 AGENTS.md
 .agents/
 .gemini/
+docs/internal/
 *.log
 
 # Operating System & IDE

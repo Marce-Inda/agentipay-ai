@@ -35,24 +35,19 @@ While traditional chatbots only suggest links or force users to manually click p
 
 ---
 
-## 📚 Complete Project Documentation
-
+## 📚 Enterprise Technical Documentation
+ 
 | Document | Focus & Scope |
 | :--- | :--- |
-| 🧪 [TESTING_AND_VERIFICATION.md](TESTING_AND_VERIFICATION.md) | Phase-Gate Verification Matrix & QA Checklist |
-| 📑 [E2E_DUAL_ROLE_GRID_TEST_PLAN.md](E2E_DUAL_ROLE_GRID_TEST_PLAN.md) | Full E2E Dual-Role & AG Grid Ledger Test Plan (Low-Resource Sequential) |
-| 🎨 [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Nordic Luxury & Warm Fintech Design System & Tokens |
-| 📄 [plan_de_implementacion.md](plan_de_implementacion.md) | Full 11-Dimensional Master Plan & Execution Strategy |
-| 🌟 [INTEGRATED_BLUE_HAT_SYNTHESIS.md](INTEGRATED_BLUE_HAT_SYNTHESIS.md) | Integrated Architectural Synthesis |
-| 📐 [ARCHITECTURE.md](ARCHITECTURE.md) | System Component Breakdown & Data Flow |
-| 🏛️ [COMPLIANCE.md](COMPLIANCE.md) | Regulatory Compliance, Non-Custodial TSP Model & Chargeback Protection |
-| 🛡️ [SECURITY.md](SECURITY.md) | Financial Guardrails, OWASP Defenses & Risk Policy |
-| 🎙️ [PITCH_STRATEGY.md](PITCH_STRATEGY.md) | Hackathon Video Script, Winning Moats & Devpost Delivery Playbook |
-| 📊 [DATA_GOVERNANCE.md](DATA_GOVERNANCE.md) | Data Governance, GDPR PII Scrubbing & Lineage |
-| 🤝 [ETHICS_AND_RESPONSIBLE_AI.md](ETHICS_AND_RESPONSIBLE_AI.md) | Responsible AI (UNESCO, EU AI Act, OECD) |
-| 💼 [BUSINESS_MODEL.md](BUSINESS_MODEL.md) | Commercial Strategy, TAM & PayPal TPV Alignment |
-| 🔮 [PRE_MORTEM_ANALYSIS.md](PRE_MORTEM_ANALYSIS.md) | Pre-Mortem Risk Analysis & Preventative Measures |
-| ⚙️ [TECHNICAL_ARCHITECTURE_AND_DEVOPS.md](TECHNICAL_ARCHITECTURE_AND_DEVOPS.md) | Pragmatic AI Engineering & Render CI/CD Pipeline |
+| 📐 [ARCHITECTURE.md](ARCHITECTURE.md) | System Component Breakdown, Sequence Flows & Dual-Perspective Model |
+| 🏛️ [COMPLIANCE.md](COMPLIANCE.md) | Regulatory Compliance, Non-Custodial TSP Architecture & Chargeback Mitigation |
+| 🛡️ [SECURITY.md](SECURITY.md) | Financial Guardrails, OWASP LLM01 Defenses & Kill-Switch Circuit Breaker |
+| 🎨 [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Two-Column Master Swimlanes, Design Tokens & Component Specs |
+| 🧪 [TESTING.md](TESTING.md) | Unit & Integration Test Architecture (52 Automated Passing Checks) |
+| 📜 [CHANGELOG.md](CHANGELOG.md) | Institutional Version History & Engineering Milestones |
+| 📊 [DATA_GOVERNANCE.md](DATA_GOVERNANCE.md) | Data Lineage, Privacy Standards & Audit Trail Persistence |
+| 🤝 [ETHICS_AND_RESPONSIBLE_AI.md](ETHICS_AND_RESPONSIBLE_AI.md) | Responsible AI Governance & Transparency Matrix |
+| 💼 [BUSINESS_MODEL.md](BUSINESS_MODEL.md) | Commercial Model, Institutional Account Tiers & Revenue Drivers |
 
 ---
 
