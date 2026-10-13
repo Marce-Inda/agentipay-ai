@@ -8,7 +8,6 @@ import path from "path";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
-  output: 'standalone',
   // Ensure webpack resolves path aliases correctly in production
   webpack: (config) => {
     config.resolve = config.resolve || {};
