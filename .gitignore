@@ -17,9 +17,9 @@
 next-env.d.ts
 
 # Environment & Local Secrets
-.env
-.env*.local
 .env.local
+.env.development
+.env.test
 !.env.example
 
 # Internal Agentic & Hackathon Planning Documents (Kept Local Only)

@@ -22,12 +22,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Environment files (.env.local is for local dev only)
-.env
+# Environment files
+# .env is for production Docker builds (includes NEXT_PUBLIC_* vars)
+# .env.local is for local dev only and should never be in Docker
 .env.local
 .env.development
 .env.test
-.env.production
 
 # Documentation
 *.md
