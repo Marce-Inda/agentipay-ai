@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: agentic-pay-ai
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+    healthCheckPath: /
