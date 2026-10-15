@@ -5,7 +5,7 @@
 
 ## 🏛️ 1. Software Architecture: Clean Modular Monolith
 
-To avoid the trap of over-engineering (microservices, complex message brokers, or heavy Docker orchestration), **AgenticPay AI** is structured as a **Clean Modular Monolith** using Next.js 14 / 16 (App Router).
+To avoid the trap of over-engineering (microservices, complex message brokers, or heavy Docker orchestration), **AgenticPay AI** is structured as a **Clean Modular Monolith** using **Next.js 16** (App Router).
 
 ```
  ┌────────────────────────────────────────────────────────────────────────┐

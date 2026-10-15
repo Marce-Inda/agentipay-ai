@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.5.1] - 2026-10-15 (Render Deployment Fix & Next.js 16 Compatibility)
+
+### Fixed
+- **PostCSS/Tailwind Configuration for Next.js 16:** Renamed `postcss.config.js` and `tailwind.config.js` to `.cjs` extension to ensure compatibility with Next.js 16's Webpack 5 module resolution in Render's build environment.
+- **Turbopack Configuration for Development:** Added `turbopack.resolveAlias` configuration to `next.config.ts` to resolve Next.js 16 warning about webpack config without turbopack config.
+
+### Changed
+- `next.config.ts`: Added turbopack alias configuration for local development while preserving webpack configuration for production builds.
+
+---
+
 ## [0.5.0] - 2026-10-12 (Post-Premortem Resilience & Dual-Key Financial Governance)
 
 ### Added
