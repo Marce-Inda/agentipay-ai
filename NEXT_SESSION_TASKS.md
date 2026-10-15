@@ -16,18 +16,18 @@ Para la próxima sesión, el foco pasa de **construcción de código** a **despl
 
 ## 📌 Lista de Tareas Priorizadas (Actionable Checklist)
 
-### 🔴 Prioridad 1: Despliegue y Verificación en Vivo en Render
-- [ ] **Configurar Render Web Service:**
+### 🟢 Prioridad 1: Despliegue y Verificación en Vivo en Render (COMPLETADO)
+- [x] **Configurar Render Web Service:**
   - Conectar el repositorio de GitHub (`main`).
   - Definir comando de build: `npm install && npm run build`.
   - Definir comando de inicio: `npm start`.
-- [ ] **Inyectar Variables de Entorno en el Dashboard de Render:**
+- [x] **Inyectar Variables de Entorno en el Dashboard de Render:**
   - `PAYPAL_CLIENT_ID`
   - `PAYPAL_CLIENT_SECRET`
   - `PAYPAL_ENVIRONMENT=sandbox`
   - `OPENROUTER_API_KEY` (o provider de IA activo)
   - `NEXT_PUBLIC_APP_URL`
-- [ ] **Smoke Test en Producción:**
+- [x] **Smoke Test en Producción:**
   - Verificar que la URL pública cargue en < 2 segundos con HTTPS.
   - Comprobar que AG Grid renderice transacciones a 60 FPS sin errores en consola.
   - Probar la simulación/ejecución con PayPal Sandbox desde el enlace público.
