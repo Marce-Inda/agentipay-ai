@@ -1,55 +1,223 @@
-# Technical Architecture & DevOps Specification ⚙️🚀
-> **Pragmatic AI Engineering & DevOps Architecture (Zero Over-Engineering)**
+# Technical Architecture and DevOps
+
+This document describes the implementation stack, API contracts, AI provider behavior, build process, and deployment topology for AgenticPay AI.
 
 ---
 
-## 🏛️ 1. Software Architecture: Clean Modular Monolith
+## 1. Stack
 
-To avoid the trap of over-engineering (microservices, complex message brokers, or heavy Docker orchestration), **AgenticPay AI** is structured as a **Clean Modular Monolith** using **Next.js 16** (App Router).
+| Layer | Technology |
+| :--- | :--- |
+| Framework | Next.js `16.4.0`, App Router |
+| UI | React `19.3.0`, Tailwind CSS `3.4`, Lucide icons |
+| Language | TypeScript 5, strict mode |
+| Data grid | AG Grid Community `36.2` |
+| AI SDK | Vercel AI SDK `6`, `@ai-sdk/openai`, `@ai-sdk/google` |
+| Validation | Zod `4.6` |
+| Tests | Jest `29.7`, ts-jest |
+| Runtime | Node.js 20 |
+| Deployment | Docker, Render web service |
 
-```
- ┌────────────────────────────────────────────────────────────────────────┐
- │                    NEXT.JS MODULAR MONOLITH                            │
- ├───────────────────────────────────┬────────────────────────────────────┤
- │  Client Components (Frontend)     │  Server Actions & API Routes       │
- │  - Multi-Project Context Switcher │  - /api/agent/stream (SSE)         │
- │  - AG Grid Multi-Contract Ledger  │  - /api/agent/audit (Multimodal)   │
- │  - Agentic Commerce Assistant UI  │  - /api/paypal/orders (REST)       │
- │  - Dual-Tier Security Controls    │  - /lib/guardrails (TypeScript)    │
- └───────────────────────────────────┴────────────────────────────────────┘
-```
-
-### Why Next.js App Router?
-* **End-to-End Type Safety:** Shared TypeScript interfaces across UI components, LLM tool definitions, multi-project context, and PayPal API payloads.
-* **Server-Side Credential Isolation:** All secret keys (`PAYPAL_CLIENT_SECRET`, `OPENROUTER_API_KEY`) stay strictly on the server.
+The application is a modular monolith. Route handlers contain server-side orchestration; client components own interactive state.
 
 ---
 
-## 🤖 2. AI Engineering: Vercel AI SDK & Multi-Model Fallback Chain
+## 2. Route contracts
 
-* **AI Framework:** **Vercel AI SDK (`ai` & `@ai-sdk/openai`)**
-  * *Why Vercel AI SDK instead of LangChain/Haystack?* Zero boilerplate, native streaming support (`streamText`), type-safe Zod schema validation, and lightweight performance.
-* **Multi-Model Provider Adapter (`/lib/ai/provider.ts`):**
-  * **Primary Model:** `openai/gpt-4o-mini` (ultra-fast inference, ~180ms TTFT, lowest token cost).
-  * **Automated Fallback Model:** `meta-llama/llama-3.3-70b-instruct` (switches automatically if primary endpoint experiences latency or rate limits).
+### `POST /api/agent/stream`
+
+Purpose: streamed AI negotiation assistant.
+
+Request body:
+
+```json
+{
+  "prompt": "string",
+  "maxBudgetUSD": 100,
+  "targetAmount": 75,
+  "projectName": "Contract name",
+  "vendorEmail": "vendor@example.com",
+  "envelope": {
+    "maxPerTransactionUSD": 100,
+    "dailyCeilingUSD": 1000,
+    "spentTodayUSD": 0,
+    "activeEscrowUSD": 0,
+    "killSwitchActive": false
+  }
+}
+```
+
+Behavior:
+
+- Returns `400` when `prompt` is missing.
+- Sanitizes the prompt with `GuardrailEnforcer.sanitizePromptInput`.
+- Validates the target amount against the envelope.
+- Returns `422` with `allowed: false` when the budget check fails.
+- Streams plain text from the primary model.
+- Attempts the fallback model if the primary call throws.
+
+The route does not execute payouts.
+
+### `POST /api/agent/audit`
+
+Purpose: deterministic milestone deliverable audit.
+
+Request body:
+
+```json
+{
+  "deliverableText": "string",
+  "deliverableUrl": "https://github.com/org/repo/pull/42",
+  "expectedRequirements": "string",
+  "milestoneTitle": "Phase 1",
+  "milestoneAmountUSD": 250,
+  "envelope": {
+    "killSwitchActive": false
+  }
+}
+```
+
+Responses:
+
+| Status | Condition | Key fields |
+| :--- | :--- | :--- |
+| `200` | Audit evaluated | `success`, `auditConfidenceScore`, `reason`, `riskLevel`, `settlementMode`, `requiresHumanApproval`, `idempotencyKey` |
+| `400` | No deliverable text or URL | `error` |
+| `423` | Kill-switch active | `settlementMode: "REJECTED"`, `riskLevel: "CRITICAL"`, `requiresHumanApproval: true` |
+| `500` | Unexpected failure | `error` |
+
+The audit is deterministic. It does not call an LLM or inspect images.
 
 ---
 
-## 🚀 3. DevOps & CI/CD: Render Automated Deployment
+## 3. AI provider behavior
 
-To satisfy the **Best Use of Render** sponsor prize ($1,000 credits) while maintaining zero operational overhead:
+`src/lib/ai/provider.ts` selects a provider in this order:
 
-```
-[ GitHub Repo (main branch) ] ──► (Git Push) ──► [ Render Web Service Auto-Build ] ──► [ Live Production URL ]
-```
+1. **OpenAI or OpenRouter** when `OPENAI_API_KEY` or `OPENROUTER_API_KEY` is present.
+   - OpenRouter base URL is used when `OPENROUTER_API_KEY` is set.
+   - Primary model: `AI_MODEL_NAME`, default `openai/gpt-4o-mini`.
+   - Fallback model: `AI_FALLBACK_MODEL_NAME`, default `meta-llama/llama-3.3-70b-instruct`.
+2. **Gemini** when `GEMINI_API_KEY` is present and no OpenAI-compatible key exists.
+   - Model: `gemini-1.5-flash`.
+3. **Default OpenAI client** when no key is configured. This will fail at request time without valid credentials.
 
-* **Zero Docker Overhead:** Render natively detects Next.js applications and handles SSR compilation (`npm run build`).
-* **Environment Secrets:** Injected via Render Dashboard (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `OPENROUTER_API_KEY`).
-* **Build Time:** ~90 seconds from commit to live production URL.
+The fallback is attempted only when the primary streaming call throws. The current implementation does not retry after a partial stream.
 
 ---
 
-## 📊 4. Pragmatic State & Real-Time Streaming
+## 4. Client state and persistence
 
-* **Server-Sent Events (SSE):** Used for real-time streaming of AI thought logs to AG Grid (`/api/agent/stream`) without configuring heavy WebSocket servers (socket.io/Redis).
-* **AG Grid Async State:** Updates UI cells using `api.applyTransactionAsync()` for smooth 60 FPS rendering.
+`src/app/page.tsx` owns:
+
+- `currentProfile`
+- `projects`
+- `envelope`
+- `logs`
+
+On mount, it reads versioned `localStorage` keys. On change, it writes them back after hydration. The ledger update is centralized in `applyTransactionLogToProjects`:
+
+- Only `PAYOUT_EXECUTED` logs with a positive, finite amount update `spentUSD`.
+- Each payout log increments the matching project exactly once.
+
+This avoids double-counting between the workspace and agent chat flows.
+
+---
+
+## 5. Build and scripts
+
+| Command | Behavior |
+| :--- | :--- |
+| `npm run dev` | Next.js development server |
+| `npm run build` | Production build with webpack |
+| `npm run build:dev` | Production build with Turbopack |
+| `npm start` | Start the production server |
+| `npm test` | Jest |
+| `npm run test:watch` | Jest watch mode |
+| `npm run test:coverage` | Jest coverage |
+| `npx tsc --noEmit` | TypeScript validation |
+
+There is no lint or format script. TypeScript strict mode and existing component conventions are the source of truth.
+
+---
+
+## 6. DevOps
+
+### Docker
+
+```bash
+docker build -t agenticpay-ai .
+docker run --env-file .env.local -p 3000:3000 agenticpay-ai
+```
+
+`Dockerfile`:
+
+- `node:20-alpine`
+- `npm ci`
+- `npm run build`
+- `next start` on port 3000
+- `HOSTNAME=0.0.0.0`
+
+### Render
+
+`render.yaml` defines:
+
+- Docker environment
+- `Dockerfile` at the repository root
+- Port `3000`
+- Health check path `/`
+- `NODE_ENV=production`
+
+Configure PayPal and AI credentials in the Render dashboard. Do not commit secrets.
+
+### Environment variables
+
+| Variable | Used by | Notes |
+| :--- | :--- | :--- |
+| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | PayPal client | Public client identifier. |
+| `PAYPAL_CLIENT_ID` | PayPal client | Server-side alias used when the public variable is absent. |
+| `PAYPAL_CLIENT_SECRET` | PayPal client | Server-only secret; required for live payouts. |
+| `PAYPAL_ENVIRONMENT` | PayPal client | `sandbox` default; `production` supported by the URL switch but not validated in this repository. |
+| `OPENAI_API_KEY` | AI provider | OpenAI-compatible key. |
+| `OPENROUTER_API_KEY` | AI provider | Enables the OpenRouter base URL. |
+| `GEMINI_API_KEY` | AI provider | Gemini fallback when no OpenAI-compatible key exists. |
+| `AI_MODEL_NAME` | AI provider | Primary model override. |
+| `AI_FALLBACK_MODEL_NAME` | AI provider | Fallback model override. |
+| `NEXT_PUBLIC_APP_URL` | Client/deployment | Public origin used by deployment tooling. |
+
+### Operational checks
+
+```bash
+npx tsc --noEmit
+npm test -- --runInBand
+npm run build
+```
+
+The repository does not include automated CI workflows. Add a pipeline before relying on merge gates.
+
+---
+
+## 7. Observability and failure handling
+
+- Route handlers log unexpected failures to the server console.
+- PayPal failures surface as thrown errors and are rendered in the workspace.
+- Simulated PayPal results are explicitly marked with `SIM_PAYOUT_` identifiers and a simulated HTTP log.
+- Client-side `localStorage` failures fall back to in-memory defaults and log a warning.
+- There is no centralized tracing, metrics, or error reporting service.
+
+---
+
+## 8. Production hardening backlog
+
+The following items are required before multi-tenant production use:
+
+1. Authentication, authorization, and tenant isolation.
+2. Server-side persistence for contracts, milestones, and ledger events.
+3. Immutable audit logging and export.
+4. PayPal webhooks and reconciliation.
+5. KYC/AML and sanctions screening where required.
+6. Rate limiting and abuse controls at the API boundary.
+7. Automated UI and end-to-end tests.
+8. CI/CD with type, test, and build gates.
+9. Secret rotation and environment separation.
+10. Error monitoring and alerting.

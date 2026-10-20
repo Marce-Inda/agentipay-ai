@@ -1,98 +1,222 @@
-# AgenticPay AI — Design System & Visual Architecture
+# Design System
 
-## 1. Overview & Aesthetics Philosophy
-
-**AgenticPay AI** adopts the **Nordic Luxury & Warm Fintech** design system, specifically engineered to move away from generic AI dark mode clichés (e.g. neon blues, purples, glassmorphism overuse) in favor of an institutional, high-trust visual language.
-
-### Core Visual Principles
-1. **Institutional Trust & Elegance:** Dark charcoal obsidian `#0F1115` base paired with deep metallic cards `#16181D`.
-2. **Warm Copper & Gold Accents:** Premium metallic accents (`#D97706` Warm Copper, `#F59E0B` Amber Gold) communicate financial authority and security.
-3. **High Contrast Status Badges:** Standardized status indicators using Financial Emerald (`#10B981`) for active/settled states, Soft Crimson (`#EF4444`) for blocks/rejections, and Amber for paused states.
-4. **2-View Hierarchy:** Clear division between **Portfolio Dashboard** (multi-contract management and overview) and **Project Workspace** (individual contract negotiation, sandbox testing, and AG Grid audit ledger).
+This document defines the visual language, layout hierarchy, component behavior, and status semantics used across AgenticPay AI.
 
 ---
 
-## 2. Color Palette & Design Tokens
+## 1. Design direction
 
-### Background & Surface Hierarchy
-- **Obsidian Dark Canvas:** `#0F1115` (`var(--background)`)
-- **Card Obsidian Surface:** `#16181D` (`var(--surface-card)`)
-- **Card Border Subdued:** `#252830` or `rgba(217, 119, 6, 0.2)`
-- **Header & Section Background:** `#16181D` with subtle copper top highlight `rgba(217, 119, 6, 0.2)`
+The interface uses an institutional fintech aesthetic:
 
-### Primary Accents (Copper & Gold)
-- **Primary Metallic Copper:** `#D97706` (`amber-600`)
-- **Hover Copper Light:** `#F59E0B` (`amber-500`)
-- **Warm Gold Highlight:** `#FBBF24` (`amber-400`)
-- **Copper Gradient:** `bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600`
+- Dark obsidian canvas with layered charcoal surfaces.
+- Warm copper and amber accents for outbound escrow activity.
+- Cyan and emerald accents for inbound receivables.
+- High-contrast status badges and restrained motion.
+- Dense operational layouts with clear financial hierarchy.
 
-### Status Tokens
-- **Active / Settled:** `#10B981` (Emerald) — Badge: `bg-emerald-950/60 text-emerald-400 border-emerald-500/40`
-- **Paused / Pending:** `#F59E0B` (Amber) — Badge: `bg-amber-950/60 text-amber-400 border-amber-500/40`
-- **Critical / Frozen / Blocked:** `#EF4444` (Crimson) — Badge: `bg-red-950/60 text-red-400 border-red-500/40`
+The design avoids neon gradients, decorative glass effects, and generic AI chat styling. The goal is a workspace that reads as a financial operations console.
 
 ---
 
-## 3. Typography & UI Components
+## 2. Color tokens
 
-### Font Family
-- **Primary Body & Headings:** `Geist Sans`, `Inter`, sans-serif.
-- **Financial Numbers & Code Hashes:** `Geist Mono`, `JetBrains Mono`, monospace.
+### Surfaces
 
-### Key Components
+| Token | Value | Usage |
+| :--- | :--- | :--- |
+| Canvas | `#0F1115` | Application background |
+| Surface | `#16181D` | Cards, panels, header |
+| Elevated surface | `#1C1F26` | Modals, hover states |
+| Border | `#252830` | Default dividers |
+| Border accent | `rgba(217, 119, 6, 0.2)` | Active or highlighted containers |
 
-#### 1. Integrated Two-Column Master Swimlanes (Dual Accounts Architecture)
-- **Side-by-Side 50/50 Dual Swimlanes:**
-  - **Left Swimlane (Managed Contracts / Outbound Escrow / Accounts Payable):** 
-    - Warm Copper / Amber Gold accent tones (`border-amber-500/40`, `bg-gradient-to-br from-[#1c1813]`).
-    - Dedicated Executive Summary header displaying pre-authorized Vault caps, released vendor settlements, and active governance stats.
-    - Vertically stacked full-width project cards for agreements where the user hires and audits vendors.
-  - **Right Swimlane (Assigned Contracts / Inbound Receivables / Accounts Receivable):** 
-    - Cyan / Emerald Nordic Tech accent tones (`border-cyan-500/40`, `bg-gradient-to-br from-[#121b24]`).
-    - Dedicated Executive Summary header displaying client secured escrow deposits and claimed milestone payouts with guaranteed $0 non-payment risk.
-    - Vertically stacked full-width project cards for agreements where the user delivers milestones.
-- **Actionable Onboarding & Asymmetry Balancing (Zero Dead Space Principle):**
-  - Columns with 0 contracts render proactive institutional onboarding hubs (*Accounts Payable Procurement Hub* on the left, *Accounts Receivable Intake Hub* on the right) with zero-trust benefit badges and direct action buttons (e.g. *Copy Client Escrow Intake Link*).
-  - When one column has fewer contracts than the other, an *Enterprise Capacity & Intake Card* dynamically populates the shorter column, preserving visual symmetry and providing a live link generator for client escrow intake.
-- **Unified Global Utilities Toolbar:** Search and status filtering apply simultaneously across both swimlanes with zero redundant tab controls, including a focus toggle (`Dual Split View | Managed Only | Assigned Only`).
+### Accents
 
-#### 2. Metallic Copper & Nordic Cyan Buttons
-```tsx
-<button className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs px-4 py-2 rounded-lg border border-amber-400/30 transition-all shadow-md active:scale-95">
-  + New Contract / Subcontract
-</button>
-```
+| Token | Value | Usage |
+| :--- | :--- | :--- |
+| Copper | `#D97706` | Primary actions, outbound accent |
+| Amber | `#F59E0B` | Hover, warning, pending |
+| Gold | `#FBBF24` | Emphasis text and highlights |
+| Cyan | `#06B6D4` | Inbound accent |
+| Emerald | `#10B981` | Settled, active, success |
+| Crimson | `#EF4444` | Blocked, frozen, critical |
+| Slate | `#94A3B8` | Secondary text and metadata |
 
-#### 3. Audit Ledger (AG Grid Dark Quartz)
-- Styled using `.ag-theme-quartz-dark` with customized dark headers, metallic row hover states, and formatted currency/audit confidence score renderers.
+### Usage rules
+
+- Copper and amber identify outbound escrow and primary actions.
+- Cyan identifies inbound receivables.
+- Emerald is reserved for settled or positive states.
+- Crimson is reserved for blocks, freezes, kill-switch, and critical risk.
+- Do not use color as the only signal; pair it with a label or icon.
 
 ---
 
-## 4. Layout & Navigation Hierarchy
+## 3. Typography
 
+- **Body and headings:** Geist Sans or Inter, sans-serif.
+- **Financial values and identifiers:** Geist Mono or JetBrains Mono, monospace.
+- **Scale:** 11–12 px for metadata, 13–14 px for operational text, 16–20 px for card titles, 24–32 px for page and summary values.
+- **Numbers:** use tabular figures where supported. Currency is formatted as `$1,234.00`.
+
+---
+
+## 4. Layout hierarchy
+
+```text
+Header
+  - Product identity
+  - Context badge: portfolio or active contract
+  - Outbound escrow metric
+  - Inbound escrow metric
+  - Escrow health
+  - Kill-switch
+  - Account settings
+
+Portfolio view
+  - Page title and portfolio actions
+  - Enterprise capacity summary (business accounts only)
+  - Global toolbar: search, status filter, focus switch
+  - Two-column swimlanes
+      - Outbound Escrow / Accounts Payable
+      - Inbound Escrow / Accounts Receivable
+  - Contract cards and empty states
+
+Workspace view
+  - Back navigation and contract title
+  - Perspective and parent mandate badges
+  - Escrow Guarantee / Vault Ceiling
+  - Claimed / Settled
+  - Freeze control (outbound only)
+  - Agent assistant
+  - Milestone audit and release panel
+  - Project ledger
 ```
-+-----------------------------------------------------------------------------------+
-|  AgenticPay AI Header (PayPal OAuth Status | Vault Budget Envelope | Kill-Switch)  |
-+-----------------------------------------------------------------------------------+
-|  [VIEW 1: PORTFOLIO DASHBOARD]                                                    |
-|  - Legal Entity & Compliance Status Banner (Enterprise Business vs Individual)   |
-|  - Global Utilities Toolbar (Search across all contracts | Status Filter | Focus) |
-|                                                                                   |
-|  [TWO-COLUMN MASTER SWIMLANES]                                                    |
-|  ┌───────────────────────────────────────┬──────────────────────────────────────┐  |
-|  │ COLUMN A: MANAGED CONTRACTS (OUTBOUND)│ COLUMN B: ASSIGNED CONTRACTS (INBOUND)│  |
-|  ├───────────────────────────────────────┼──────────────────────────────────────┤  |
-|  │ [ Executive Summary: $550 Vault Cap ] │ [ Executive Summary: $1,200 Escrow ] │  |
-|  │ • 3 Active Contracts | $75 Settled    │ • 1 Active Contract | $400 Claimed   │  |
-|  ├───────────────────────────────────────┼──────────────────────────────────────┤  |
-|  │ [ Contract Card 1: Web Platform Eng ] │ [ Contract Card 1: FinTech Core ]    │  |
-|  │ [ Contract Card 2: UI/UX Redesign ]   │ [ Capacity Card: Accepting Mandates ]│  |
-|  │ [ Contract Card 3: Subcontract Docs ] │                                      │  |
-|  └───────────────────────────────────────┴──────────────────────────────────────┘  |
-|                                                                                   |
-|  [VIEW 2: PROJECT WORKSPACE] (Opened upon selecting a project card)               |
-|  - Sub-Header (Back to Portfolio, Project Status, Vault Cap, Freeze Toggle)       |
-|  - Left Column: Agentic Commerce Assistant (Natural Prompt Chat & Presets)        |
-|  - Right Column: Multi-Contract Audit Ledger (AG Grid & REST Payload Viewer)      |
-+-----------------------------------------------------------------------------------+
-```
+
+---
+
+## 5. Component behavior
+
+### Header
+
+- Shows `outboundEscrowCap` and `inboundEscrowCap` separately.
+- Inbound uses `Claimed`; outbound uses `Settled`.
+- The workspace badge is static context, not a navigation control.
+- The kill-switch is visually prominent and changes the header to an alert state when active.
+
+### Portfolio toolbar
+
+- Search applies to contract name, counterparty, and milestone text.
+- Status filter applies to both swimlanes.
+- Focus options: dual split, outbound only, inbound only.
+- A reset action appears when filters return no results.
+
+### Contract card
+
+- Title, counterparty, perspective badge, status badge, escrow cap, settled amount, and milestone progress.
+- Subcontract badge is mutually exclusive: `SUBCONTRACTED` or `DIRECT HIRE`.
+- Parent mandate name is shown when a parent contract exists.
+- Selecting the card opens the workspace.
+
+### Intake link
+
+- The portfolio generates a link at `/escrow/intake/{slug}`.
+- The slug is derived from the legal company name, then the display name, sanitized for URL use.
+- The copy control has three states:
+  - `IDLE`: "Copy Client Escrow Intake Link"
+  - `COPIED`: "Link Copied"
+  - `FAILED`: "Clipboard Unavailable — Copy Link Manually"
+- The link uses `window.location.origin`, not a hardcoded domain.
+
+### Enterprise capacity card
+
+- Renders only when `role === 'BUSINESS'` or `accountType === 'BUSINESS'`.
+- Displays available capacity and the intake action.
+- Does not claim custody or guaranteed settlement.
+
+### Workspace
+
+- Role labels are `Client (Escrow Funder)` for outbound and `Contractor (Escrow Beneficiary)` for inbound.
+- Freeze controls are hidden for inbound contracts.
+- Remaining budget is displayed before release.
+- Audit results show confidence, risk, settlement mode, and rationale.
+- Milestones above the autonomous cap show an explicit human approval action.
+
+### Agent assistant
+
+- Initial message identifies the active contract and the pre-authorized budget context.
+- Preset actions insert prompts; they do not execute payouts.
+- Target amount is validated against the remaining budget before any payout request.
+- A blocked payout produces a clear guardrail message and a `REJECTED` ledger event.
+
+### AG Grid ledger
+
+- Columns: timestamp, project, actor, action, amount, audit confidence, risk, status, actions.
+- Status colors follow the status token rules.
+- Risk badges: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
+- Payload inspector opens the exact HTTP log returned by the server.
+- Freeze actions are available only where the perspective allows it.
+
+---
+
+## 6. Status semantics
+
+| Domain status | Display treatment |
+| :--- | :--- |
+| `IDLE` | Neutral slate |
+| `PROPOSED` | Slate with copper accent |
+| `GUARDRAIL_CHECKING` | Amber |
+| `AUDITING_DELIVERABLE` | Cyan |
+| `ESCROW_LOCKED` | Copper |
+| `AUDITED_PENDING_APPROVAL` | Amber with approval action |
+| `PAYOUT_EXECUTED` | Emerald |
+| `REJECTED` | Crimson |
+| `CONTRACT_FROZEN` | Crimson |
+| `KILL_SWITCH_REVOKED` | Crimson with alert emphasis |
+
+Milestone statuses:
+
+| Status | Meaning |
+| :--- | :--- |
+| `PENDING` | Work is in progress and funds remain secured. |
+| `LOCKED` | Release is blocked by a guardrail or approval state. |
+| `AUDITED_PENDING_APPROVAL` | Audit passed but human authorization is required. |
+| `COMPLETED` | Payout executed and recorded. |
+
+---
+
+## 7. Interaction states
+
+- **Hover:** increase border contrast and surface brightness; avoid large movement.
+- **Focus:** visible ring using the active accent; never remove focus indication.
+- **Disabled:** reduce opacity and remove hover elevation.
+- **Loading:** show inline progress or skeleton states; do not replace the entire layout.
+- **Error:** pair crimson with a specific message and a recovery action.
+- **Success:** confirm the state change and update the ledger immediately.
+
+---
+
+## 8. Accessibility
+
+- Maintain a minimum contrast ratio of 4.5:1 for body text.
+- Do not rely on color alone for risk or status.
+- Provide accessible names for icon-only controls.
+- Ensure keyboard reachability for cards, modals, filters, and the kill-switch.
+- Respect reduced-motion preferences for non-essential animation.
+- Keep touch targets at least 40 px where practical.
+
+---
+
+## 9. Content rules
+
+Use precise operational language:
+
+- Outbound Escrow / Accounts Payable
+- Inbound Escrow / Accounts Receivable
+- Client (Escrow Funder)
+- Contractor (Escrow Beneficiary)
+- Escrow Cap, Vault Ceiling, Claimed, Settled
+- Audit Confidence, Risk Level, Settlement Mode
+- Human Authorization, Contract Freeze, Kill-Switch
+
+Avoid placeholder language, simulated-sounding labels, or claims that the platform holds funds. PayPal is the settlement rail.

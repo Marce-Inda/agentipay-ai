@@ -1,171 +1,148 @@
-# 🧪 Testing Guide
+# Testing Guide
 
-This document describes the testing strategy and how to run tests for AgenticPay AI.
-
----
-
-## Test Overview
-
-### Types of Tests
-
-| Type | Location | Description |
-| :--- | :--- | :--- |
-| **Unit Tests** | `src/lib/**/__tests__/*.test.ts` | Test individual functions and classes |
-| **Integration Tests** | `src/lib/**/__tests__/*.test.ts` | Test API client interactions |
-| **API Route Tests** | `src/app/api/**/__tests__/*.test.ts` | Test API endpoints |
-| **E2E Tests** | To be implemented | Full workflow testing with Playwright |
+This document describes the current automated test inventory, how to run it, and what is not yet covered.
 
 ---
 
-## Current Test Coverage
+## 1. Current status
 
-### ✅ Implemented Tests
+- **Test runner:** Jest 29 with ts-jest.
+- **Environment:** Node.
+- **Suites:** 5.
+- **Checks:** 58 passing.
+- **Scope:** server-side guardrails, PayPal client behavior, audit route, stream route, and the ledger helper.
 
-| Component | Unit Tests | Integration Tests | Coverage |
-| :--- | :---: | :---: | :---: |
-| `GuardrailEnforcer` | ✅ | ❌ | 100% |
-| `PayPalSandboxClient` | ❌ | ✅ | 100% |
-| `/api/agent/stream` | ✅ | ❌ | 74.07% |
-| `/api/agent/audit` | ✅ | ❌ | 80.95% |
-
-### 🚧 Planned Tests
-
-| Component | Status |
-| :--- | :--- |
-| `AgentChat.tsx` | To be implemented |
-| `/api/agent/stream` | To be implemented |
-| `/api/agent/audit` | To be implemented |
-| Full E2E workflow | To be implemented |
-
----
-
-## Running Tests
-
-### Install Dependencies
+Run the full suite:
 
 ```bash
-npm install
+npm test -- --runInBand
 ```
 
-### Run All Tests
+Validate TypeScript and the production build:
+
+```bash
+npx tsc --noEmit
+npm run build
+```
+
+The repository does not include a `lint` or `typecheck` script.
+
+---
+
+## 2. Test inventory
+
+| Suite | File | Focus |
+| :--- | :--- | :--- |
+| Guardrail enforcer | `src/lib/guardrails/__tests__/guardrails.enforcer.test.ts` | Budget ceilings, kill-switch, amount validation, payload truncation, prompt sanitization, audit thresholds, settlement modes. |
+| PayPal client | `src/lib/paypal/__tests__/paypal.client.test.ts` | OAuth behavior, simulated payout fallback, payload shape, idempotency key handling, HTTP error paths. |
+| Audit route | `src/app/api/agent/__tests__/audit.test.ts` | Input validation, kill-switch `423`, audit scoring, approval escalation, payload metadata. |
+| Stream route | `src/app/api/agent/__tests__/stream.test.ts` | Missing prompt, budget rejection, provider call behavior, response handling. |
+| Ledger helper | `src/lib/__tests__/ledger.test.ts` | `PAYOUT_EXECUTED` increments settled funds exactly once; other statuses do not mutate projects. |
+
+---
+
+## 3. Commands
+
+### Run all tests
 
 ```bash
 npm test
 ```
 
-### Run Tests in Watch Mode
+### Watch mode
 
 ```bash
 npm run test:watch
 ```
 
-### Run Tests with Coverage
+### Coverage
 
 ```bash
 npm run test:coverage
 ```
 
-### Run Specific Test File
+Coverage is collected from `src/**/*.{ts,tsx}`, excluding declarations, `node_modules`, and test directories. Treat the generated report as a development signal rather than a release gate.
+
+### Run a specific suite
 
 ```bash
 npm test -- guardrails.enforcer
 npm test -- paypal.client
+npm test -- audit.test
+npm test -- stream.test
+npm test -- ledger.test
 ```
 
 ---
 
-## Writing New Tests
+## 4. What is covered
 
-### Unit Test Template
+- Non-AI budget enforcement before settlement.
+- Kill-switch rejection at the audit route.
+- Human approval escalation above the autonomous settlement cap.
+- Prompt-injection pattern replacement.
+- Deliverable payload size limiting.
+- PayPal simulated-mode behavior when the client ID is absent or set to `placeholder`.
+- Ledger idempotency for settled amounts.
+- Stream route budget rejection and provider invocation.
+
+## 5. What is not covered
+
+- React component rendering and user interactions.
+- Browser `localStorage` hydration and migration.
+- End-to-end portfolio and workspace workflows.
+- AG Grid rendering, filtering, and payload inspection.
+- Real PayPal Sandbox network calls in CI.
+- Accessibility and responsive layout.
+- Security testing beyond the deterministic guardrail patterns.
+- Load, performance, and concurrency testing.
+
+For manual end-to-end verification, see [E2E_DUAL_ROLE_GRID_TEST_PLAN.md](E2E_DUAL_ROLE_GRID_TEST_PLAN.md).
+
+---
+
+## 6. Writing tests
+
+Follow the existing Jest and ts-jest conventions:
 
 ```typescript
-import { YourClass } from '../your-class';
+import { GuardrailEnforcer } from '../enforcer';
 
-describe('YourClass', () => {
-  describe('yourMethod', () => {
-    it('should handle happy path', () => {
-      const result = YourClass.yourMethod(input);
-      expect(result).toBe(expected);
+describe('GuardrailEnforcer', () => {
+  it('rejects amounts above the transaction ceiling', () => {
+    const result = GuardrailEnforcer.validateTransactionBudget(250, {
+      maxPerTransactionUSD: 100,
+      dailyCeilingUSD: 1000,
+      spentTodayUSD: 0,
+      activeEscrowUSD: 0,
+      killSwitchActive: false,
     });
 
-    it('should handle edge case', () => {
-      const result = YourClass.yourMethod(edgeCaseInput);
-      expect(result).toBe(expected);
-    });
+    expect(result.allowed).toBe(false);
+    expect(result.settlementMode).toBe('REJECTED');
   });
 });
 ```
 
-### Integration Test Template
+Guidelines:
 
-```typescript
-describe('YourClient', () => {
-  let originalFetch: typeof global.fetch;
-
-  beforeEach(() => {
-    originalFetch = global.fetch;
-    (global as any).fetch = jest.fn();
-  });
-
-  afterEach(() => {
-    global.fetch = originalFetch;
-  });
-
-  it('should call API correctly', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue(new Response(JSON.stringify(data), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }));
-
-    const client = new YourClient();
-    const result = await client.method();
-
-    expect(result).toBe(expected);
-  });
-});
-```
+- Test deterministic behavior, not implementation details.
+- Mock `fetch` for PayPal and AI provider calls; never use live credentials in tests.
+- Include rejection and boundary cases for financial rules.
+- Keep ledger assertions explicit: one payout log must not double-count.
+- Do not assert on unstable identifiers such as random batch IDs or timestamps.
 
 ---
 
-## Test File Organization
+## 7. CI/CD
 
-```
-src/
-├── lib/
-│   ├── guardrails/
-│   │   ├── enforcer.ts
-│   │   └── __tests__/
-│   │       └── guardrails.enforcer.test.ts
-│   ├── paypal/
-│   │   ├── client.ts
-│   │   └── __tests__/
-│   │       └── paypal.client.test.ts
-│   └── types/
-│       └── index.ts
-```
-
----
-
-## Coverage Report
-
-Run tests with coverage to see line-by-line coverage:
+No CI workflow is committed. Before enabling merge gates, add a pipeline that runs:
 
 ```bash
-npm run test:coverage
+npm ci
+npx tsc --noEmit
+npm test -- --runInBand
+npm run build
 ```
 
-Coverage is currently at:
-- `GuardrailEnforcer`: 100%
-- `PayPalSandboxClient`: 100%
-
----
-
-## CI/CD Integration
-
-Tests run automatically on:
-
-- PR creation
-- Push to main branch
-- Scheduled weekly runs
-
-Configure CI in `.github/workflows/test.yml` (to be created).
+Use repository secrets for PayPal and AI credentials only if a dedicated Sandbox integration test is introduced. Unit tests should not require live credentials.

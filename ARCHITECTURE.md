@@ -1,110 +1,224 @@
-# AgenticPay AI - Architecture Specification 📐
+# Architecture Specification
 
-This document outlines the system architecture, component breakdown, data flow, multi-project hierarchy, security model, and PayPal API integration pattern for **AgenticPay AI**.
-
----
-
-## System Overview & Component Diagram
-
-```
-                     +-----------------------------------------------+
-                     |          Web UI / Client Dashboard            |
-                     |  - Next.js App Router (Modular Monolith)       |
-                     |  - Multi-Project Context Selector & Portfolio |
-                     |  - AG Grid Multi-Contract Audit Ledger         |
-                     |  - Organization & Account Settings Modal      |
-                     +-----------------------+-----------------------+
-                                             | REST API / Server Actions
-                     +-----------------------v-----------------------+
-                     |           Next.js Server API Backend          |
-                     |  - Multi-Project Context Isolation Manager    |
-                     |  - Agent Execution & Bargaining Engine        |
-                     |  - Multimodal Vision & Deliverable Auditor    |
-                     |  - Dual-Tier Guardrail & Safety Enforcer     |
-                     |  - PayPal OAuth & Payout Gateway Adapter      |
-                     +----------+-------------------------+----------+
-                                |                         |
-      +-------------------------v--------+       +--------v------------------------+
-      |   PayPal Developer Sandbox       |       |       Multimodal LLM            |
-      |  - Orders API (Checkout / Pre-Auth)|       |  - OpenAI / OpenRouter / Gemini |
-      |  - Payouts API (Escrow Release)  |       |  - Vision & Reasoning Engine    |
-      |  - Vault API (Tokenization)      |       +---------------------------------+
-      +----------------------------------+
-```
+This document describes the implemented architecture of AgenticPay AI: the client application, route handlers, financial guardrails, state model, PayPal integration, and known boundaries.
 
 ---
 
-## Multi-Project & Multi-Contract Architecture
+## 1. System context
 
-To support real-world enterprise operations where an organization can both hire contractors and deliver client projects (including cascading subcontracting chains):
-
+```text
++-----------------------------------------------------------------------+
+| Browser                                                               |
+|  Next.js 16 App Router client                                         |
+|  - Portfolio and workspace views                                      |
+|  - AI negotiation assistant                                           |
+|  - AG Grid transaction ledger                                         |
+|  - localStorage persistence (profile, projects, envelope, logs)       |
++-----------------------------------+-----------------------------------+
+                                    |
+                   POST /api/agent/stream   POST /api/agent/audit
+                                    |
++-----------------------------------v-----------------------------------+
+| Next.js route handlers                                                |
+|  - GuardrailEnforcer: budget, audit, sanitization, payload limits     |
+|  - AI provider adapter: OpenAI/OpenRouter or Gemini                   |
+|  - Deterministic deliverable audit                                    |
+|  - PaypalSandboxClient: OAuth + /v1/payments/payouts                  |
++-----------------------------------+-----------------------------------+
+                                    |
+                                    v
+                     PayPal Sandbox REST API
+                     https://api-m.sandbox.paypal.com
 ```
-+-----------------------------------------------------------------------------+
-| MASTER EMERGENCY KILL-SWITCH (Global Safety Halt)                           |
-| Revokes PayPal OAuth credentials at account level in critical emergencies   |
-+--------------------------------------+--------------------------------------+
-                                       |
-       +-------------------------------+-------------------------------+
-       v                                                               v
-+-----------------------------------------------+     +-----------------------------------------------+
-| CONTRACTS I MANAGE (Outgoing Escrow - Hiring) |     | CONTRACTS I DELIVER (Incoming Escrow - Vendor)|
-| Vault Pre-Authorized by User's Account        |     | Vault Locked by Client's Account              |
-| Deliverables audited before payout release    |     | Milestones verified & funds claimed           |
-+-----------------------+-----------------------+     +-----------------------+-----------------------+
-| Contract: Web Dev     | Contract: Copywriting |     | Contract: FinTech App | Contract: Subcontract |
-| Vendor: dev@agency    | Vendor: copy@pro.io   |     | Client: Apex Holding  | Client: Acme Global   |
-| Vault Cap: $250.00    | Vault Cap: $100.00    |     | Escrow: $1,200.00     | Escrow: $150.00       |
-+-----------------------+-----------------------+     +-----------------------+-----------------------+
-```
 
-### Key Multi-Project & Entity Features:
-1. **Account Entity Model (Personal vs. Business):**
-   * **Personal Accounts:** Individual profile, standard terms of service, direct PayPal account settlement, streamlined single-operator escrow.
-   * **Business Accounts:** Corporate legal entity, Tax ID/VAT registration, formal **MSA (Master Services Agreement)** and **SOW (Statement of Work)** binding contracts, multi-user approval governance, and pooled departmental Vault envelopes.
-2. **Dual-Perspective Relationship Model:**
-   * **Outgoing (`CONTRACTING`):** The account acts as Buyer/Principal. Funds are tokenized and deposited into escrow; AI audits deliverables submitted by third parties.
-   * **Incoming (`CONTRACTOR`):** The account acts as Vendor/Freelancer. Escrow funds are guaranteed upfront ($0 payment default risk); deliverables are submitted to trigger PayPal payout execution.
-3. **Milestone Deliverable Audit & Settlement Pipeline:**
-   * **Acceptance Criteria Specification:** Principal defines phase requirements (e.g. test coverage, OpenAPI specifications, build artifacts).
-   * **Contractor Deliverable Submission:** Contractor submits PR links, commit hashes, or technical execution proofs with maximum payload boundary protection (12,000 characters).
-   * **Context-Isolated AI Audit Verification:** Sanitizes input against OWASP LLM01 injection attacks (XML/HTML comment prompt escapes, role hijacking), isolates untrusted text in `<deliverable_data>` containers, evaluates compliance against acceptance criteria, and calculates confidence score (0-100%).
-   * **Tiered Financial Governance & Dual-Key Settlement:**
-     - **Micro & Standard Milestones ($\le \$1,000\text{ USD}$):** If score $\ge 85\%$, automatically releases escrow via PayPal Payouts API (`/v1/payments/payouts`) with deterministic `PayPal-Request-Id` cryptographic idempotency headers.
-     - **High-Value Enterprise Milestones ($> \$1,000\text{ USD}$):** AI audit produces full technical compliance verification (`AUDITED_PENDING_APPROVAL`), but funds remain locked in escrow until an authorized enterprise executive confirms release with one-click dual-key authorization in the dashboard.
-4. **Cascading Subcontracting Engine:** An incoming project can spawn child outgoing contracts (e.g., delegating a component), preserving end-to-end milestone traceability.
-5. **Dual-Tier Control Hierarchy:**
-   * **Project-Level Escrow Freeze:** Pauses or cancels escrow releases for a specific project/contract without affecting other active projects.
-   * **Master Emergency Kill-Switch:** Account-level circuit breaker that immediately revokes tokens across all active projects.
-6. **Two-Column Master Swimlanes Architecture:**
-   * **Parallel Account Workspaces:** The portfolio dashboard renders two synchronized columns:
-     - **Left Swimlane (Outbound Escrow / Accounts Payable):** Contains the Outbound Executive Summary Card and all active agreements where the entity hires and audits vendors.
-     - **Right Swimlane (Inbound Escrow / Accounts Receivable):** Contains the Inbound Executive Summary Card, guaranteed client deposit reserves, and contracts where the entity delivers milestones.
-   * **Zero Redundant Navigation:** Replaces redundant secondary tab bars with a clean global search and utility toolbar, offering optional focus toggles (`Dual Split View | Managed Only | Assigned Only`).
-   * **Asymmetric Swimlane Resilience & Empty State Hubs:** Avoids unpopulated dead spaces by transforming empty or shorter columns into Actionable Enterprise Onboarding Hubs (e.g. Inbound Escrow Intake Links, Outbound Procurement Mandates), maintaining visual equilibrium across varying portfolio volumes.
+The application is a modular monolith. There is no database, message broker, or background worker in the current implementation. Financial state is held in the browser and reconstructed on load.
 
 ---
 
-## Core Architectural Components
+## 2. Client structure
 
-### 1. Multi-Project Context Manager (`/lib/projects`)
-* **Role:** Isolates project states, vendor contracts, milestones, and active escrow balances.
+| Area | Responsibility |
+| :--- | :--- |
+| `src/app/page.tsx` | Owns profile, projects, budget envelope, and transaction logs. Hydrates from `localStorage`, creates contracts, applies ledger updates, and routes between portfolio and workspace views. |
+| `src/components/Header.tsx` | Portfolio/workspace navigation, directional escrow metrics, escrow health, and the master kill-switch. |
+| `src/components/ProjectPortfolioView.tsx` | Two-column outbound/inbound swimlanes, executive summaries, contract cards, subcontract badges, intake link, and business capacity card. |
+| `src/components/ProjectWorkspaceView.tsx` | Project header, milestone list, audit modal, payout authorization, project ledger, and freeze controls. |
+| `src/components/AgentChat.tsx` | Streamed negotiation assistant, preset actions, target amount, and pre-payout guard checks. |
+| `src/components/CommandCenter.tsx` | AG Grid transaction ledger with risk, status, confidence, and PayPal payload inspection. |
+| `src/components/CreateProjectModal.tsx` | Contract creation, milestone setup, legal type, perspective, and parent-contract linkage. |
+| `src/components/AccountSettingsModal.tsx` | Legal identity, tax ID, settlement email, billing jurisdiction, and account tier. |
 
-### 2. Deterministic Guardrail Enforcer (`/lib/guardrails`)
-* **Role:** Non-AI validation layer intercepting AI intents before calling PayPal APIs.
-* **Enforces:** Per-project budget caps, OWASP LLM01 prompt injection sanitization, confidence score thresholds (>=85%), tiered autonomous settlement ceiling ($1,000 USD), payload length limits (12,000 chars), and dual-tier kill-switch status.
+### View model
 
-### 3. AI Deliverable Auditor (`/api/agent/audit`)
-* **Role:** Semantic code and document evaluator comparing submitted deliverables against client criteria with automated or dual-key PayPal payout dispatching.
+- **Portfolio view:** cross-contract overview. Outbound and inbound contracts are rendered side by side. Search and status filters apply to both streams. A focus toggle can isolate either stream.
+- **Workspace view:** a single contract with milestone operations, audit submission, and a project-scoped ledger.
 
-### 4. PayPal Gateway Adapter (`/lib/paypal`)
-* **Role:** Server-side client wrapper for PayPal REST APIs (`api-m.sandbox.paypal.com`).
-* **Functions:** OAuth2 token management, Vault tokenization, and Payouts execution (`/v1/payments/payouts`) with mandatory `PayPal-Request-Id` idempotency headers.
+### Roles
 
-### 5. AG Grid Multi-Contract Audit Ledger (`/components/CommandCenter.tsx`)
-* **Role:** High-throughput 60 FPS transaction ledger supporting multi-project filtering and real-time risk heatmaps.
+Account type is separate from contract perspective:
+
+- **Account type:** `BUSINESS` or `PERSONAL`.
+- **Contract perspective:** `OUTGOING` (client/escrow funder) or `INCOMING` (contractor/escrow beneficiary).
+- **Workspace labels:** `Client (Escrow Funder)` for outbound contracts and `Contractor (Escrow Beneficiary)` for inbound contracts.
+- **Subcontracting:** an incoming contract can reference a parent project and fund a linked outgoing contract. The UI displays `SUBCONTRACTED` and the parent mandate name.
+
+Freeze controls are only available for outbound contracts. An incoming contractor cannot freeze the client's escrow.
 
 ---
 
-## Security Architecture & Compliance
+## 3. Data model
 
-For detailed security policies (OWASP LLM Top 10, NIST CSF 2.0, PCI-DSS offloading), see [SECURITY.md](SECURITY.md).
+Core types are defined in `src/lib/types/index.ts`.
+
+### `ProjectContract`
+
+- Identity: `id`, `name`, `vendorName`, `vendorEmail`, optional `clientName` and `clientEmail`.
+- Financials: `budgetCapUSD`, `spentUSD`.
+- State: `status` (`ACTIVE`, `PAUSED`, `COMPLETED`, `CANCELLED`).
+- Perspective: `OUTGOING` or `INCOMING`.
+- Legal metadata: `contractType`, `contractReferenceId`.
+- Subcontracting: `isSubcontracted`, `parentProjectId`.
+- Milestones: `milestones[]` with amount, status, acceptance criteria, audit score, proof, and PayPal batch ID.
+
+### `TransactionLog`
+
+- Project identity and timestamp.
+- Actor: `BUYER_AI`, `SELLER_AI`, `GUARDRAIL`, or `PAYPAL_API`.
+- Action, amount, recipient, audit confidence, risk level, and status.
+- Optional HTTP payload log and PayPal transaction ID.
+
+### `BudgetEnvelope`
+
+- `maxPerTransactionUSD`
+- `dailyCeilingUSD`
+- `spentTodayUSD`
+- `activeEscrowUSD`
+- `killSwitchActive`
+
+### Persistence
+
+`src/app/page.tsx` stores state in browser `localStorage` under versioned keys:
+
+- `agenticpay_profile_v2`
+- `agenticpay_projects_v2`
+- `agenticpay_envelope_v2`
+- `agenticpay_logs_v2`
+
+Hydration is guarded so invalid JSON falls back to the initial state. Writes begin only after hydration completes.
+
+---
+
+## 4. Settlement flow
+
+### 4.1 Contract creation
+
+1. The user opens the create-contract modal from the portfolio.
+2. The modal submits contract details and an initial scope.
+3. `page.tsx` creates the contract with `spentUSD: 0` and status `ACTIVE`.
+4. A `GUARDRAIL` log entry records the new contract.
+5. The new contract becomes the selected workspace.
+
+### 4.2 Deliverable audit
+
+`POST /api/agent/audit` implements the following sequence:
+
+1. Reject with `423 Locked` if `envelope.killSwitchActive` is true.
+2. Require `deliverableText` or `deliverableUrl`; otherwise return `400`.
+3. Bound the deliverable with `GuardrailEnforcer.validatePayloadSize` (12,000 characters).
+4. Sanitize prompt-injection patterns with `GuardrailEnforcer.sanitizePromptInput`.
+5. Wrap the sanitized text in a `<deliverable_data>` block.
+6. Compute a deterministic confidence score:
+   - Blocked injection pattern: 15.
+   - Very short deliverable without a URL: 55.
+   - Requirement-token match or a GitHub/PR URL: 91–99.
+   - Other non-empty deliverables: 86.
+7. Evaluate the result with `GuardrailEnforcer.evaluateAuditConfidence(score, amount)`.
+8. Return the score, rationale, risk level, sanitized text, settlement mode, idempotency key, and optional simulated batch ID.
+
+The endpoint does not call an LLM. The AI assistant is a separate streaming endpoint and has no settlement authority.
+
+### 4.3 Milestone release
+
+1. The workspace submits a deliverable to the audit endpoint.
+2. A passing audit of `$1,000 USD` or less can be settled autonomously.
+3. A passing audit above `$1,000 USD` returns `HUMAN_APPROVAL_REQUIRED` and sets the milestone to `AUDITED_PENDING_APPROVAL`.
+4. Before payout, the workspace checks the project's remaining budget: `budgetCapUSD - spentUSD`.
+5. The PayPal client executes a Sandbox payout if credentials are present; otherwise it returns a clearly marked simulated result.
+6. A `PAYOUT_EXECUTED` log is emitted with the PayPal batch ID and HTTP payload.
+7. `applyTransactionLogToProjects` increments `spentUSD` exactly once for that log.
+
+### 4.4 AI negotiation stream
+
+`POST /api/agent/stream`:
+
+1. Requires a prompt.
+2. Sanitizes the prompt.
+3. Validates the proposed amount against the budget envelope.
+4. Returns `422` if the budget check fails.
+5. Streams a response from the primary model.
+6. Falls back to the configured secondary model if the primary call fails.
+
+The assistant is advisory. It does not execute payouts.
+
+---
+
+## 5. Guardrail model
+
+`src/lib/guardrails/enforcer.ts` provides deterministic controls:
+
+| Method | Purpose |
+| :--- | :--- |
+| `validateTransactionBudget` | Kill-switch, positive amount, per-transaction ceiling, daily ceiling, and risk classification. |
+| `sanitizePromptInput` | Replaces known instruction-override and role-hijack patterns with `[BLOCKED_INJECTION_ATTEMPT]`. |
+| `validatePayloadSize` | Truncates deliverable text above 12,000 characters. |
+| `evaluateAuditConfidence` | Applies the 85% threshold and the $1,000 autonomous settlement cap. |
+
+The workspace and agent chat also enforce a **remaining project budget** check before releasing funds. This is separate from the envelope's per-transaction and daily ceilings.
+
+### Control hierarchy
+
+1. **Master kill-switch:** account-wide block on audit settlement and payout attempts.
+2. **Contract freeze:** project-level pause for outbound contracts.
+3. **Budget guard:** per-transaction, daily, and remaining-project-budget checks.
+4. **Audit threshold:** confidence below 85% is rejected.
+5. **Human approval:** amounts above $1,000 USD require explicit authorization.
+6. **Ledger invariant:** only `PAYOUT_EXECUTED` increments settled funds.
+
+---
+
+## 6. PayPal integration
+
+`src/lib/paypal/client.ts`:
+
+- Resolves the base URL from `PAYPAL_ENVIRONMENT` or `PAYPAL_ENV` (`sandbox` default).
+- Uses `PAYPAL_CLIENT_ID` / `NEXT_PUBLIC_PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`.
+- Requests an OAuth token from `/v1/oauth2/token`.
+- Executes `POST /v1/payments/payouts` with a `PayPal-Request-Id` idempotency header.
+- Returns the batch ID and a formatted HTTP log for the ledger.
+- Falls back to a simulated result when the client ID is absent or set to `placeholder`. A live payout requires both a client ID and a client secret.
+
+**Not implemented:** Orders API, Vault tokenization, webhooks, refunds, disputes, and production onboarding.
+
+---
+
+## 7. Deployment topology
+
+- **Build:** `next build --webpack`.
+- **Runtime:** `next start` on Node.js 20.
+- **Container:** `Dockerfile` based on `node:20-alpine`.
+- **Render:** `render.yaml` defines a Docker web service on port 3000 with a health check at `/`.
+- **Secrets:** injected through the hosting environment; never committed.
+
+---
+
+## 8. Known architectural limitations
+
+- No authentication or authorization layer.
+- No server-side persistence; browser state can be modified by the user.
+- No tenant isolation or audit trail durability.
+- Audit scoring is heuristic and keyword-based, not semantic.
+- PayPal Vault and production disbursement are out of scope.
+- Automated UI and end-to-end tests are not yet configured.
+- The AI fallback is a simple try/catch around streaming; it does not retry partially streamed responses.
+
+These limitations are documented so that production hardening work is explicit rather than implied.

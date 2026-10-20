@@ -1,35 +1,98 @@
-# Data Governance Framework & Privacy Specification 📊
+# Data Governance and Privacy
 
-At **AgenticPay AI**, data governance is designed around the principles of **Data Minimization, Strict Lineage, Privacy-by-Design, and Auditability**. Because our platform manages financial telemetry alongside generative AI prompts, compliance with international data governance frameworks is embedded directly into our system architecture.
-
----
-
-## 🏛️ Alignment with Leading Data Governance Frameworks
-
-### 1. GDPR & CCPA Privacy Compliance
-* **Data Minimization (Art. 5.1.c GDPR):** Generative AI prompts are stripped of Personally Identifiable Information (PII) before reaching external LLM APIs (Gemini/OpenAI). Only essential transaction parameters (anonymized mission IDs, category types, budget thresholds) are processed.
-* **Right to Erasure & Anonymization (Art. 17 GDPR):** User transaction logs stored in client state can be purged instantly. Audit records in AG Grid maintain cryptographically anonymized hashes to preserve ledger integrity without retaining PII.
-* **Consent Management:** Users explicitly pre-approve budget limits and session tokens via PayPal Sandbox OAuth.
+This document describes what data the current implementation processes, where it is stored, and which controls are not yet implemented. It is an engineering reference, not legal advice.
 
 ---
 
-### 2. DAMA-DMBOK2 (Data Management Body of Knowledge)
-* **Data Lineage & Traceability:** Every financial decision executed by an AI agent maintains an end-to-end lineage path:
-  ```
-  User Input Prompt ➔ PII Scrubbing ➔ LLM Thought Chain ➔ AG Grid Audit Log ➔ PayPal Sandbox REST Call ➔ Immutable Tx Receipt
-  ```
-* **Data Quality & Integrity:** Deliverables audited by the vision engine generate SHA-256 hashes ensuring that submitted proofs cannot be tampered with post-approval.
+## 1. Data inventory
+
+| Category | Examples | Storage | Notes |
+| :--- | :--- | :--- | :--- |
+| Account profile | Legal name, display name, email, PayPal settlement email, tax ID, billing address, account type | Browser `localStorage` (`agenticpay_profile_v2`) | Entered by the user. Not server-persisted. |
+| Contract data | Contract name, vendor/client names and emails, contract type, reference ID, escrow cap | Browser `localStorage` (`agenticpay_projects_v2`) | Includes milestones, acceptance criteria, and audit results. |
+| Financial envelope | Per-transaction cap, daily ceiling, spent today, active escrow, kill-switch state | Browser `localStorage` (`agenticpay_envelope_v2`) | Client-side state; not an authoritative ledger. |
+| Transaction ledger | Actor, action, amount, audit confidence, risk, status, PayPal payload log | Browser `localStorage` (`agenticpay_logs_v2`) | Rendered in AG Grid. |
+| AI prompts | Negotiation text and project context | Sent to the configured AI provider; not persisted server-side | May contain names, emails, or contract details entered by the user. |
+| Deliverables | Acceptance criteria, deliverable text or URL | Sent to `/api/agent/audit`; stored in the browser ledger | Truncated at 12,000 characters. |
+| PayPal credentials | Client ID, client secret | Environment variables | Server-side only. Secret is never sent to the browser. |
+| PayPal payout payloads | Batch ID, recipient, amount, HTTP log | Browser `localStorage` and route response | Displayed in the ledger payload inspector. |
 
 ---
 
-### 3. NIST AI Risk Management Framework (NIST AI RMF 1.0 - GOVERN)
-* **Accountability & Stewardship:** Every automated payout is traceable to a specific AI Confidence Score (>85%) and a deterministic TypeScript guardrail policy.
-* **Fairness & Non-Bias in Agent Negotiation:** Agent-to-Agent (A2A) negotiation prompts enforce strict fair-market pricing bounds, preventing discriminatory or predatory pricing behavior.
+## 2. Data flow
+
+```text
+User input
+  |
+  +--> localStorage (profile, contracts, envelope, logs)
+  |
+  +--> POST /api/agent/audit
+  |      sanitize + truncate
+  |      deterministic scoring
+  |      return result
+  |
+  +--> POST /api/agent/stream
+         sanitize
+         send prompt to AI provider
+         stream response to browser
+  |
+  +--> PayPal Sandbox payout
+         server-side OAuth
+         return batch ID and HTTP log
+```
 
 ---
 
-### 4. ISO/IEC 38505-1 (Governance of Data for Organizations)
-* **Data Classification Matrix:**
-  * 🔴 **Restricted:** PayPal OAuth Client Secrets, User Auth Tokens (Server-Side Only, Never Logged).
-  * 🟡 **Confidential:** Transaction Amounts, Proof Metadata, User Mission Parameters.
-  * 🟢 **Public:** AG Grid System Telemetry, Anonymized Benchmark Metrics.
+## 3. Privacy controls in the current build
+
+- **Data minimization by scope:** the application collects only the fields required for contract and settlement workflows.
+- **Server-side secrets:** PayPal and AI credentials are read from environment variables and are not exposed to the client.
+- **Prompt-injection sanitization:** untrusted input is pattern-sanitized before it is sent to a model or wrapped into an audit block.
+- **Payload limiting:** deliverable text is truncated at 12,000 characters.
+- **Local deletion:** clearing browser storage removes profile, contract, envelope, and ledger data from that device.
+- **Simulated payout mode:** when the PayPal client ID is absent or set to `placeholder`, no external payout request is made.
+
+---
+
+## 4. Gaps and risks
+
+The current implementation does **not** provide:
+
+- PII detection or redaction before AI provider calls.
+- Server-side persistence, encryption at rest, or tenant isolation.
+- Immutable or tamper-evident audit logs.
+- Cryptographic hashing of deliverables or ledger entries.
+- Data retention schedules or automated deletion.
+- Data subject access or erasure workflows.
+- Consent management beyond the user's direct interaction with the application.
+- Data residency controls.
+- Role-based access control for account or contract data.
+
+Browser `localStorage` is user-controlled. It must not be treated as an authoritative record for financial reconciliation or regulatory reporting.
+
+---
+
+## 5. Recommended production controls
+
+1. Classify data as public, internal, confidential, or restricted.
+2. Move contract, milestone, and ledger data to server-side storage with encryption at rest.
+3. Add tenant isolation and role-based access control.
+4. Redact PII before sending prompts or deliverables to external model providers.
+5. Store append-only audit events with integrity verification.
+6. Define retention periods and deletion procedures.
+7. Provide privacy notices and data subject request handling.
+8. Log access to sensitive records without logging secrets or full payloads.
+9. Review provider data processing terms and cross-border transfer requirements.
+10. Add backups, disaster recovery, and tested restore procedures.
+
+---
+
+## 6. Alignment references
+
+The design intent is consistent with common governance principles:
+
+- **GDPR:** data minimization, purpose limitation, storage limitation, and erasure.
+- **NIST AI RMF:** accountability, transparency, and risk monitoring.
+- **ISO/IEC 38505-1:** data accountability and stewardship.
+
+These are design goals, not certifications. The current build does not claim compliance with any framework.

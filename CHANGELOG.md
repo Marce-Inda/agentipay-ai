@@ -1,71 +1,110 @@
-# Changelog - AgenticPay AI 📜
+# Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project are documented in this file.
 
 ---
 
-## [0.5.1] - 2026-10-15 (Render Deployment Fix & Next.js 16 Compatibility)
+## [0.6.0] - 2026-10-20
+
+### Added
+
+- Centralized ledger helper `applyTransactionLogToProjects`. Only `PAYOUT_EXECUTED` events increment `spentUSD`, preventing duplicate settled amounts across workspace and chat flows.
+- Ledger test suite covering payout idempotency and non-payout events.
+- Intake link generation using the current application origin and a sanitized contract slug: `/escrow/intake/{slug}`.
+- Clipboard states `IDLE`, `COPIED`, and `FAILED` with an explicit manual-copy fallback.
+- Exclusive subcontract status badge (`SUBCONTRACTED` vs `DIRECT HIRE`) and parent mandate name in portfolio and workspace views.
+- Remaining-project-budget checks before milestone release and before agent-chat payout attempts.
+- Directional header metrics for outbound escrow cap, inbound escrow cap, settled, and claimed amounts.
+- Business-only enterprise capacity card behavior.
+
+### Changed
+
+- Separated account type from contract perspective. Removed in-app session switching and legacy organization presets.
+- Freeze controls are available only for outbound contracts.
+- Workspace role labels standardized to `Client (Escrow Funder)` and `Contractor (Escrow Beneficiary)`.
+- Portfolio capacity labels standardized to `Escrow Guarantee` and `Vault Ceiling`.
+- Compliance and escrow health are derived from account and envelope state rather than hardcoded session metadata.
+- Documentation reconciled with the implemented API, guardrails, tests, and deployment configuration.
 
 ### Fixed
-- **PostCSS/Tailwind Configuration for Next.js 16:** Renamed `postcss.config.js` and `tailwind.config.js` to `.cjs` extension to ensure compatibility with Next.js 16's Webpack 5 module resolution in Render's build environment.
-- **Turbopack Configuration for Development:** Added `turbopack.resolveAlias` configuration to `next.config.ts` to resolve Next.js 16 warning about webpack config without turbopack config.
+
+- Audit route returns HTTP `423` when the kill-switch is active, with a rejected settlement contract.
+- Local storage hydration guards against invalid or partial JSON.
+- Portfolio and workspace settled amounts remain consistent after repeated ledger updates.
+- Contract freeze blocks release for outbound contracts.
+- Inbound contracts no longer expose the client-side freeze action.
+
+### Validation
+
+- Five Jest suites and 58 checks passing.
+- TypeScript validation passing.
+- Production build passing.
+
+---
+
+## [0.5.1] - 2026-10-15
+
+### Fixed
+
+- Renamed PostCSS and Tailwind configuration files to `.cjs` for Next.js 16 webpack compatibility.
+- Added Turbopack alias configuration for local development while preserving the webpack production build.
+
+---
+
+## [0.5.0] - 2026-10-12
+
+### Added
+
+- Deterministic `PayPal-Request-Id` idempotency headers for payout requests.
+- `$1,000 USD` autonomous settlement ceiling.
+- Human authorization workflow for milestones above the ceiling with audit scores of at least 85%.
+- Deliverable context isolation inside `<deliverable_data>` blocks.
+- Deliverable payload limit of 12,000 characters.
+- Expanded pattern-based prompt-injection detection.
+- Expanded unit and integration test coverage.
+
+---
+
+## [0.4.2] - 2026-10-12
+
+### Added
+
+- Actionable onboarding states for outbound and inbound empty portfolios.
+- Client escrow intake link with clipboard feedback.
+- Enterprise capacity card for shorter portfolio columns.
+- Contextual filter reset when search returns no results.
+
+---
+
+## [0.4.1] - 2026-10-12
+
+### Added
+
+- Two-column master swimlanes for outbound and inbound contracts.
+- Global search and status filters across both streams.
+- Focus toggle for dual, outbound-only, and inbound-only views.
+
+---
+
+## [0.4.0] - 2026-10-12
+
+### Added
+
+- Dual executive summary panels.
+- Focused workspace architecture.
+- Contextual financial perspective indicators.
 
 ### Changed
-- `next.config.ts`: Added turbopack alias configuration for local development while preserving webpack configuration for production builds.
+
+- Standardized enterprise fintech terminology across portfolio views.
 
 ---
 
-## [0.5.0] - 2026-10-12 (Post-Premortem Resilience & Dual-Key Financial Governance)
+## [0.1.0] - 2026-10-07
 
 ### Added
-- **Cryptographic Idempotency in PayPal REST API:** Injected deterministically derived `PayPal-Request-Id` headers into all `/v1/payments/payouts` calls and logs, mathematically preventing duplicate milestone payouts caused by network retries or concurrent events.
-- **Tiered Human-in-the-Loop Financial Governance:** Established strict `$1,000 USD` ceiling for autonomous unattended AI escrow release (`AUTONOMOUS_SETTLEMENT_CAP_USD`).
-- **Dual-Key Authorization Workflow (`AUDITED_PENDING_APPROVAL`):** Milestones exceeding `$1,000 USD` with $\ge 85\%$ audit scores are verified by AI but held in escrow until an enterprise manager signs off with one click in the dashboard.
-- **Deliverable Context Isolation:** Bound deliverable inputs inside opaque `<deliverable_data>` XML containers to insulate downstream evaluation from prompt smuggling.
-- **Economic DoS & Token Depletion Defenses:** Implemented `validatePayloadSize` (12,000 characters limit) and expanded OWASP LLM01 detection against HTML comment injection, role hijacking, and developer mode prompts.
-- **Comprehensive Unit & Integration Test Coverage:** Expanded test suite from 42 to 52 passing tests (100% pass rate).
 
----
-
-## [0.4.2] - 2026-10-12 (Enterprise UX: Actionable Onboarding & Asymmetry Balancing)
-
-### Added
-- **Actionable Onboarding Empty States:** Replaced inert empty messages with institutional onboarding hubs (*Accounts Payable Procurement Hub* on Outbound / *Accounts Receivable Intake Hub* on Inbound).
-- **Interactive Client Escrow Intake Link:** Integrated one-click link generator (`agenticpay.ai/escrow/...`) with clipboard feedback for inviting prospective enterprise clients to pre-fund escrow envelopes.
-- **Enterprise Capacity & Intake Card:** Dynamic visual expansion card in shorter columns balancing visual height and eliminating dead space.
-- **Instant Search Filter Reset:** Contextual filter reset button (`Reset Filters`) when searches yield zero results.
-
----
-
-## [0.4.1] - 2026-10-12 (Enterprise UX: Two-Column Master Swimlanes)
-
-### Added
-- **Integrated Two-Column Master Swimlanes:** Seamlessly embedded the Executive Summary cards with their respective contract feeds in two parallel 50/50 columns (Left: Outbound Accounts Payable / Right: Inbound Accounts Receivable).
-- **Global Utilities Toolbar:** Search and status filtering work simultaneously across both swimlanes with zero redundant tab controls.
-- **Swimlane Focus Toggle:** Added interactive toggle (`Dual Split View | Managed Only | Assigned Only`) allowing users to inspect both streams side-by-side or maximize either stream.
-
-### Changed
-- Eliminated redundant secondary tab controls beneath the executive summaries.
-- Updated `DESIGN_SYSTEM.md`, `ARCHITECTURE.md`, and `README.md` to reflect the Master Swimlane layout.
-
----
-
-## [0.4.0] - 2026-10-12 (Enterprise UX: Dual Executive Split)
-
-### Added
-- **Dual Executive Command Panels (Split-Screen 50/50):** Twin executive cards side-by-side in `ProjectPortfolioView` showcasing parallel balances for *Managed Contracts (Outbound Escrow / Accounts Payable)* and *Assigned Contracts (Inbound Receivables / Accounts Receivable)*.
-- **Focused Workspace Architecture:** Single-click operational role switching maintaining 100% full-width grid density, removing clutter and preventing asymmetric scrolling.
-- **Contextual Workspace Indicators:** Dynamic header alerts and visual badges reflecting active financial perspective and zero-trust audit safeguards.
-
-### Changed
-- Standardized institutional enterprise fintech nomenclature across all portfolio views.
-- Updated `DESIGN_SYSTEM.md`, `ARCHITECTURE.md`, and `README.md` to reflect the Dual Executive Split pattern.
-
----
-
-## [0.1.0] - 2026-10-07 (Phase 1: Planning & Setup)
-
-### Added
-- Defined master architecture and project vision for **AgenticPay AI**.
-- Initialized core documentation repository structure (`README.md`, `LICENSE`, `ARCHITECTURE.md`, `.env.example`, `CONTRIBUTING.md`).
-- Designed multi-tier implementation strategy for PayPal AI Hackathon 2026.
+- Initial architecture and project documentation.
+- Next.js application scaffold.
+- MIT license.
+- Repository setup for PayPal AI Hackathon 2026.
