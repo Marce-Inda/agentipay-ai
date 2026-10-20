@@ -205,7 +205,7 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>Dual Split View</span>
+              <span>Full View</span>
             </button>
             <button
               onClick={() => setColumnFocus('OUTGOING')}
@@ -216,7 +216,7 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              💼 Managed Only
+              💼 Hiring View
             </button>
             <button
               onClick={() => setColumnFocus('INCOMING')}
@@ -227,19 +227,33 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              🛠️ Assigned Only
+              🛠️ Contractor View
             </button>
           </div>
 
           {/* Action Button: Create New Contract */}
-          <button
-            onClick={onOpenCreateModal}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-lg transition-all shadow-md active:scale-95 whitespace-nowrap"
-          >
-            <FolderPlus className="w-4 h-4 text-slate-950" />
-            <span>+ New Contract</span>
-          </button>
+          {columnFocus !== 'INCOMING' && (
+            <button
+              onClick={onOpenCreateModal}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-lg transition-all shadow-md active:scale-95 whitespace-nowrap"
+            >
+              <FolderPlus className="w-4 h-4 text-slate-950" />
+              <span>+ New Contract</span>
+            </button>
+          )}
         </div>
+      </div>
+
+      {/* Context Chip — Role-specific guidance based on active view */}
+      <div className="text-xs text-slate-400 px-3.5 py-1.5 rounded-lg bg-[#0f1115]/60 border border-slate-800/50 flex items-center gap-2">
+        <span className="text-[10px]">📌</span>
+        <span>
+          {columnFocus === 'DUAL'
+            ? 'Viewing all contracts — as employer and as vendor'
+            : columnFocus === 'OUTGOING'
+              ? 'Hiring mode — contracts you sponsor and administer'
+              : 'Contractor mode — contracts where you deliver and earn'}
+        </span>
       </div>
 
       {/* 3. INTEGRATED TWO-COLUMN MASTER SWIMLANES */}
@@ -269,7 +283,7 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                       </span>
                     </div>
                     <h3 className="text-base font-bold text-white mt-0.5 flex items-center gap-1.5">
-                      <span>💼 Managed Contracts (Hiring)</span>
+                      <span>💼 Contracts You Manage & Pay</span>
                     </h3>
                   </div>
                 </div>
@@ -452,33 +466,43 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
 
                       {/* Card Footer Actions */}
                       <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80 gap-2">
-                        <button
-                          onClick={() => onToggleProjectFreeze(project.id)}
-                          className={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold flex items-center gap-1 transition-all ${
-                            project.status === 'PAUSED'
-                              ? 'bg-amber-950 text-amber-300 border-amber-500/40 hover:bg-amber-900'
-                              : 'bg-[#0f1115] hover:bg-slate-800 text-slate-400 border-slate-700'
-                          }`}
-                          title="Freeze or resume contract releases"
-                        >
-                          {project.status === 'PAUSED' ? (
-                            <>
-                              <PlayCircle className="w-3.5 h-3.5 text-amber-400" />
-                              <span>Resume</span>
-                            </>
-                          ) : (
-                            <>
-                              <PauseCircle className="w-3.5 h-3.5 text-slate-400" />
-                              <span>Pause</span>
-                            </>
-                          )}
-                        </button>
+                        {project.perspective === 'OUTGOING' && (
+                          <button
+                            onClick={() => onToggleProjectFreeze(project.id)}
+                            className={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold flex items-center gap-1 transition-all ${
+                              project.status === 'PAUSED'
+                                ? 'bg-amber-950 text-amber-300 border-amber-500/40 hover:bg-amber-900'
+                                : 'bg-[#0f1115] hover:bg-slate-800 text-slate-400 border-slate-700'
+                            }`}
+                            title="Freeze or resume contract releases"
+                          >
+                            {project.status === 'PAUSED' ? (
+                              <>
+                                <PlayCircle className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Resume</span>
+                              </>
+                            ) : (
+                              <>
+                                <PauseCircle className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Pause</span>
+                              </>
+                            )}
+                          </button>
+                        )}
 
                         <button
                           onClick={() => onSelectProject(project.id)}
-                          className="font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md active:scale-95 bg-gradient-to-r from-amber-700 to-amber-600 hover:from-amber-600 hover:to-amber-500 text-slate-950"
+                          className={`font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md active:scale-95 ${
+                            project.perspective === 'OUTGOING'
+                              ? 'bg-gradient-to-r from-amber-700 to-amber-600 hover:from-amber-600 hover:to-amber-500 text-slate-950'
+                              : 'bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-slate-950'
+                          }`}
                         >
-                          <span>Manage Escrow Vault</span>
+                          <span>
+                            {project.perspective === 'OUTGOING'
+                              ? 'Manage Escrow Vault'
+                              : 'Deliver & Claim Payout'}
+                          </span>
                           <ArrowRight className="w-3.5 h-3.5 text-slate-950" />
                         </button>
                       </div>
@@ -515,7 +539,7 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                       </span>
                     </div>
                     <h3 className="text-base font-bold text-white mt-0.5 flex items-center gap-1.5">
-                      <span>🛠️ Assigned Contracts (Contractor)</span>
+                      <span>🛠️ Contracts Assigned to You</span>
                     </h3>
                   </div>
                 </div>
@@ -698,30 +722,8 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Card Footer Actions */}
-                      <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80 gap-2">
-                        <button
-                          onClick={() => onToggleProjectFreeze(project.id)}
-                          className={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold flex items-center gap-1 transition-all ${
-                            project.status === 'PAUSED'
-                              ? 'bg-amber-950 text-amber-300 border-amber-500/40 hover:bg-amber-900'
-                              : 'bg-[#0f1115] hover:bg-slate-800 text-slate-400 border-slate-700'
-                          }`}
-                          title="Freeze or resume contract releases"
-                        >
-                          {project.status === 'PAUSED' ? (
-                            <>
-                              <PlayCircle className="w-3.5 h-3.5 text-amber-400" />
-                              <span>Resume</span>
-                            </>
-                          ) : (
-                            <>
-                              <PauseCircle className="w-3.5 h-3.5 text-slate-400" />
-                              <span>Pause</span>
-                            </>
-                          )}
-                        </button>
-
+                      {/* Card Footer Actions — Single CTA for contractor role */}
+                      <div className="flex items-center justify-end pt-2.5 border-t border-slate-800/80 gap-2">
                         <button
                           onClick={() => onSelectProject(project.id)}
                           className="font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md active:scale-95 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-slate-950"

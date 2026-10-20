@@ -47,6 +47,25 @@ export const Header: React.FC<HeaderProps> = ({
   const totalSpent = projects.reduce((acc, p) => acc + p.spentUSD, 0);
   const isBusiness = currentProfile.role === 'BUSINESS' || currentProfile.accountType === 'BUSINESS';
 
+  const [killSwitchConfirmPending, setKillSwitchConfirmPending] = React.useState(false);
+
+  // Handle kill switch toggle with two-click confirmation and 4-second timeout
+  const handleToggleKillSwitch = () => {
+    if (killSwitchConfirmPending) {
+      // Second click: toggle the actual kill switch state
+      onToggleKillSwitch();
+      setKillSwitchConfirmPending(false);
+    } else {
+      // First click: start confirmation flow with 4-second timeout
+      setKillSwitchConfirmPending(true);
+      
+      // Reset pending state after 4 seconds
+      setTimeout(() => {
+        setKillSwitchConfirmPending(false);
+      }, 4000);
+    }
+  };
+
   return (
     <header className="bg-[#16181d] border-b border-amber-900/30 text-white px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-0 z-50 shadow-2xl">
       {/* Brand & Identity */}
@@ -204,12 +223,14 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
 
-        {/* Master Emergency Kill-Switch Toggle */}
+        {/* Master Emergency Kill-Switch Toggle with Two-Click Confirmation */}
         <button
-          onClick={onToggleKillSwitch}
+          onClick={handleToggleKillSwitch}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95 ${
             envelope.killSwitchActive
               ? 'bg-red-600 hover:bg-red-500 text-white animate-bounce shadow-red-600/50'
+              : killSwitchConfirmPending
+              ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse shadow-amber-600/50'
               : 'bg-[#0f1115] hover:bg-red-950/40 text-red-400 border border-red-900/40'
           }`}
         >
@@ -217,6 +238,11 @@ export const Header: React.FC<HeaderProps> = ({
             <>
               <ShieldAlert className="w-4 h-4 text-white" />
               <span>MASTER KILL-SWITCH ACTIVE</span>
+            </>
+          ) : killSwitchConfirmPending ? (
+            <>
+              <Shield className="w-4 h-4 text-white" />
+              <span>Confirm Kill Switch</span>
             </>
           ) : (
             <>
