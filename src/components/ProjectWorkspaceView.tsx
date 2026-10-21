@@ -37,6 +37,10 @@ function getSettlementBlockReason(
   return null;
 }
 
+type MilestoneSettlementResponse =
+  | { ok: true; event: TransactionLog }
+  | { ok: false; error: string };
+
 interface ProjectWorkspaceViewProps {
   project: ProjectContract;
   envelope: BudgetEnvelope;
@@ -46,6 +50,10 @@ interface ProjectWorkspaceViewProps {
   onToggleProjectFreeze: (projectId: string) => void;
   onAddLog: (log: TransactionLog) => void;
   onUpdateProject?: (updatedProject: ProjectContract) => void;
+  onSettleMilestone: (
+    projectId: string,
+    milestoneId: string
+  ) => Promise<MilestoneSettlementResponse>;
 }
 
 // -------------------------------------------------------------
@@ -140,6 +148,10 @@ interface SubmitProofModalProps {
     requiresHumanApproval?: boolean
   ) => void;
   onAddLog: (log: TransactionLog) => void;
+  onSettleMilestone: (
+    projectId: string,
+    milestoneId: string
+  ) => Promise<MilestoneSettlementResponse>;
 }
 
 const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
@@ -149,6 +161,7 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
   onClose,
   onAuditSuccess,
   onAddLog,
+  onSettleMilestone,
 }) => {
   const [proofUrl, setProofUrl] = useState('');
   const [proofText, setProofText] = useState('');
@@ -207,6 +220,8 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
           milestoneTitle: milestone.title,
           milestoneAmountUSD: milestone.amountUSD,
           envelope,
+          projectId: project.id,
+          milestoneId: milestone.id,
         }),
       });
 
@@ -248,35 +263,49 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
             httpPayloadLog: `AUDIT VERIFIED: Score ${data.auditConfidenceScore}%. Settlement held pending client authorization. (Idempotency Key: ${data.idempotencyKey || 'REQ_IDEMPOTENT'})`,
           });
         } else {
-          const batchId =
-            data.simulatedBatchId ||
-            `SETTLE-${Date.now().toString(36).toUpperCase()}`;
-
           onAuditSuccess(
             milestone.id,
             proofUrl,
             proofText,
             data.auditConfidenceScore,
             data.reason,
-            batchId,
-            false
+            undefined,
+            true
           );
 
-          onAddLog({
-            id: `log-audit-${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            projectId: project.id,
-            projectName: project.name,
-            agentRole: 'BUYER_AI',
-            action: `Milestone Audit Approved (${data.auditConfidenceScore}% Score): "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD recorded in local settlement ledger)`,
-            amountUSD: milestone.amountUSD,
-            recipientEmail: project.vendorEmail,
-            auditConfidenceScore: data.auditConfidenceScore,
-            status: 'PAYOUT_EXECUTED',
-            riskLevel: data.riskLevel || 'LOW',
-            payPalTransactionId: batchId,
-            httpPayloadLog: `LOCAL SETTLEMENT RECORD: Batch ${batchId}; no external payout API called. (Idempotency Key: ${data.idempotencyKey || 'IDEMPOTENT'})`,
-          });
+          const settlement = await onSettleMilestone(project.id, milestone.id);
+          if (settlement.ok) {
+            const batchId =
+              settlement.event.payPalTransactionId ||
+              `SETTLE-${Date.now().toString(36).toUpperCase()}`;
+            setAuditResult({
+              ...data,
+              success: true,
+              requiresHumanApproval: false,
+              simulatedBatchId: batchId,
+            });
+          } else {
+            setAuditResult({
+              ...data,
+              success: false,
+              requiresHumanApproval: true,
+              reason: settlement.error,
+              riskLevel: 'HIGH',
+            });
+            onAddLog({
+              id: `log-audit-settle-rejected-${Date.now()}`,
+              timestamp: new Date().toISOString(),
+              projectId: project.id,
+              projectName: project.name,
+              agentRole: 'GUARDRAIL',
+              action: `Server settlement rejected: ${settlement.error}`,
+              amountUSD: 0,
+              recipientEmail: project.vendorEmail,
+              auditConfidenceScore: data.auditConfidenceScore || 0,
+              status: 'REJECTED',
+              riskLevel: 'HIGH',
+            });
+          }
         }
       } else {
         onAddLog({
@@ -388,7 +417,7 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
                   {auditResult.success
                     ? auditResult.requiresHumanApproval
                       ? '✅ Audit Passed — Awaiting Client Authorization'
-                      : '✅ Audit Passed — Local Settlement Recorded'
+                      : '✅ Audit Passed — Durable Settlement Recorded'
                     : '⚠️ Audit Verification Rejected'}
                 </span>
                 <span className="font-mono bg-black/40 px-2 py-0.5 rounded border border-current">
@@ -448,6 +477,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
   onToggleProjectFreeze,
   onAddLog,
   onUpdateProject,
+  onSettleMilestone,
 }) => {
   const isIncoming = project.perspective === 'INCOMING';
   const parentProject = project.parentProjectId
@@ -457,6 +487,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
   // Modal states
   const [editingMilestone, setEditingMilestone] = useState<ProjectMilestone | null>(null);
   const [submittingMilestone, setSubmittingMilestone] = useState<ProjectMilestone | null>(null);
+  const [settlementError, setSettlementError] = useState('');
 
   // Handle saving edited acceptance criteria (Principal side)
   const handleSaveCriteria = (milestoneId: string, criteria: string) => {
@@ -473,6 +504,15 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
 
     onUpdateProject(updatedProject);
     setEditingMilestone(null);
+
+    void fetch(`/api/projects/${encodeURIComponent(project.id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ milestoneId, acceptanceCriteria: criteria }),
+    }).catch((error) => {
+      console.warn('[Projects] Acceptance criteria update failed:', error);
+    });
 
     onAddLog({
       id: `log-criteria-${Date.now()}`,
@@ -530,12 +570,14 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
   };
 
   // Client Authorization Handler (Hiring Client / Accounts Payable side)
-  const handleAuthorizeMilestone = (milestone: ProjectMilestone) => {
+  const handleAuthorizeMilestone = async (milestone: ProjectMilestone) => {
     if (!onUpdateProject || isIncoming) return;
+    setSettlementError('');
 
     const blockReason = getSettlementBlockReason(envelope, project.status);
     if (blockReason) {
       const isKillSwitch = envelope.killSwitchActive;
+      setSettlementError(blockReason);
       onAddLog({
         id: `log-auth-blocked-${Date.now()}`,
         timestamp: new Date().toISOString(),
@@ -552,57 +594,23 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
       return;
     }
 
-    const remainingBudgetUSD = Math.max(0, project.budgetCapUSD - project.spentUSD);
-    if (milestone.amountUSD > remainingBudgetUSD) {
+    const settlement = await onSettleMilestone(project.id, milestone.id);
+    if (!settlement.ok) {
+      setSettlementError(settlement.error);
       onAddLog({
-        id: `log-auth-over-budget-${Date.now()}`,
+        id: `log-auth-rejected-${Date.now()}`,
         timestamp: new Date().toISOString(),
         projectId: project.id,
         projectName: project.name,
         agentRole: 'GUARDRAIL',
-        action: `Settlement blocked: milestone "${milestone.title}" ($${milestone.amountUSD.toFixed(2)}) exceeds the remaining envelope balance ($${remainingBudgetUSD.toFixed(2)})`,
+        action: `Server settlement rejected: ${settlement.error}`,
         amountUSD: 0,
         recipientEmail: project.vendorEmail,
-        auditConfidenceScore: 0,
+        auditConfidenceScore: milestone.auditScore ?? 0,
         status: 'REJECTED',
         riskLevel: 'HIGH',
       });
-      return;
     }
-
-    const batchId = `SETTLE-${Date.now().toString(36).toUpperCase()}-CLIENT`;
-
-    const updatedMilestones = (project.milestones || []).map((m) =>
-      m.id === milestone.id
-        ? {
-            ...m,
-            status: 'COMPLETED' as const,
-            payPalBatchId: batchId,
-            requiresHumanApproval: false,
-          }
-        : m
-    );
-
-    onUpdateProject({
-      ...project,
-      milestones: updatedMilestones,
-    });
-
-    onAddLog({
-      id: `log-auth-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      projectId: project.id,
-      projectName: project.name,
-      agentRole: 'BUYER_AI',
-      action: `Client Authorized Milestone Settlement: "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD recorded in local settlement ledger)`,
-      amountUSD: milestone.amountUSD,
-      recipientEmail: project.vendorEmail,
-      auditConfidenceScore: milestone.auditScore ?? 0,
-      status: 'PAYOUT_EXECUTED',
-      riskLevel: 'LOW',
-      payPalTransactionId: batchId,
-      httpPayloadLog: `LOCAL SETTLEMENT RECORD: Batch ${batchId}; client authorization recorded; no external payout API called.`,
-    });
   };
 
   return (
@@ -725,6 +733,19 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
           )}
         </div>
       </div>
+
+      {settlementError && (
+        <div className="rounded-xl border border-rose-500/40 bg-rose-950/40 px-4 py-3 text-xs text-rose-300 flex items-center justify-between gap-3">
+          <span>{settlementError}</span>
+          <button
+            type="button"
+            onClick={() => setSettlementError('')}
+            className="text-rose-300 hover:text-white transition"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Milestone Phases & Scheduled Settlement Timeline */}
       <div className="bg-[#16181D] border border-amber-500/20 rounded-xl p-5 shadow-xl space-y-4">
@@ -945,6 +966,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
           onClose={() => setSubmittingMilestone(null)}
           onAuditSuccess={handleAuditSuccess}
           onAddLog={onAddLog}
+          onSettleMilestone={onSettleMilestone}
         />
       )}
     </div>

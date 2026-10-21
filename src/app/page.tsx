@@ -1,13 +1,20 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from '../components/Header';
 import { ProjectPortfolioView } from '../components/ProjectPortfolioView';
 import { ProjectWorkspaceView } from '../components/ProjectWorkspaceView';
 import { AccountSettingsModal } from '../components/AccountSettingsModal';
 import { CreateProjectModal } from '../components/CreateProjectModal';
+import { AuthScreen, type AuthenticatedUser } from '../components/AuthScreen';
 import { BudgetEnvelope, ProjectContract, TransactionLog, UserProfile } from '../lib/types';
 import { applyTransactionLogToProjects } from '../lib/ledger';
+import {
+  PROFILE_STORAGE_KEY,
+  SECURE_PROFILE_STORAGE_KEY,
+  mergeStoredProfile,
+  splitProfileForStorage,
+} from '../lib/privacy/storage';
 
 const INITIAL_PROFILE: UserProfile = {
   id: 'usr-biz-1',
@@ -226,74 +233,299 @@ const INITIAL_LOGS: TransactionLog[] = [
   },
 ];
 
+function tenantStorageKey(baseKey: string, userId: string): string {
+  return `${baseKey}:${userId}`;
+}
+
 export default function Home() {
+  const [authState, setAuthState] = useState<'LOADING' | 'ANONYMOUS' | 'AUTHENTICATED'>('LOADING');
+  const [sessionUser, setSessionUser] = useState<AuthenticatedUser | null>(null);
   const [activeView, setActiveView] = useState<'PORTFOLIO' | 'PROJECT_WORKSPACE'>('PORTFOLIO');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
+  const serverSyncScopeRef = useRef<string | null>(null);
 
   const [currentProfile, setCurrentProfile] = useState<UserProfile>(INITIAL_PROFILE);
   const [projects, setProjects] = useState<ProjectContract[]>(INITIAL_PROJECTS);
   const [envelope, setEnvelope] = useState<BudgetEnvelope>(INITIAL_ENVELOPE);
   const [logs, setLogs] = useState<TransactionLog[]>(INITIAL_LOGS);
 
-  // Hydrate state from localStorage on initial client mount with v2 schema migration
+  // Resolve the server session before exposing any tenant data.
   useEffect(() => {
+    let cancelled = false;
+
+    const loadSession = async () => {
+      try {
+        const response = await fetch('/api/auth/session', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        if (response.status === 401) {
+          if (!cancelled) {
+            setSessionUser(null);
+            setAuthState('ANONYMOUS');
+          }
+          return;
+        }
+        const data = (await response.json().catch(() => null)) as
+          | { user?: AuthenticatedUser }
+          | null;
+        if (!response.ok || !data?.user) {
+          throw new Error('Invalid session response');
+        }
+        if (!cancelled) {
+          setSessionUser(data.user);
+          setAuthState('AUTHENTICATED');
+        }
+      } catch {
+        if (!cancelled) {
+          setSessionUser(null);
+          setAuthState('ANONYMOUS');
+        }
+      }
+    };
+
+    void loadSession();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Hydrate tenant-scoped state only after authentication resolves.
+  useEffect(() => {
+    if (!sessionUser) {
+      setIsHydrated(false);
+      return;
+    }
+
+    const scope = sessionUser.id;
+    setCurrentProfile(INITIAL_PROFILE);
+    setProjects(INITIAL_PROJECTS);
+    setEnvelope(INITIAL_ENVELOPE);
+    setLogs(INITIAL_LOGS);
+
     try {
-      const savedProfile = localStorage.getItem('agenticpay_profile_v2');
+      const savedProfile = localStorage.getItem(
+        tenantStorageKey(PROFILE_STORAGE_KEY, scope)
+      );
       if (savedProfile) {
         const parsed = JSON.parse(savedProfile) as UserProfile;
-        const accountType = parsed.accountType ?? (parsed.role === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL');
+        let sensitiveProfile: unknown = null;
+        try {
+          const rawSensitive = sessionStorage.getItem(
+            tenantStorageKey(SECURE_PROFILE_STORAGE_KEY, scope)
+          );
+          sensitiveProfile = rawSensitive ? JSON.parse(rawSensitive) : null;
+        } catch {
+          sensitiveProfile = null;
+        }
+        const hydratedProfile = mergeStoredProfile(parsed, sensitiveProfile);
+        const accountType =
+          hydratedProfile.accountType ?? (hydratedProfile.role === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL');
         setCurrentProfile({
-          ...parsed,
+          ...hydratedProfile,
           accountType,
-          role: accountType === 'BUSINESS' ? 'BUSINESS' : parsed.role === 'FREELANCER' ? 'FREELANCER' : 'PERSONAL',
+          role:
+            accountType === 'BUSINESS'
+              ? 'BUSINESS'
+              : hydratedProfile.role === 'FREELANCER'
+                ? 'FREELANCER'
+                : 'PERSONAL',
         });
-      } else {
-        setCurrentProfile(INITIAL_PROFILE);
       }
 
-      const savedProjects = localStorage.getItem('agenticpay_projects_v2');
+      const savedProjects = localStorage.getItem(
+        tenantStorageKey('agenticpay_projects_v2', scope)
+      );
       if (savedProjects) {
         const parsed: unknown = JSON.parse(savedProjects);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setProjects(parsed as ProjectContract[]);
-        } else {
-          setProjects(INITIAL_PROJECTS);
         }
-      } else {
-        setProjects(INITIAL_PROJECTS);
       }
 
-      const savedEnvelope = localStorage.getItem('agenticpay_envelope_v2');
+      const savedEnvelope = localStorage.getItem(
+        tenantStorageKey('agenticpay_envelope_v2', scope)
+      );
       if (savedEnvelope) setEnvelope(JSON.parse(savedEnvelope));
 
-      const savedLogs = localStorage.getItem('agenticpay_logs_v2');
+      const savedLogs = localStorage.getItem(
+        tenantStorageKey('agenticpay_logs_v2', scope)
+      );
       if (savedLogs) setLogs(JSON.parse(savedLogs));
     } catch (err) {
       console.warn('[LocalStorage] Hydration failed, using default state:', err);
     } finally {
       setIsHydrated(true);
     }
-  }, []);
+  }, [sessionUser]);
 
-  // Save state updates to localStorage v2
+  // Reconcile tenant state with the server-authoritative project store.
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || !sessionUser) return;
+    if (serverSyncScopeRef.current === sessionUser.id) return;
+    serverSyncScopeRef.current = sessionUser.id;
+    let cancelled = false;
+
+    const syncProjects = async () => {
+      try {
+        const response = await fetch('/api/projects', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        if (response.status === 401 || !response.ok) return;
+        const data = (await response.json()) as {
+          projects?: ProjectContract[];
+          envelope?: BudgetEnvelope | null;
+        };
+        if (cancelled) return;
+
+        if (Array.isArray(data.projects) && data.projects.length > 0) {
+          setProjects(data.projects);
+          if (data.envelope) setEnvelope(data.envelope);
+          setSelectedProjectId((current) =>
+            data.projects!.some((project) => project.id === current)
+              ? current
+              : data.projects![0].id
+          );
+          return;
+        }
+
+        const bootstrap = await fetch('/api/projects/bootstrap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ projects, envelope }),
+        });
+        if (!bootstrap.ok || cancelled) return;
+        const bootstrapped = (await bootstrap.json()) as {
+          projects?: ProjectContract[];
+          envelope?: BudgetEnvelope | null;
+        };
+        if (!cancelled && bootstrapped.projects) {
+          setProjects(bootstrapped.projects);
+          if (bootstrapped.envelope) setEnvelope(bootstrapped.envelope);
+        }
+      } catch (err) {
+        console.warn('[Projects] Server reconciliation failed:', err);
+      }
+    };
+
+    void syncProjects();
+    return () => {
+      cancelled = true;
+    };
+  }, [isHydrated, sessionUser, projects, envelope]);
+
+  // Persist only under the authenticated user's namespace.
+  useEffect(() => {
+    if (!isHydrated || !sessionUser) return;
+    const scope = sessionUser.id;
     try {
-      localStorage.setItem('agenticpay_profile_v2', JSON.stringify(currentProfile));
-      localStorage.setItem('agenticpay_projects_v2', JSON.stringify(projects));
-      localStorage.setItem('agenticpay_envelope_v2', JSON.stringify(envelope));
-      localStorage.setItem('agenticpay_logs_v2', JSON.stringify(logs));
+      const { persistable, sensitive } = splitProfileForStorage(currentProfile);
+      localStorage.setItem(
+        tenantStorageKey(PROFILE_STORAGE_KEY, scope),
+        JSON.stringify(persistable)
+      );
+      localStorage.setItem(
+        tenantStorageKey('agenticpay_projects_v2', scope),
+        JSON.stringify(projects)
+      );
+      localStorage.setItem(
+        tenantStorageKey('agenticpay_envelope_v2', scope),
+        JSON.stringify(envelope)
+      );
+      localStorage.setItem(
+        tenantStorageKey('agenticpay_logs_v2', scope),
+        JSON.stringify(logs)
+      );
+      sessionStorage.setItem(
+        tenantStorageKey(SECURE_PROFILE_STORAGE_KEY, scope),
+        JSON.stringify(sensitive)
+      );
     } catch (err) {
       console.warn('[LocalStorage] Save failed:', err);
     }
-  }, [currentProfile, projects, envelope, logs, isHydrated]);
+  }, [currentProfile, projects, envelope, logs, isHydrated, sessionUser]);
+
+  // Merge durable server ledger entries into the local view.
+  useEffect(() => {
+    if (!isHydrated || !sessionUser) return;
+    let cancelled = false;
+
+    const loadLedger = async () => {
+      try {
+        const response = await fetch('/api/ledger/events?limit=500', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as { events?: TransactionLog[] };
+        if (!Array.isArray(data.events) || cancelled) return;
+
+        setLogs((previous) => {
+          const existingIds = new Set(previous.map((log) => log.id));
+          const remoteOnly = data.events!.filter(
+            (log) => log && typeof log.id === 'string' && !existingIds.has(log.id)
+          );
+          return remoteOnly.length > 0 ? [...remoteOnly, ...previous] : previous;
+        });
+      } catch (err) {
+        console.warn('[Ledger] Unable to sync durable audit events:', err);
+      }
+    };
+
+    void loadLedger();
+    return () => {
+      cancelled = true;
+    };
+  }, [isHydrated, sessionUser]);
+
+  const handleAuthenticated = (user: AuthenticatedUser) => {
+    setSessionUser(user);
+    setAuthState('AUTHENTICATED');
+    setIsHydrated(false);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+    } catch (err) {
+      console.warn('[Auth] Logout request failed:', err);
+    } finally {
+      setAuthState('ANONYMOUS');
+      setSessionUser(null);
+      setIsHydrated(false);
+      serverSyncScopeRef.current = null;
+    }
+  };
 
   const handleAddLog = (newLog: TransactionLog) => {
     setLogs((prev) => [newLog, ...prev]);
     setProjects((prev) => applyTransactionLogToProjects(prev, newLog));
+
+    // Settlement payouts are written exclusively by the server settlement route.
+    if (newLog.status === 'PAYOUT_EXECUTED') return;
+    if (authState !== 'AUTHENTICATED') return;
+    void fetch('/api/ledger/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(newLog),
+    })
+      .then((response) => {
+        if (!response.ok && response.status !== 401) {
+          console.warn('[Ledger] Durable event write rejected:', response.status);
+        }
+      })
+      .catch((err) => {
+        console.warn('[Ledger] Durable event write failed:', err);
+      });
   };
 
   const handleSelectProject = (projectId: string) => {
@@ -301,50 +533,163 @@ export default function Home() {
     setActiveView('PROJECT_WORKSPACE');
   };
 
-  const handleCreateProject = (data: Omit<ProjectContract, 'id' | 'spentUSD' | 'status'> & { initialScope?: string }) => {
-    const newId = `proj-${Date.now()}`;
-    const newProject: ProjectContract = {
-      id: newId,
-      name: data.name,
-      vendorName: data.vendorName,
-      vendorEmail: data.vendorEmail,
-      budgetCapUSD: data.budgetCapUSD,
-      spentUSD: 0,
-      status: 'ACTIVE',
-      perspective: data.perspective || 'OUTGOING',
-      contractType: data.contractType,
-      contractReferenceId: data.contractReferenceId,
-      isSubcontracted: data.isSubcontracted,
-      parentProjectId: data.parentProjectId,
-    };
+  const handleCreateProject = async (
+    data: Omit<ProjectContract, 'id' | 'spentUSD' | 'status'> & { initialScope?: string }
+  ): Promise<ProjectContract | null> => {
+    const now = new Date().toISOString();
+    const milestoneAmount = Number(data.budgetCapUSD);
+    const milestones: ProjectContract['milestones'] = [
+      {
+        id: `ms-${crypto.randomUUID()}`,
+        phaseNumber: 1,
+        title: 'Phase 1: Initial Delivery',
+        description: data.initialScope || 'Initial contracted scope of work.',
+        amountUSD: milestoneAmount,
+        status: 'PENDING',
+        acceptanceCriteria:
+          data.initialScope ||
+          'Deliverable must match the contracted scope and include verifiable proof of execution.',
+      },
+    ];
 
-    setProjects((prev) => [newProject, ...prev]);
-    setSelectedProjectId(newId);
-    setActiveView('PROJECT_WORKSPACE');
+    try {
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          name: data.name,
+          vendorName: data.vendorName,
+          vendorEmail: data.vendorEmail,
+          clientName: data.clientName,
+          clientEmail: data.clientEmail,
+          budgetCapUSD: data.budgetCapUSD,
+          perspective: data.perspective || 'OUTGOING',
+          contractType: data.contractType,
+          contractReferenceId: data.contractReferenceId,
+          isSubcontracted: data.isSubcontracted,
+          parentProjectId: data.parentProjectId,
+          milestones,
+        }),
+      });
 
-    handleAddLog({
-      id: `log-${Date.now()}`,
-      projectId: newId,
-      projectName: newProject.name,
-      timestamp: new Date().toISOString(),
-      agentRole: 'GUARDRAIL',
-      action: `New Escrow Contract Created: "${newProject.name}" (Vendor: ${newProject.vendorEmail} | Envelope Cap: $${newProject.budgetCapUSD.toFixed(2)}${newProject.contractType ? ` | ${newProject.contractType}` : ''})`,
-      amountUSD: 0,
-      recipientEmail: newProject.vendorEmail,
-      auditConfidenceScore: 100,
-      status: 'IDLE',
-      riskLevel: 'LOW',
-    });
+      const payload = (await response.json().catch(() => null)) as
+        | { project?: ProjectContract; error?: string }
+        | null;
+      if (!response.ok || !payload?.project) {
+        console.warn('[Projects] Creation rejected:', payload?.error);
+        return null;
+      }
+
+      const newProject = payload.project;
+      setProjects((prev) => [newProject, ...prev]);
+      setSelectedProjectId(newProject.id);
+      setActiveView('PROJECT_WORKSPACE');
+
+      handleAddLog({
+        id: `log-${Date.now()}`,
+        projectId: newProject.id,
+        projectName: newProject.name,
+        timestamp: now,
+        agentRole: 'GUARDRAIL',
+        action: `New Escrow Contract Created: "${newProject.name}" (Vendor: ${newProject.vendorEmail} | Envelope Cap: $${newProject.budgetCapUSD.toFixed(2)}${newProject.contractType ? ` | ${newProject.contractType}` : ''})`,
+        amountUSD: 0,
+        recipientEmail: newProject.vendorEmail,
+        auditConfidenceScore: 100,
+        status: 'IDLE',
+        riskLevel: 'LOW',
+      });
+
+      return newProject;
+    } catch (error) {
+      console.warn('[Projects] Creation failed:', error);
+      return null;
+    }
   };
 
   const handleToggleProjectFreeze = (projectId: string) => {
+    const target = projects.find((project) => project.id === projectId);
+    if (!target || target.perspective === 'INCOMING') return;
+    const nextStatus = target.status === 'PAUSED' ? 'ACTIVE' : 'PAUSED';
+
     setProjects((prev) =>
-      prev.map((p) => {
-        if (p.id !== projectId) return p;
-        if (p.perspective === 'INCOMING') return p;
-        return { ...p, status: p.status === 'PAUSED' ? 'ACTIVE' : 'PAUSED' };
-      })
+      prev.map((project) =>
+        project.id === projectId ? { ...project, status: nextStatus } : project
+      )
     );
+
+    void fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ status: nextStatus }),
+    }).catch((error) => {
+      console.warn('[Projects] Contract status update failed:', error);
+    });
+  };
+
+  const handleToggleKillSwitch = () => {
+    const next = { ...envelope, killSwitchActive: !envelope.killSwitchActive };
+    setEnvelope(next);
+    void fetch('/api/envelope', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(next),
+    }).catch((error) => {
+      console.warn('[Envelope] Kill-switch update failed:', error);
+    });
+  };
+
+  const handleSettleMilestone = async (
+    projectId: string,
+    milestoneId: string
+  ): Promise<
+    | { ok: true; event: TransactionLog }
+    | { ok: false; error: string }
+  > => {
+    try {
+      const response = await fetch(
+        `/api/projects/${encodeURIComponent(projectId)}/milestones/${encodeURIComponent(milestoneId)}/settle`,
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        }
+      );
+      const data = (await response.json().catch(() => null)) as
+        | {
+            event?: TransactionLog;
+            project?: ProjectContract;
+            envelope?: BudgetEnvelope;
+            error?: string;
+          }
+        | null;
+      if (!response.ok || !data?.event || !data.project) {
+        return {
+          ok: false,
+          error: data?.error || 'The server rejected the settlement.',
+        };
+      }
+
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.id === data.project!.id ? data.project! : project
+        )
+      );
+      if (data.envelope) setEnvelope(data.envelope);
+      setLogs((prev) =>
+        prev.some((log) => log.id === data.event!.id)
+          ? prev
+          : [data.event!, ...prev]
+      );
+
+      return { ok: true, event: data.event };
+    } catch (error) {
+      console.warn('[Settlement] Request failed:', error);
+      return { ok: false, error: 'The settlement service could not be reached.' };
+    }
   };
 
   const handleUpdateProject = (updatedProject: ProjectContract) => {
@@ -352,6 +697,19 @@ export default function Home() {
   };
 
   const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
+
+  if (authState === 'LOADING') {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-3 text-slate-400">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-amber-500" />
+        <p className="text-xs font-mono uppercase tracking-widest">Verifying secure session</p>
+      </div>
+    );
+  }
+
+  if (authState === 'ANONYMOUS' || !sessionUser) {
+    return <AuthScreen onAuthenticated={handleAuthenticated} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-white">
@@ -364,10 +722,10 @@ export default function Home() {
         activeView={activeView}
         onNavigatePortfolio={() => setActiveView('PORTFOLIO')}
         onSelectProject={handleSelectProject}
-        onToggleKillSwitch={() =>
-          setEnvelope((prev) => ({ ...prev, killSwitchActive: !prev.killSwitchActive }))
-        }
+        onToggleKillSwitch={handleToggleKillSwitch}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
+        onLogout={() => void handleLogout()}
+        sessionEmail={sessionUser.email}
       />
 
       {/* Main View Area */}
@@ -391,6 +749,7 @@ export default function Home() {
             onToggleProjectFreeze={handleToggleProjectFreeze}
             onAddLog={handleAddLog}
             onUpdateProject={handleUpdateProject}
+            onSettleMilestone={handleSettleMilestone}
           />
         )}
       </main>
@@ -409,14 +768,7 @@ export default function Home() {
         isOpen={isOnboardingOpen}
         currentProfile={currentProfile}
         onClose={() => setIsOnboardingOpen(false)}
-        onUpdateProfile={(profile) => {
-          setCurrentProfile(profile);
-          try {
-            localStorage.setItem('agenticpay_profile_v2', JSON.stringify(profile));
-          } catch (e) {
-            console.error('Failed to sync updated profile to localStorage', e);
-          }
-        }}
+        onUpdateProfile={(profile) => setCurrentProfile(profile)}
       />
 
       {/* Footer */}

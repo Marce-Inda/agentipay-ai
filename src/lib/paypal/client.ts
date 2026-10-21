@@ -3,10 +3,13 @@
  * Connects directly to https://api-m.sandbox.paypal.com
  */
 
+import { createHash, randomUUID } from 'node:crypto';
+
 export interface PayPalCredentials {
   clientId: string;
   clientSecret: string;
   environment: 'sandbox' | 'production';
+  simulationMode?: boolean;
 }
 
 export interface PayPalPayoutItem {
@@ -24,6 +27,7 @@ export class PayPalSandboxClient {
   private baseUrl: string;
   private clientId: string;
   private clientSecret: string;
+  private simulationMode: boolean;
 
   constructor(credentials?: Partial<PayPalCredentials>) {
     const env = credentials?.environment || process.env.PAYPAL_ENV || process.env.PAYPAL_ENVIRONMENT || 'sandbox';
@@ -33,14 +37,35 @@ export class PayPalSandboxClient {
       
     this.clientId = credentials?.clientId || process.env.PAYPAL_CLIENT_ID || process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
     this.clientSecret = credentials?.clientSecret || process.env.PAYPAL_CLIENT_SECRET || '';
+    const simulationRequested =
+      credentials?.simulationMode === true || process.env.PAYPAL_SIMULATION_MODE === 'true';
+    this.simulationMode = simulationRequested && env !== 'production';
+  }
+
+  private hasCredentials(): boolean {
+    return Boolean(
+      this.clientId &&
+      this.clientSecret &&
+      this.clientId !== 'placeholder' &&
+      this.clientSecret !== 'placeholder'
+    );
+  }
+
+  private requireCredentials(): void {
+    if (!this.simulationMode) {
+      throw new Error(
+        'PayPal credentials are not configured. Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET, or explicitly set PAYPAL_SIMULATION_MODE=true for non-production simulation.'
+      );
+    }
   }
 
   /**
    * Fetches OAuth2 Access Token from PayPal REST API
    */
   async getAccessToken(): Promise<string> {
-    if (!this.clientId || !this.clientSecret || this.clientId === 'placeholder') {
-      console.warn('[PayPal Sandbox] Running in SIMULATED mode (Missing credentials).');
+    if (!this.hasCredentials()) {
+      this.requireCredentials();
+      console.warn('[PayPal Sandbox] Running in SIMULATED mode (explicitly enabled).');
       return 'simulated_sandbox_oauth_token_' + Date.now();
     }
 
@@ -65,8 +90,9 @@ export class PayPalSandboxClient {
   }
 
   /**
-   * Executes a Batch Payout via PayPal REST API (/v1/payments/payouts)
-   * Guaranteed idempotent through PayPal-Request-Id header to prevent duplicate execution.
+   * Executes a Batch Payout via PayPal REST API (/v1/payments/payouts).
+   * Retries are idempotent when the caller supplies a stable idempotencyKey; the same
+   * key is propagated as PayPal-Request-Id and used to derive the sender identifiers.
    */
   async executeMilestonePayout(payout: {
     receiverEmail: string;
@@ -74,13 +100,18 @@ export class PayPalSandboxClient {
     milestoneName: string;
     idempotencyKey?: string;
   }): Promise<{ success: boolean; payoutBatchId: string; httpLog: string; idempotencyKey: string }> {
-    const isSimulated = !this.clientId || this.clientId === 'placeholder';
-    const timestamp = new Date().toISOString();
-    const batchId = 'AGENTICPAY_' + Date.now();
-    const effectiveIdempotencyKey = payout.idempotencyKey || `REQ_${batchId}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+    const isSimulated = !this.hasCredentials();
+    if (isSimulated) {
+      this.requireCredentials();
+    }
+
+    const operationSeed = payout.idempotencyKey || randomUUID();
+    const batchSeed = createHash('sha256').update(operationSeed).digest('hex').toUpperCase();
+    const batchId = `AGENTICPAY_${batchSeed.slice(0, 24)}`;
+    const effectiveIdempotencyKey = payout.idempotencyKey || `REQ_${batchSeed.slice(0, 32)}`;
 
     if (isSimulated) {
-      const simulatedBatchId = 'SIM_PAYOUT_' + Math.random().toString(36).substring(2, 9).toUpperCase();
+      const simulatedBatchId = `SIM_PAYOUT_${batchSeed.slice(0, 12)}`;
       const httpLog = `POST ${this.baseUrl}/v1/payments/payouts [201 Created]\nHeaders: { "PayPal-Request-Id": "${effectiveIdempotencyKey}" }\nPayload: ${JSON.stringify({
         sender_batch_header: { sender_batch_id: simulatedBatchId, email_subject: 'AgenticPay AI Escrow Release' },
         items: [{ recipient_type: 'EMAIL', amount: { value: payout.amountUSD.toFixed(2), currency: 'USD' }, receiver: payout.receiverEmail }]
@@ -111,7 +142,7 @@ export class PayPalSandboxClient {
           },
           receiver: payout.receiverEmail,
           note: `Milestone: ${payout.milestoneName}`,
-          sender_item_id: `ITEM_${Date.now()}`,
+          sender_item_id: `ITEM_${batchSeed.slice(0, 20)}`,
         },
       ],
     };

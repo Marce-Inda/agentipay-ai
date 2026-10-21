@@ -13,17 +13,26 @@
 /out/
 /build
 /coverage
+coverage/
+.nyc_output/
 *.tsbuildinfo
 next-env.d.ts
 
 # Environment & Local Secrets
 .env
-.env.local
-.env.development
-.env.test
-.env.production
-.env.*.local
+.env.*
 !.env.example
+
+# Credentials, keys, and secret material
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.secret
+secrets.json
+.secrets/
 
 # Internal Agentic & Hackathon Planning Documents (Kept Local Only)
 plan_de_implementacion.md
@@ -41,7 +50,6 @@ docs/internal/
 Thumbs.db
 .vscode/
 .idea/
-*.pem
 
 # Vercel / Deployment cache
 .vercel

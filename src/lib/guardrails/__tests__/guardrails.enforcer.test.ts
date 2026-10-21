@@ -83,6 +83,32 @@ describe('GuardrailEnforcer', () => {
     });
   });
 
+  describe('isTrustedArtifactUrl', () => {
+    it('should accept allowlisted HTTPS artifact hosts and their subdomains', () => {
+      expect(GuardrailEnforcer.isTrustedArtifactUrl('https://github.com/org/repo/pull/1')).toBe(true);
+      expect(GuardrailEnforcer.isTrustedArtifactUrl('https://gist.github.com/user/abc')).toBe(true);
+    });
+
+    it('should reject HTTP, lookalike hosts, and embedded credentials', () => {
+      expect(GuardrailEnforcer.isTrustedArtifactUrl('http://github.com/org/repo/pull/1')).toBe(false);
+      expect(GuardrailEnforcer.isTrustedArtifactUrl('https://github.com.attacker.example/repo')).toBe(false);
+      expect(GuardrailEnforcer.isTrustedArtifactUrl('https://github.com@attacker.example/repo')).toBe(false);
+      expect(GuardrailEnforcer.isTrustedArtifactUrl('not-a-url')).toBe(false);
+    });
+  });
+
+  describe('maskEmail', () => {
+    it('should mask the local part while preserving the domain', () => {
+      expect(GuardrailEnforcer.maskEmail('vendor@example.com')).toBe('v***@example.com');
+    });
+
+    it('should reject malformed values instead of leaking them', () => {
+      expect(GuardrailEnforcer.maskEmail('not-an-email')).toBe('N/A');
+      expect(GuardrailEnforcer.maskEmail('@example.com')).toBe('N/A');
+      expect(GuardrailEnforcer.maskEmail('vendor@')).toBe('N/A');
+    });
+  });
+
   describe('validateTransactionBudget', () => {
     const baseEnvelope: BudgetEnvelope = {
       maxPerTransactionUSD: 500,

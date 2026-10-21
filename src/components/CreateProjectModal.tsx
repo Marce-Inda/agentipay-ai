@@ -9,7 +9,9 @@ interface CreateProjectModalProps {
   existingProjects?: ProjectContract[];
   isBusinessAccount?: boolean;
   onClose: () => void;
-  onCreateProject: (newProject: Omit<ProjectContract, 'id' | 'spentUSD' | 'status'> & { initialScope?: string }) => void;
+  onCreateProject: (
+    newProject: Omit<ProjectContract, 'id' | 'spentUSD' | 'status'> & { initialScope?: string }
+  ) => Promise<ProjectContract | null>;
 }
 
 export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
@@ -29,19 +31,23 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [contractType, setContractType] = useState<ContractLegalType>(
     isBusinessAccount ? 'MSA_SOW' : 'STANDARD_AGREEMENT'
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !vendorEmail.trim() || budgetCapUSD <= 0) return;
+    if (!name.trim() || !vendorEmail.trim() || budgetCapUSD <= 0 || isSubmitting) return;
+    setSubmitError('');
+    setIsSubmitting(true);
 
     const randomRef = Math.floor(1000 + Math.random() * 9000);
     const contractReferenceId = contractType === 'MSA_SOW' 
       ? `MSA-2026-${randomRef}E` 
       : `STD-AGR-${randomRef}`;
 
-    onCreateProject({
+    const created = await onCreateProject({
       name: name.trim(),
       vendorName: vendorName.trim() || 'Contractor',
       vendorEmail: vendorEmail.trim(),
@@ -53,6 +59,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       isSubcontracted: isSubcontract,
       parentProjectId: isSubcontract ? parentProjectId : undefined,
     });
+
+    setIsSubmitting(false);
+    if (!created) {
+      setSubmitError('The contract could not be created. Verify the vendor details and retry.');
+      return;
+    }
 
     // Reset form
     setName('');
@@ -204,7 +216,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 <span className="text-xs text-slate-500">USD</span>
               </div>
               <p className="text-[10px] text-slate-500 mt-1.5">
-                The envelope ceiling is enforced locally. No funds are transferred when the contract is created.
+                The envelope ceiling is enforced server-side. No funds are transferred when the contract is created.
               </p>
             </div>
 
@@ -239,6 +251,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             />
           </div>
 
+          {submitError && (
+            <div className="rounded-lg border border-rose-500/40 bg-rose-950/40 px-3 py-2 text-xs text-rose-300">
+              {submitError}
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#252830]">
             <button
@@ -250,9 +268,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 border border-amber-400/30 transition-all shadow-md active:scale-95"
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 border border-amber-400/30 transition-all shadow-md active:scale-95 disabled:cursor-wait disabled:opacity-60"
             >
-              Create Escrow Contract
+              {isSubmitting ? 'Creating secure contract...' : 'Create Escrow Contract'}
             </button>
           </div>
         </form>

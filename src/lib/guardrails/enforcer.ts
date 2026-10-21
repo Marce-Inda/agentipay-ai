@@ -13,6 +13,25 @@ export const AUTONOMOUS_SETTLEMENT_CAP_USD = 1000;
  */
 export const MAX_DELIVERABLE_PAYLOAD_LENGTH = 12000;
 
+export const MAX_EXPECTED_REQUIREMENTS_LENGTH = 2000;
+export const MAX_ARTIFACT_URL_LENGTH = 2048;
+export const MIN_AUDIT_CONFIDENCE = 85;
+export const MAX_AUDIT_TRANSACTION_USD = 1000000;
+
+const TRUSTED_ARTIFACT_HOSTS = [
+  'github.com',
+  'gitlab.com',
+  'bitbucket.org',
+  'vercel.app',
+  'netlify.app',
+  'figma.com',
+  'docs.google.com',
+  'drive.google.com',
+  'dropbox.com',
+  'loom.com',
+  'youtube.com',
+];
+
 export class GuardrailEnforcer {
   /**
    * Enforces strict non-AI budget ceilings and active kill-switch status.
@@ -77,27 +96,92 @@ export class GuardrailEnforcer {
    * Sanitizes untrusted deliverable text or prompt inputs against prompt injection (OWASP LLM01).
    */
   static sanitizePromptInput(input: string): string {
-    if (!input) return '';
-    
+    if (typeof input !== 'string' || !input) return '';
+
+    const normalized = input
+      .normalize('NFKC')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .replace(/\s+/g, ' ');
+
     // Strip malicious instruction override patterns including markdown, XML comments, and role hijacking
     const forbiddenPatterns = [
-      /ignore previous instructions/gi,
-      /disregard (all |any )?system prompt(s)?/gi,
-      /override budget ceiling/gi,
-      /execute unauthorized payout/gi,
-      /bypass guardrails/gi,
-      /(?:<!--\s*)?(?:system|developer|admin)\s*(?:instruction|directive|prompt):?/gi,
-      /you are now in developer mode/gi,
-      /award (?:full|100%|maximum) score/gi,
-      /reset all safety rules/gi,
+      /ignore\s+(?:all\s+|any\s+)?(?:previous|prior|above|earlier)\s+(?:instructions?|prompts?|directions?|rules?)/gi,
+      /forget\s+(?:all\s+|any\s+)?(?:previous|prior|above|earlier)\s+(?:instructions?|prompts?|rules?)/gi,
+      /disregard\s+(?:all\s+|any\s+)?(?:previous\s+|prior\s+|above\s+)?(?:system\s+)?(?:prompts?|instructions?|rules?)/gi,
+      /override\s+(?:the\s+)?(?:budget|spending|transaction)\s+(?:ceiling|limit|cap)/gi,
+      /execute\s+(?:an?\s+)?unauthori[sz]ed\s+payout/gi,
+      /bypass\s+(?:all\s+)?(?:the\s+)?guardrails?/gi,
+      /(?:<!--\s*)?(?:system|developer|admin)\s*(?:instruction|directive|prompt)\s*:?/gi,
+      /you\s+are\s+now\s+in\s+developer\s+mode/gi,
+      /award\s+(?:full|100%|maximum)\s+score/gi,
+      /reset\s+(?:all\s+)?safety\s+rules/gi,
+      /reveal\s+(?:your\s+)?(?:system\s+)?prompt/gi,
+      /print\s+(?:your\s+)?(?:system\s+)?prompt/gi,
     ];
 
-    let sanitized = input;
+    let sanitized = normalized;
     for (const pattern of forbiddenPatterns) {
       sanitized = sanitized.replace(pattern, '[BLOCKED_INJECTION_ATTEMPT]');
     }
 
     return sanitized.trim();
+  }
+
+  /**
+   * Masks an email address before it is disclosed to an external model provider.
+   */
+  static maskEmail(input: string): string {
+    if (typeof input !== 'string') return 'N/A';
+
+    const trimmed = input.trim().toLowerCase();
+    const atIndex = trimmed.lastIndexOf('@');
+    if (atIndex <= 0 || atIndex === trimmed.length - 1) return 'N/A';
+
+    const localPart = trimmed.slice(0, atIndex);
+    const domain = trimmed.slice(atIndex + 1);
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return 'N/A';
+
+    return `${localPart[0]}***@${domain}`;
+  }
+
+  /**
+   * Extracts bounded, meaningful tokens for deterministic requirement matching.
+   */
+  static tokenizeForMatch(input: string): string[] {
+    if (typeof input !== 'string' || !input) return [];
+
+    return Array.from(
+      new Set(
+        input
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, ' ')
+          .trim()
+          .split(/\s+/)
+          .filter((token) => token.length > 3)
+      )
+    );
+  }
+
+  /**
+   * Accepts only HTTPS artifact links on an explicit allowlist of delivery platforms.
+   * Prevents substring spoofing such as "github.com.attacker.example".
+   */
+  static isTrustedArtifactUrl(value: string): boolean {
+    if (typeof value !== 'string' || !value || value.length > MAX_ARTIFACT_URL_LENGTH) {
+      return false;
+    }
+
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== 'https:') return false;
+
+      const host = parsed.hostname.toLowerCase();
+      return TRUSTED_ARTIFACT_HOSTS.some(
+        (trustedHost) => host === trustedHost || host.endsWith(`.${trustedHost}`)
+      );
+    } catch {
+      return false;
+    }
   }
 
   /**

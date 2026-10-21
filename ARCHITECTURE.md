@@ -3,7 +3,7 @@
 This document describes the implemented architecture of AgenticPay AI: the client application, route handlers, financial guardrails, state model, PayPal integration code, and known boundaries.
 
 > [!IMPORTANT]
-> **Current limitation:** settlement is not operational end to end. Workspace releases write local `PAYOUT_EXECUTED` logs with generated batch identifiers and do not call PayPal. The PayPal client is not imported by the runtime UI.
+> **Current boundary:** settlement is server-authoritative within AgenticPay, but it is non-custodial. A successful release atomically records a `PAYOUT_EXECUTED` ledger event and updates project/envelope spend; it does not call PayPal. The PayPal client is reserved for a future external payout adapter. Browser state is a cache reconciled from the server.
 
 ---
 
@@ -16,28 +16,32 @@ This document describes the implemented architecture of AgenticPay AI: the clien
 |  - Portfolio and workspace views                                      |
 |  - AI negotiation assistant                                           |
 |  - AG Grid transaction ledger                                         |
-|  - localStorage persistence (profile, projects, envelope, logs)       |
-|  - Workspace local settlement records                                 |
-|  - AgentChat negotiation assistant (no payout client)                 |
+|  - Tenant-scoped localStorage cache (profile, projects, envelope, logs)|
+|  - Server reconciliation after authentication                         |
+|  - AgentChat negotiation assistant (no settlement client)             |
 +-----------------------------------+-----------------------------------+
                                     |
-                   POST /api/agent/stream   POST /api/agent/audit
+      /api/auth/*  /api/projects/*  /api/envelope  /api/ledger/events
+      /api/agent/stream  /api/agent/audit
                                     |
 +-----------------------------------v-----------------------------------+
 | Next.js route handlers                                                |
+|  - Opaque session cookies + CSRF origin validation                    |
 |  - GuardrailEnforcer: budget, audit, sanitization, payload limits     |
 |  - AI provider adapter: OpenAI/OpenRouter or Gemini                   |
-|  - Deterministic heuristic deliverable audit                          |
-|  - No payout route                                                    |
-+-----------------------------------+-----------------------------------+
-                                    |
-                                    | No server-to-PayPal payout call
-                                    v
-                 PayPal Sandbox REST API (client code only; not live)
-                 https://api-m.sandbox.paypal.com
+|  - Deterministic heuristic deliverable audit + server persistence     |
+|  - Server-authoritative projects, envelopes, atomic settlement        |
+|  - Tenant-scoped durable ledger                                       |
+|  - No external payout route                                           |
++--------------------+----------------------------+---------------------+
+                     |                            |
+                     | PostgreSQL                 | No server-to-PayPal payout
+                     v                            v
+ users / sessions / projects /         PayPal Sandbox REST API
+ envelopes / ledger events             (reserved client code; not live)
 ```
 
-The application is a modular monolith. There is no database, message broker, or background worker in the current implementation. Financial state is held in the browser and reconstructed on load.
+The application is a modular monolith. PostgreSQL stores users, opaque session hashes, tenant-scoped projects, budget envelopes, and ledger events. Browser storage is a tenant-scoped cache that is reconciled from the server after sign-in. Settlement is executed in a PostgreSQL transaction with row locks and a deduplicated ledger insert. There is no message broker or background worker.
 
 ---
 
@@ -45,10 +49,11 @@ The application is a modular monolith. There is no database, message broker, or 
 
 | Area | Responsibility |
 | :--- | :--- |
-| `src/app/page.tsx` | Owns profile, projects, budget envelope, and transaction logs. Hydrates from `localStorage`, creates contracts, applies ledger updates, and routes between portfolio and workspace views. |
-| `src/components/Header.tsx` | Portfolio/workspace navigation, directional escrow metrics, escrow health, and the master kill-switch. |
+| `src/app/page.tsx` | Verifies the session, owns profile, projects, budget envelope, and transaction logs. Hydrates from tenant-scoped `localStorage`, reconciles projects/envelope from the server, syncs durable ledger events, creates server contracts, persists freeze/kill-switch updates, executes settlement, and routes between portfolio and workspace views. |
+| `src/components/AuthScreen.tsx` | Sign-in and invite-gated account creation. |
+| `src/components/Header.tsx` | Portfolio/workspace navigation, session identity, sign-out, directional escrow metrics, escrow health, and the master kill-switch. |
 | `src/components/ProjectPortfolioView.tsx` | Two-column outbound/inbound swimlanes, executive summaries, contract cards, and subcontract badges. |
-| `src/components/ProjectWorkspaceView.tsx` | Project header, milestone list, audit modal, client-authorized settlement, project ledger, and freeze controls. |
+| `src/components/ProjectWorkspaceView.tsx` | Project header, milestone list, audit modal, server-backed settlement/authorization, project ledger, and freeze controls. |
 | `src/components/AgentChat.tsx` | Streamed negotiation assistant with pre-settlement guard checks. It does not audit deliverables or record settlements. |
 | `src/components/CommandCenter.tsx` | AG Grid transaction ledger with risk, status, confidence, and settlement payload inspection. |
 | `src/components/CreateProjectModal.tsx` | Contract creation, milestone setup, legal type, settlement email, and optional parent-contract linkage. |
@@ -84,7 +89,7 @@ Core types are defined in `src/lib/types/index.ts`.
 - Perspective: `OUTGOING` or `INCOMING`.
 - Legal metadata: `contractType`, `contractReferenceId`.
 - Subcontracting: `isSubcontracted`, `parentProjectId`.
-- Milestones: `milestones[]` with amount, status, acceptance criteria, audit score, proof, and PayPal batch ID.
+- Milestones: `milestones[]` with amount, lifecycle status, acceptance criteria, audit score/rationale, proof, approval requirement, and settlement reference.
 
 ### `TransactionLog`
 
@@ -103,14 +108,21 @@ Core types are defined in `src/lib/types/index.ts`.
 
 ### Persistence
 
-`src/app/page.tsx` stores state in browser `localStorage` under versioned keys:
+PostgreSQL is authoritative for:
+
+- `agenticpay_users` and `agenticpay_sessions`
+- `agenticpay_projects` keyed by `(user_id, id)` with JSONB contract data
+- `agenticpay_envelopes` keyed by `user_id`
+- `agenticpay_ledger_events` with per-user event-ID deduplication
+
+`src/app/page.tsx` stores a browser cache under versioned keys:
 
 - `agenticpay_profile_v2`
 - `agenticpay_projects_v2`
 - `agenticpay_envelope_v2`
 - `agenticpay_logs_v2`
 
-Hydration is guarded so invalid JSON falls back to the initial state. Writes begin only after hydration completes.
+Hydration is guarded so invalid JSON falls back to the initial state. Writes begin only after hydration completes. After authentication, the client loads `/api/projects`; server projects replace the cache when present. First-time accounts may submit local definitions to `/api/projects/bootstrap`, which sanitizes spend, milestone status, audit evidence, and completion state before storage.
 
 ---
 
@@ -120,39 +132,46 @@ Hydration is guarded so invalid JSON falls back to the initial state. Writes beg
 
 1. The user opens the create-contract modal from the portfolio.
 2. The modal submits contract details and an initial scope.
-3. `page.tsx` creates the contract with `spentUSD: 0` and status `ACTIVE`.
-4. A `GUARDRAIL` log entry records the new contract.
-5. The new contract becomes the selected workspace.
+3. `page.tsx` calls `POST /api/projects`.
+4. The server validates the contract, forces status `ACTIVE` and `spentUSD: 0`, converts milestones to `PENDING`, and returns the stored contract.
+5. A `GUARDRAIL` log entry records the new contract locally.
+6. The new contract becomes the selected workspace.
 
 ### 4.2 Deliverable audit
 
 `POST /api/agent/audit` implements the following sequence:
 
-1. Reject with `423 Locked` if `envelope.killSwitchActive` is true.
-2. Require `deliverableText` or `deliverableUrl`; otherwise return `400`.
-3. Bound the deliverable with `GuardrailEnforcer.validatePayloadSize` (12,000 characters).
-4. Sanitize prompt-injection patterns with `GuardrailEnforcer.sanitizePromptInput`.
-5. Wrap the sanitized text in a `<deliverable_data>` block.
-6. Compute a deterministic confidence score:
+1. Require an authenticated session and same-origin request.
+2. Reject with `423 Locked` if the request declares an active kill-switch, the server envelope is kill-switched, or the contract is not `ACTIVE`.
+3. If `projectId`/`milestoneId` are supplied, require both, load the tenant-scoped project, require the milestone, reject completed/locked milestones, and require the submitted amount to match the server amount.
+4. Require `deliverableText` or `deliverableUrl`; otherwise return `400`.
+5. Bound the deliverable with `GuardrailEnforcer.validatePayloadSize` (12,000 characters).
+6. Sanitize prompt-injection patterns with `GuardrailEnforcer.sanitizePromptInput`.
+7. Wrap the sanitized text in a `<deliverable_data>` block.
+8. Compute a deterministic confidence score:
    - Blocked injection pattern: 15.
    - Very short deliverable without a URL: 55.
    - Requirement-token match or a GitHub/PR URL: 91–99.
    - Other non-empty deliverables: 86.
-7. Evaluate the result with `GuardrailEnforcer.evaluateAuditConfidence(score, amount)`.
-8. Return the score, rationale, risk level, sanitized text, settlement mode, a per-request idempotency key, and an optional simulated batch ID.
+9. Evaluate the result with `GuardrailEnforcer.evaluateAuditConfidence(score, amount)`.
+10. For a passing audit with server IDs, atomically record `AUDITED_PENDING_APPROVAL`, score, rationale, proof, submission time, and approval requirement on the server milestone. Project spend and status are preserved.
+11. Return the score, rationale, risk level, sanitized text, settlement mode, idempotency key, and an optional simulated batch reference.
 
-The endpoint does not call an LLM and does not move funds. The GitHub/PR rule means a URL alone can pass the 85% gate without substantive deliverable text. The AI chat does not call this endpoint or display an audit score.
+The endpoint does not call an LLM, call PayPal, or settle funds. The GitHub/PR rule means a URL alone can pass the 85% gate without substantive deliverable text. The AI chat does not call this endpoint or display an audit score.
 
 ### 4.3 Milestone release
 
-1. The workspace submits a deliverable to the audit endpoint.
-2. A passing audit of `$1,000 USD` or less can be recorded as an autonomous settlement.
-3. A passing audit above `$1,000 USD` returns `HUMAN_APPROVAL_REQUIRED` and sets the milestone to `AUDITED_PENDING_APPROVAL`.
-4. Before recording a settlement, the workspace checks the project's remaining budget: `budgetCapUSD - spentUSD`.
-5. The workspace does **not** call PayPal. It marks the milestone complete and emits a `PAYOUT_EXECUTED` log with a generated `SETTLE-*` identifier and a local settlement payload. The audit response's `simulatedBatchId`, when present, is not a PayPal payment either.
-6. `applyTransactionLogToProjects` increments `spentUSD` for each `PAYOUT_EXECUTED` log passed to it. It does not deduplicate log IDs, so repeated log application double-counts settled amounts.
+1. The workspace submits a deliverable to the audit endpoint with the server `projectId` and `milestoneId`.
+2. A passing audit persists `AUDITED_PENDING_APPROVAL` on the server milestone.
+3. A passing audit of `$1,000 USD` or less is eligible for autonomous settlement. A passing audit above `$1,000 USD`, or an `INCOMING` contract, requires explicit client authorization.
+4. `POST /api/projects/[projectId]/milestones/[milestoneId]/settle` loads the project and envelope under row locks.
+5. The settlement engine revalidates kill-switch, `ACTIVE` contract status, milestone existence, milestone status, server audit score of at least 85%, and positive amount.
+6. It enforces the per-transaction ceiling, daily ceiling, and remaining project budget.
+7. It atomically marks the milestone `COMPLETED`, increments `spentUSD` and `spentTodayUSD`, and inserts one `PAYOUT_EXECUTED` ledger event with deterministic IDs derived from the milestone fingerprint.
+8. Duplicate and concurrent releases are rejected. A completed milestone cannot be settled again.
+9. The client reconciles the returned project, envelope, and event into its cache.
 
-The PayPal client is not imported by the runtime UI. The workspace records settlements locally and does not initiate a PayPal request.
+No external payout is executed. The PayPal client is not imported by the runtime UI.
 
 ### 4.4 AI negotiation stream
 
@@ -165,7 +184,7 @@ The PayPal client is not imported by the runtime UI. The workspace records settl
 5. Streams a response from the primary model.
 6. Attempts a fallback to the configured secondary model if the primary call throws. The `try/catch` wraps stream construction, not failures that occur after streaming begins.
 
-The route has no authentication or rate limiting. It trusts `envelope`, `maxBudgetUSD`, and `killSwitchActive` values supplied in the request body. The assistant is advisory: it does not call the audit endpoint and does not execute payouts.
+The route requires an authenticated session and a same-origin request. It is not rate-limited. It trusts `envelope`, `maxBudgetUSD`, and `killSwitchActive` values supplied in the request body. The assistant is advisory: it does not call the audit endpoint and does not execute payouts.
 
 ---
 
@@ -180,16 +199,16 @@ The route has no authentication or rate limiting. It trusts `envelope`, `maxBudg
 | `validatePayloadSize` | Truncates deliverable text above 12,000 characters. |
 | `evaluateAuditConfidence` | Applies the 85% threshold and the $1,000 autonomous settlement cap. |
 
-The workspace and agent chat also enforce a **remaining project budget** check before recording a local settlement. This is separate from the envelope's per-transaction and daily ceilings.
+The server settlement engine owns the authoritative **remaining project budget** check. The client may pre-check for UX, but settlement revalidates against stored project and envelope state.
 
 ### Control hierarchy
 
-1. **Master kill-switch:** client-wide block on milestone release; the audit route also reads a flag from the request body.
-2. **Contract freeze:** project-level pause for outbound contracts.
-3. **Budget guard:** per-transaction, daily, and remaining-project-budget checks.
-4. **Audit threshold:** confidence below 85% is rejected.
-5. **Human approval:** amounts above $1,000 USD require explicit authorization.
-6. **Ledger behavior:** `PAYOUT_EXECUTED` increments settled funds for each applied log; there is no deduplication.
+1. **Master kill-switch:** server envelope state blocks audits and settlement.
+2. **Contract freeze:** non-`ACTIVE` contract state blocks audits and settlement.
+3. **Audit gate:** settlement requires a server-recorded audit score of at least 85%.
+4. **Budget guard:** per-transaction, daily, and remaining-project-budget checks execute atomically.
+5. **Human approval:** amounts above $1,000 USD and `INCOMING` contracts require explicit authorization.
+6. **Ledger behavior:** only the settlement path can create `PAYOUT_EXECUTED`; client ledger writes reject that status. Server event IDs deduplicate retries.
 
 ---
 
@@ -204,11 +223,11 @@ The workspace and agent chat also enforce a **remaining project budget** check b
 - Returns the batch ID and a formatted HTTP log for the ledger.
 - Returns a simulated result when the client ID is absent or set to `placeholder`.
 
-The current integration is not operational end to end:
+The external payout integration is not operational end to end:
 
 - The client is not imported by the runtime UI; only its unit tests exercise it.
-- The workspace release path does not call the client and writes a local settlement record.
-- No server-side route invokes the client, so OAuth and payout execution are not reachable from the application.
+- The workspace release path does not call the client; it writes a durable internal settlement record.
+- No server-side route invokes the client, so OAuth and external payout execution are not reachable from the application.
 - `PayPal-Request-Id` is generated per invocation by `Date.now()` and random values. It is not deterministic and does not protect against duplicate payouts.
 
 **Not implemented:** a server-side payout route, Orders API, Vault tokenization, webhooks, refunds, disputes, and production onboarding.
@@ -220,22 +239,23 @@ The current integration is not operational end to end:
 - **Build:** `next build --webpack`.
 - **Runtime:** `next start` on Node.js 20.
 - **Container:** `Dockerfile` based on `node:20-alpine`.
-- **Render:** `render.yaml` defines a Docker web service on port 3000 with a health check at `/`.
+- **Render:** `render.yaml` defines a Docker web service on port 3000, a PostgreSQL database, and a health check at `/`.
+- **Database:** PostgreSQL stores users, session-token hashes, projects, budget envelopes, and ledger events. Production refuses to serve authenticated traffic without `DATABASE_URL`.
 - **Secrets:** injected through the hosting environment; never committed.
 
 ---
 
 ## 8. Known architectural limitations
 
-- No authentication or authorization layer.
-- No rate limiting on the AI or audit endpoints.
-- No server-side persistence; browser state can be modified by the user.
-- No tenant isolation or audit trail durability.
+- Authentication covers session identity, but there is no role-based authorization or email verification.
+- Rate limiting is process-local for login/register; the AI, audit, and ledger routes are not rate-limited.
+- Tenant isolation is enforced for sessions, ledger events, projects, envelopes, audits, and settlement.
 - Audit scoring is heuristic and keyword-based, not semantic. GitHub/PR URLs bypass content evaluation.
-- Settlement is recorded locally; no server-side PayPal payout is executed.
+- Settlement is durable and server-authoritative internally, but no external PayPal payout is executed.
 - PayPal Vault and production disbursement are out of scope.
 - The AI chat does not invoke the audit endpoint or record settlements.
-- Ledger application does not deduplicate `PAYOUT_EXECUTED` logs; repeated application double-counts.
+- The audit route does not independently verify artifact ownership or whether a linked commit/PR exists.
+- Live PostgreSQL concurrency behavior is covered by row-lock design but not by an automated integration test.
 - Client escrow intake links are not generated by the current portfolio UI.
 - Automated UI and end-to-end tests are not yet configured.
 - The AI fallback is a simple try/catch around stream construction; it does not retry partially streamed responses.

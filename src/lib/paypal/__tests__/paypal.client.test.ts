@@ -8,14 +8,22 @@ import { BudgetEnvelope } from '../../types';
 
 describe('PayPalSandboxClient', () => {
   let originalFetch: typeof global.fetch;
+  let originalSimulationMode: string | undefined;
 
   beforeEach(() => {
     originalFetch = global.fetch;
+    originalSimulationMode = process.env.PAYPAL_SIMULATION_MODE;
+    delete process.env.PAYPAL_SIMULATION_MODE;
     (global as any).fetch = jest.fn();
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
+    if (originalSimulationMode === undefined) {
+      delete process.env.PAYPAL_SIMULATION_MODE;
+    } else {
+      process.env.PAYPAL_SIMULATION_MODE = originalSimulationMode;
+    }
   });
 
   describe('Constructor', () => {
@@ -35,6 +43,7 @@ describe('PayPalSandboxClient', () => {
       const client = new PayPalSandboxClient({
         clientId: 'placeholder',
         clientSecret: 'placeholder',
+        simulationMode: true,
       });
 
       const token = await client.getAccessToken();
@@ -45,10 +54,31 @@ describe('PayPalSandboxClient', () => {
       const client = new PayPalSandboxClient({
         clientId: 'placeholder',
         clientSecret: 'test-secret',
+        simulationMode: true,
       });
 
       const token = await client.getAccessToken();
       expect(token).toContain('simulated_sandbox_oauth_token_');
+    });
+
+    it('should fail closed when credentials are missing and simulation is not explicitly enabled', async () => {
+      const client = new PayPalSandboxClient({
+        clientId: 'placeholder',
+        clientSecret: 'placeholder',
+      });
+
+      await expect(client.getAccessToken()).rejects.toThrow('PayPal credentials are not configured');
+    });
+
+    it('should never simulate in the production environment even if explicitly requested', async () => {
+      const client = new PayPalSandboxClient({
+        clientId: 'placeholder',
+        clientSecret: 'placeholder',
+        environment: 'production',
+        simulationMode: true,
+      });
+
+      await expect(client.getAccessToken()).rejects.toThrow('PayPal credentials are not configured');
     });
 
     it('should fetch real OAuth token with valid credentials', async () => {
@@ -112,6 +142,7 @@ describe('PayPalSandboxClient', () => {
       const client = new PayPalSandboxClient({
         clientId: 'placeholder',
         clientSecret: 'placeholder',
+        simulationMode: true,
       });
 
       const result = await client.executeMilestonePayout(mockPayoutRequest);
@@ -244,10 +275,38 @@ describe('PayPalSandboxClient', () => {
       await expect(client.executeMilestonePayout(mockPayoutRequest)).rejects.toThrow('Network timeout');
     });
 
+    it('should fail closed instead of silently simulating when credentials are absent', async () => {
+      const client = new PayPalSandboxClient({
+        clientId: 'placeholder',
+        clientSecret: 'placeholder',
+      });
+
+      await expect(client.executeMilestonePayout(mockPayoutRequest)).rejects.toThrow(
+        'PayPal credentials are not configured'
+      );
+    });
+
+    it('should derive identical batch and idempotency identifiers for retries with the same key', async () => {
+      const client = new PayPalSandboxClient({
+        clientId: 'placeholder',
+        clientSecret: 'placeholder',
+        simulationMode: true,
+      });
+
+      const idempotencyKey = 'AUDIT_STABLE_KEY_123';
+      const first = await client.executeMilestonePayout({ ...mockPayoutRequest, idempotencyKey });
+      const second = await client.executeMilestonePayout({ ...mockPayoutRequest, idempotencyKey });
+
+      expect(first.payoutBatchId).toBe(second.payoutBatchId);
+      expect(first.idempotencyKey).toBe(idempotencyKey);
+      expect(second.idempotencyKey).toBe(idempotencyKey);
+    });
+
     it('should generate unique batch ID for each payout', async () => {
       const client = new PayPalSandboxClient({
         clientId: 'placeholder',
         clientSecret: 'placeholder',
+        simulationMode: true,
       });
 
       const result1 = await client.executeMilestonePayout(mockPayoutRequest);
@@ -305,6 +364,7 @@ describe('PayPalSandboxClient', () => {
       const client = new PayPalSandboxClient({
         clientId: 'placeholder',
         clientSecret: 'placeholder',
+        simulationMode: true,
       });
 
       const result = await client.executeMilestonePayout(mockPayoutRequest);

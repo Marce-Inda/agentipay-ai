@@ -15,6 +15,7 @@ import {
   LayoutGrid,
   Settings,
   PauseCircle,
+  LogOut,
 } from 'lucide-react';
 import { BudgetEnvelope, ProjectContract, UserProfile } from '../lib/types';
 
@@ -28,6 +29,8 @@ interface HeaderProps {
   onSelectProject: (projectId: string) => void;
   onToggleKillSwitch: () => void;
   onOpenOnboarding: () => void;
+  onLogout?: () => void;
+  sessionEmail?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -40,6 +43,8 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectProject,
   onToggleKillSwitch,
   onOpenOnboarding,
+  onLogout,
+  sessionEmail,
 }) => {
   const isPortfolio = activeView === 'PORTFOLIO';
   const activeProject = projects.find((p) => p.id === selectedProjectId);
@@ -246,6 +251,17 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           )}
         </button>
+
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            title={sessionEmail ? `Sign out ${sessionEmail}` : 'Sign out'}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg font-bold bg-[#0f1115] hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden xl:inline">Sign out</span>
+          </button>
+        )}
       </div>
     </header>
   );
