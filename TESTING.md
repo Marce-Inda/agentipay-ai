@@ -37,7 +37,7 @@ The repository does not include a `lint` or `typecheck` script.
 | PayPal client | `src/lib/paypal/__tests__/paypal.client.test.ts` | OAuth behavior, simulated payout fallback, payload shape, idempotency key handling, HTTP error paths. |
 | Audit route | `src/app/api/agent/__tests__/audit.test.ts` | Input validation, kill-switch `423`, audit scoring, approval escalation, payload metadata. |
 | Stream route | `src/app/api/agent/__tests__/stream.test.ts` | Missing prompt, budget rejection, provider call behavior, response handling. |
-| Ledger helper | `src/lib/__tests__/ledger.test.ts` | `PAYOUT_EXECUTED` increments settled funds exactly once; other statuses do not mutate projects. |
+| Ledger helper | `src/lib/__tests__/ledger.test.ts` | `PAYOUT_EXECUTED` increments settled funds once per applied log; other statuses do not mutate projects. Duplicate log IDs are not tested. |
 
 ---
 
@@ -83,7 +83,7 @@ npm test -- ledger.test
 - Prompt-injection pattern replacement.
 - Deliverable payload size limiting.
 - PayPal simulated-mode behavior when the client ID is absent or set to `placeholder`.
-- Ledger idempotency for settled amounts.
+- One applied `PAYOUT_EXECUTED` log increments settled funds once.
 - Stream route budget rejection and provider invocation.
 
 ## 5. What is not covered
@@ -93,6 +93,11 @@ npm test -- ledger.test
 - End-to-end portfolio and workspace workflows.
 - AG Grid rendering, filtering, and payload inspection.
 - Real PayPal Sandbox network calls in CI.
+- A server-side PayPal payout route, because none exists.
+- The audit endpoint's GitHub URL auto-pass with empty deliverable text.
+- The AI chat's hardcoded 98% audit score and simulated acceptance flow.
+- Ledger deduplication for repeated log IDs.
+- Authentication, authorization, rate limiting, and tenant isolation.
 - Accessibility and responsive layout.
 - Security testing beyond the deterministic guardrail patterns.
 - Load, performance, and concurrency testing.
@@ -129,7 +134,7 @@ Guidelines:
 - Test deterministic behavior, not implementation details.
 - Mock `fetch` for PayPal and AI provider calls; never use live credentials in tests.
 - Include rejection and boundary cases for financial rules.
-- Keep ledger assertions explicit: one payout log must not double-count.
+- Keep ledger assertions explicit: one applied payout log increments once; add a separate regression test before claiming duplicate-log protection.
 - Do not assert on unstable identifiers such as random batch IDs or timestamps.
 
 ---

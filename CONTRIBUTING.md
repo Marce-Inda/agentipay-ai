@@ -33,7 +33,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-If the PayPal client ID is absent or set to `placeholder`, payouts run in simulated mode and the ledger marks the result accordingly. A live payout requires both a client ID and a client secret. The AI assistant requires a valid provider key.
+If the browser has no PayPal client ID, the chat's PayPal client returns a simulated result. If a client ID is present, the browser still cannot read `PAYPAL_CLIENT_SECRET`, so OAuth fails. Workspace releases do not call PayPal. A live payout requires a new server-side route. The AI assistant requires a valid provider key.
 
 ---
 
@@ -57,8 +57,9 @@ There is no `lint` or `format` script. Match the existing TypeScript style, keep
 
 - Financial decisions must remain deterministic TypeScript. Do not move budget, threshold, freeze, kill-switch, or payout eligibility decisions into an LLM prompt.
 - Keep `AUTONOMOUS_SETTLEMENT_CAP_USD` and `MAX_DELIVERABLE_PAYLOAD_LENGTH` centralized in `src/lib/guardrails/enforcer.ts`.
-- Route all settled-amount updates through `applyTransactionLogToProjects`. Only `PAYOUT_EXECUTED` may increment `spentUSD`.
-- Check both the envelope limits and the project's remaining budget before payout.
+- Route all settled-amount updates through `applyTransactionLogToProjects`. Only `PAYOUT_EXECUTED` may increment `spentUSD`, and the helper currently does not deduplicate repeated log IDs.
+- Check both the envelope limits and the project's remaining budget before recording a settlement.
+- Do not add a client-side PayPal call and describe it as live. The secret must remain server-side; add a server route before claiming payout execution.
 - Do not log secrets, OAuth tokens, or full credential payloads.
 
 ### Client state

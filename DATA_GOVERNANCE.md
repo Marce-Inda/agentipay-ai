@@ -14,8 +14,8 @@ This document describes what data the current implementation processes, where it
 | Transaction ledger | Actor, action, amount, audit confidence, risk, status, PayPal payload log | Browser `localStorage` (`agenticpay_logs_v2`) | Rendered in AG Grid. |
 | AI prompts | Negotiation text and project context | Sent to the configured AI provider; not persisted server-side | May contain names, emails, or contract details entered by the user. |
 | Deliverables | Acceptance criteria, deliverable text or URL | Sent to `/api/agent/audit`; stored in the browser ledger | Truncated at 12,000 characters. |
-| PayPal credentials | Client ID, client secret | Environment variables | Server-side only. Secret is never sent to the browser. |
-| PayPal payout payloads | Batch ID, recipient, amount, HTTP log | Browser `localStorage` and route response | Displayed in the ledger payload inspector. |
+| PayPal credentials | Client ID, client secret | Environment variables | The public client ID reaches the browser. `PAYPAL_CLIENT_SECRET` is server-only; the browser PayPal client cannot read it. |
+| PayPal payout payloads | Batch ID, recipient, amount, HTTP log | Browser `localStorage` and route response | Current workspace records use generated `PAYPAL-BATCH-*` identifiers and synthetic payloads; they are not actual PayPal responses. |
 
 ---
 
@@ -36,9 +36,13 @@ User input
          send prompt to AI provider
          stream response to browser
   |
-  +--> PayPal Sandbox payout
-         server-side OAuth
-         return batch ID and HTTP log
+  +--> Local settlement record
+         workspace generates a PAYOUT_EXECUTED log
+         no PayPal request is made
+  |
+  +--> Optional browser PayPal client attempt
+         OAuth requires a secret the browser does not have
+         no live payout completes
 ```
 
 ---
@@ -46,11 +50,12 @@ User input
 ## 3. Privacy controls in the current build
 
 - **Data minimization by scope:** the application collects only the fields required for contract and settlement workflows.
-- **Server-side secrets:** PayPal and AI credentials are read from environment variables and are not exposed to the client.
+- **Secrets:** PayPal and AI provider keys are read from environment variables on the server. `PAYPAL_CLIENT_SECRET` is not exposed to the browser. The browser PayPal client therefore cannot complete live OAuth.
 - **Prompt-injection sanitization:** untrusted input is pattern-sanitized before it is sent to a model or wrapped into an audit block.
 - **Payload limiting:** deliverable text is truncated at 12,000 characters.
 - **Local deletion:** clearing browser storage removes profile, contract, envelope, and ledger data from that device.
-- **Simulated payout mode:** when the PayPal client ID is absent or set to `placeholder`, no external payout request is made.
+- **Simulated payout indicators:** when the browser has no PayPal client ID, the chat client returns a `SIM_PAYOUT_` result. Workspace settlement records are local and are not proof of payment.
+- **No server retention:** prompts, deliverables, and settlement records are not persisted server-side by the current implementation.
 
 ---
 
@@ -67,6 +72,8 @@ The current implementation does **not** provide:
 - Consent management beyond the user's direct interaction with the application.
 - Data residency controls.
 - Role-based access control for account or contract data.
+- Authenticated APIs or tenant-scoped access to AI and audit routes.
+- A server-side settlement record that can be reconciled against PayPal.
 
 Browser `localStorage` is user-controlled. It must not be treated as an authoritative record for financial reconciliation or regulatory reporting.
 

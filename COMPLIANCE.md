@@ -9,9 +9,9 @@ This document describes the compliance posture of the current implementation. It
 AgenticPay AI is designed as a **non-custodial orchestration layer**:
 
 - The application does not accept, hold, pool, or transmit customer funds through an internal balance.
-- PayPal remains the settlement rail.
-- The platform records contract terms, milestones, audit results, and payout instructions.
-- The current implementation uses PayPal Sandbox Payouts. It does not provide production money transmission.
+- PayPal is the intended settlement rail.
+- The platform records contract terms, milestones, audit results, and local settlement events.
+- The current implementation does not execute a PayPal payout end to end. Workspace releases write local `PAYOUT_EXECUTED` records with generated identifiers.
 
 ```text
 Client / Contractor
@@ -20,12 +20,12 @@ Client / Contractor
         v
 AgenticPay AI
   deterministic guardrails
-  audit record
-  payout instruction
+  heuristic audit record
+  local settlement record
         |
-        | PayPal Sandbox REST API
+        | No server payout call in the current build
         v
-PayPal
+PayPal Sandbox REST API (client-side code only; not operational)
 ```
 
 The application does not claim to be a licensed escrow agent, money transmitter, or payment institution. Production operation would require legal and regulatory review in each jurisdiction.
@@ -39,12 +39,13 @@ The application does not claim to be a licensed escrow agent, money transmitter,
 | Non-AI financial limits | Per-transaction, daily, and remaining-project-budget checks in TypeScript. |
 | Autonomous settlement cap | $1,000 USD; higher amounts require human authorization. |
 | Audit threshold | 85% confidence; lower scores are rejected. |
-| Kill-switch | Blocks audit settlement and payout attempts. |
+| Kill-switch | Blocks milestone release in the client; the audit route also reads a flag from its request body. |
 | Contract freeze | Blocks releases for a specific outbound contract. |
-| Idempotency | `PayPal-Request-Id` on payout requests. |
+| Idempotency | A `PayPal-Request-Id` header is generated per call using time and random values. It is not deterministic and does not prevent duplicate payouts. |
 | Prompt-injection sanitization | Pattern replacement and isolated deliverable framing. |
 | Payload limiting | 12,000-character deliverable cap. |
-| Ledger consistency | Only `PAYOUT_EXECUTED` increments settled funds. |
+| Ledger consistency | Each applied `PAYOUT_EXECUTED` log increments settled funds; repeated log IDs are not deduplicated. |
+| Settlement execution | Local record only. No server-side PayPal payout is executed. |
 
 ---
 
@@ -56,6 +57,7 @@ The following are production requirements, not current capabilities:
 - AML and sanctions screening.
 - Licensing or regulatory registration.
 - Production PayPal onboarding and underwriting.
+- A server-side PayPal payout route and verified Sandbox payout.
 - Chargeback protection, reserve management, and dispute adjudication.
 - Binding legal contracts, electronic signatures, or arbitration workflows.
 - Tax reporting, invoicing compliance, and jurisdiction-specific withholding.
@@ -73,9 +75,9 @@ Do not represent the current build as a compliant production escrow service.
 
 | Milestone amount | Audit result | Settlement path |
 | :--- | :--- | :--- |
-| <= $1,000 USD | >= 85% | Eligible for autonomous release after budget checks. |
-| > $1,000 USD | >= 85% | `HUMAN_APPROVAL_REQUIRED`; explicit workspace authorization is required. |
-| Any amount | < 85% | Rejected; escrow remains locked. |
+| <= $1,000 USD | >= 85% | Eligible for an autonomous local settlement record after budget checks. No PayPal payment is made. |
+| > $1,000 USD | >= 85% | `HUMAN_APPROVAL_REQUIRED`; explicit workspace authorization is required before a local settlement record. |
+| Any amount | < 85% | Rejected; the milestone remains locked. |
 
 ### 4.2 Objective acceptance criteria
 
@@ -88,11 +90,11 @@ Contracts should define measurable criteria such as:
 - Performance budgets.
 - Required artifacts or pull requests.
 
-The current audit is keyword-and-artifact based. It should not be treated as a substitute for substantive human acceptance of complex or subjective work.
+The current audit is keyword-and-artifact based and auto-passes GitHub/PR URLs. It should not be treated as a substitute for substantive human acceptance of complex or subjective work.
 
 ### 4.3 Dispute handling
 
-There is no automated dispute workflow. Production deployments should define:
+There is no automated dispute workflow and no executed PayPal payment to reverse. Production deployments should define:
 
 1. Who can pause a contract.
 2. How disputed deliverables are escalated.
@@ -105,9 +107,9 @@ There is no automated dispute workflow. Production deployments should define:
 ## 5. Data and privacy obligations
 
 - Portfolio state is stored in browser `localStorage`.
-- Prompts and deliverables are sent to the configured AI provider when the AI assistant or audit flow is used.
+- Prompts are sent to the configured AI provider when the AI assistant is used. The audit endpoint does not call an AI provider.
 - The application does not currently redact PII before provider calls.
-- Logs may contain vendor or client email addresses and deliverable text.
+- Logs may contain vendor or client email addresses, deliverable text, and synthetic settlement payloads.
 
 Production deployments should add data classification, retention rules, redaction, access controls, and a documented lawful basis for processing. See [DATA_GOVERNANCE.md](DATA_GOVERNANCE.md).
 
@@ -130,6 +132,7 @@ Before operating with real funds:
 - [ ] Implement KYC/KYB and sanctions screening where required.
 - [ ] Add authentication, authorization, and tenant isolation.
 - [ ] Persist contracts, milestones, and ledger events server-side.
+- [ ] Add a server-side payout route with stable idempotency and reconciliation.
 - [ ] Add immutable audit logging and export.
 - [ ] Implement dispute, refund, and chargeback procedures.
 - [ ] Add privacy notices and data subject request handling.

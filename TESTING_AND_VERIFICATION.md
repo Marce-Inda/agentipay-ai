@@ -12,9 +12,9 @@ A phase is considered verified only when its automated checks and the relevant m
 | :--- | :--- | :--- | :--- |
 | 1 | Domain types, guardrails, ledger helper | Complete | TypeScript validation and ledger tests passing |
 | 2 | Portfolio, workspace, AG Grid, account settings | Complete | Manual UI verification and production build |
-| 3 | Deterministic guardrails and PayPal Sandbox client | Complete | Guardrail and PayPal test suites passing |
+| 3 | Deterministic guardrails and PayPal Sandbox client code | Partial | Guardrail and PayPal unit suites pass; live payout wiring is absent |
 | 4 | Streamed AI assistant | Complete | `/api/agent/stream` tests passing |
-| 5 | Deliverable audit and settlement workflow | Complete | `/api/agent/audit` tests and ledger tests passing |
+| 5 | Deliverable audit and local settlement workflow | Partial | `/api/agent/audit` and ledger tests pass; workspace settlement is simulated |
 | 6 | Deployment and production hardening | In progress | Docker and Render configuration present; production controls pending |
 
 ---
@@ -50,7 +50,7 @@ There is no CI workflow. These commands are run locally until a pipeline is adde
 | Audit threshold | `guardrails.enforcer.test.ts` | Score below 85% is rejected; 85% is accepted. |
 | Autonomous cap | `guardrails.enforcer.test.ts` | Above $1,000 USD returns human approval required. |
 | Payload limit | `guardrails.enforcer.test.ts` | Deliverable text is limited to 12,000 characters. |
-| Ledger idempotency | `ledger.test.ts` | Only `PAYOUT_EXECUTED` increments `spentUSD`, once per log. |
+| Ledger increment behavior | `ledger.test.ts` | Only `PAYOUT_EXECUTED` increments `spentUSD`; one applied log increments once. Duplicate IDs are not deduplicated. |
 
 ---
 
@@ -60,10 +60,10 @@ There is no CI workflow. These commands are run locally until a pipeline is adde
 | :--- | :--- | :--- |
 | Simulated mode | `paypal.client.test.ts` | Missing or placeholder credentials return a `SIM_PAYOUT_*` result. |
 | OAuth request | `paypal.client.test.ts` | Valid credentials produce an authorization request to `/v1/oauth2/token`. |
-| Payout request | `paypal.client.test.ts` | Request targets `/v1/payments/payouts` with a `PayPal-Request-Id` header. |
+| Payout request construction | `paypal.client.test.ts` | Unit-level request targets `/v1/payments/payouts` with a `PayPal-Request-Id` header. |
 | Payload log | `paypal.client.test.ts` | Response includes a formatted HTTP log. |
 | Error handling | `paypal.client.test.ts` | Non-success responses throw with useful context. |
-| Live Sandbox | Manual | A Sandbox payout returns a batch ID and appears in the ledger. |
+| Live Sandbox | Manual | Not verified. The client runs in the browser without the secret, and no server payout route exists. |
 
 Live Sandbox verification requires credentials and should not run in the default unit test suite.
 
@@ -78,7 +78,8 @@ Live Sandbox verification requires credentials and should not run in the default
 | Missing prompt | HTTP 400. |
 | Budget rejection | HTTP 422 with `allowed: false`. |
 | Valid prompt | Streamed response from the configured provider. |
-| Provider failure | Fallback model attempt. |
+| Provider failure | Fallback attempted only when the primary call throws before streaming starts. |
+| Unauthenticated request | Accepted; no authentication is enforced. |
 
 ### `/api/agent/audit`
 
@@ -88,9 +89,11 @@ Live Sandbox verification requires credentials and should not run in the default
 | Active kill-switch | HTTP 423 with `settlementMode: "REJECTED"`, `riskLevel: "CRITICAL"`, `requiresHumanApproval: true`. |
 | Short text without URL | Confidence 55. |
 | Requirement or repository evidence | Confidence at least 86. |
+| GitHub URL with empty deliverable text | Confidence at least 91; known bypass of substantive content review. |
 | Blocked injection pattern | Confidence 15. |
 | Amount above $1,000 USD | `HUMAN_APPROVAL_REQUIRED`. |
 | Amount at or below $1,000 USD | `AUTONOMOUS` when confidence is at least 85%. |
+| Payment execution | None. `simulatedBatchId` is not a PayPal batch. |
 
 ---
 
@@ -104,13 +107,14 @@ Live Sandbox verification requires credentials and should not run in the default
 | Kill-switch | Header enters alert state; settlement attempts are blocked. |
 | Audit result | Confidence, risk, rationale, and settlement mode are displayed. |
 | Human approval | Milestone above $1,000 USD enters `AUDITED_PENDING_APPROVAL` and requires an explicit action. |
-| Budget guard | Over-budget release is blocked before PayPal is called. |
-| Intake link | Uses the current origin and `/escrow/intake/{slug}`. |
+| Budget guard | Over-budget release is blocked before a local settlement record is written. |
+| Intake link | Uses the current origin and `/escrow/intake/{slug}`. The target route is not implemented. |
 | Copy feedback | Shows copied or manual-copy fallback state. |
 | Subcontract badge | Shows exactly one of `SUBCONTRACTED` or `DIRECT HIRE`. |
 | Parent mandate | Parent contract name is displayed when linked. |
 | Capacity card | Renders only for business accounts. |
-| Ledger | Rows update after audit and payout; payload inspector opens. |
+| Ledger | Rows update after audit and a local settlement record; payload inspector opens. |
+| Settlement truth | Workspace marks milestones complete and emits synthetic `PAYOUT_EXECUTED` logs; no PayPal request is made. |
 | Persistence | Refresh preserves profile, contracts, envelope, and logs. |
 
 Use [E2E_DUAL_ROLE_GRID_TEST_PLAN.md](E2E_DUAL_ROLE_GRID_TEST_PLAN.md) for the full sequence.
@@ -126,7 +130,7 @@ Use [E2E_DUAL_ROLE_GRID_TEST_PLAN.md](E2E_DUAL_ROLE_GRID_TEST_PLAN.md) for the f
 | Render blueprint | `render.yaml` resolves to a Docker web service with health check `/`. |
 | Environment | Required secrets are configured in the hosting dashboard. |
 | Secret exposure | No secret appears in client bundles or logs. |
-| Sandbox payout | Deployed service can execute a Sandbox payout. |
+| Sandbox payout | Not verified. The deployed system has no server-side payout route. |
 
 ---
 

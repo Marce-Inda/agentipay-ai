@@ -11,8 +11,8 @@ Autonomous software agents can negotiate and prepare work, but organizations sti
 - A dual-perspective workspace for buying and selling services.
 - Deterministic budget and settlement guardrails.
 - Milestone deliverable audits.
-- A ledger that records every financial action.
-- PayPal as the settlement rail.
+- A ledger that records local financial actions and audit outcomes.
+- PayPal as the intended settlement rail. The current build contains client-side payout code but does not execute live payouts.
 
 The target segments are:
 
@@ -31,7 +31,7 @@ Account type is independent of contract perspective.
 
 | Account type | Positioning |
 | :--- | :--- |
-| Personal | Solo operators and freelancers who hire and deliver in parallel. Simplified identity and direct PayPal settlement. |
+| Personal | Solo operators and freelancers who hire and deliver in parallel. Simplified identity and direct settlement once a server-side payout route exists. |
 | Business | Agencies and enterprises that need formal identity, tax details, departmental budgets, and subcontracting workflows. |
 
 Every account can operate both outbound and inbound contracts. A business can accept a client mandate and subcontract part of the work, linking the incoming and outgoing contracts in one portfolio.
@@ -46,7 +46,7 @@ Implemented today:
 - Contract and milestone management.
 - Deterministic budget, freeze, kill-switch, and approval controls.
 - Heuristic deliverable audit.
-- PayPal Sandbox payouts with idempotency.
+- PayPal Sandbox client code; workspace settlement is recorded locally and is not executed through PayPal.
 - Streamed AI negotiation assistant.
 - AG Grid ledger with payload inspection.
 - Browser-local persistence.
@@ -59,9 +59,11 @@ Not implemented today:
 - Tax invoicing or VAT/EIN validation.
 - Webhook processing.
 - Production PayPal onboarding.
+- A server-side PayPal payout route or verified live Sandbox payout.
 - KYC/KYB or sanctions screening.
 - Multimodal vision audit.
 - Server-side persistence or immutable audit storage.
+- A functional escrow intake page; the portfolio only generates the link.
 
 Commercial packaging below is therefore a strategy, not a description of shipped billing.
 
@@ -126,10 +128,10 @@ Target agencies that already use freelancers and suffer from manual milestone ad
 ### Proof points required
 
 - Reduction in time from deliverable submission to settlement.
-- Reduction in payment disputes or duplicate payouts.
+- Reduction in payment disputes or duplicate payouts. The current build has no evidence for this; it lacks stable idempotency and ledger deduplication.
 - Guardrail block rate and human-approval rate.
 - Customer retention and settled volume.
-- Integration reliability with PayPal Sandbox and, eventually, production.
+- Integration reliability with PayPal Sandbox and, eventually, production. Live integration is not yet operational.
 
 ---
 
@@ -139,7 +141,7 @@ The defensible elements are:
 
 - Deterministic financial controls separated from generative AI.
 - Dual-perspective contract architecture with linked subcontracting.
-- Audit trail spanning AI advice, guardrail decisions, and PayPal execution.
+- Audit trail spanning AI advice, guardrail decisions, and local settlement records. Actual PayPal execution is not yet wired.
 - Enterprise-grade operational terminology and workflow design.
 
 The current build is not yet defensible on scale, compliance, or multi-tenant security. Those must be built before enterprise sales.

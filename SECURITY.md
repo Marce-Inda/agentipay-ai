@@ -8,11 +8,12 @@ AgenticPay AI combines AI-assisted negotiation with escrow settlement. The secur
 
 | Boundary | Control |
 | :--- | :--- |
-| Browser to API | Route handlers validate input and apply server-side guardrails. |
+| Browser to API | Route handlers validate request shape and apply heuristic guardrails. They do not authenticate callers or rate-limit requests. |
 | API to AI provider | Prompts are sanitized and sent server-side; provider keys never reach the browser. |
-| API to PayPal | OAuth and payout calls run server-side. Secrets are read from environment variables. |
-| AI to settlement | The model cannot authorize or execute payouts. Settlement requires deterministic checks and a workspace action. |
+| Browser to PayPal | The PayPal client currently runs in the browser. Only the public client ID is available; `PAYPAL_CLIENT_SECRET` is not, so OAuth cannot complete and no live payout can be made. |
+| AI to settlement | The model cannot authorize or execute payouts. Settlement requires deterministic checks and a workspace action, but those checks are not server-authoritative. |
 | Client state | Portfolio state is stored in `localStorage` and is not trusted as an authoritative ledger. |
+| Settlement execution | The workspace records local `PAYOUT_EXECUTED` events with generated batch IDs; no PayPal request is sent. |
 
 ---
 
@@ -46,13 +47,17 @@ amount <= project.budgetCapUSD - project.spentUSD
 
 ### Ledger integrity
 
-`applyTransactionLogToProjects` is the only helper that increments `spentUSD`. It accepts only `PAYOUT_EXECUTED` logs with a positive finite amount, which prevents duplicate settlement updates from multiple UI flows.
+`applyTransactionLogToProjects` is the only helper that increments `spentUSD`. It accepts only `PAYOUT_EXECUTED` logs with a positive finite amount. It processes each log passed to it and does not deduplicate repeated log IDs, so applying the same log twice double-counts the settled amount.
+
+The workspace emits a synthetic `PAYOUT_EXECUTED` log without calling PayPal. The AI chat displays a hardcoded 98% audit confidence and a simulated seller acceptance flow; it does not submit a deliverable to the audit endpoint.
 
 ### Emergency controls
 
-- **Master kill-switch:** blocks audit settlement and payout attempts across the account.
+- **Master kill-switch:** blocks milestone release in the client. The audit route also honors a `killSwitchActive` value supplied in the request body.
 - **Contract freeze:** blocks releases for a specific outbound contract.
 - **Human authorization:** required above the autonomous settlement cap.
+
+These controls are not backed by server-side account state or authentication.
 
 ---
 
@@ -72,10 +77,10 @@ This is a pattern-based defense, not a complete prompt-injection solution. It sh
 
 ## 4. Credential handling
 
-- `PAYPAL_CLIENT_SECRET`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, and `GEMINI_API_KEY` are read server-side.
-- The browser receives only `NEXT_PUBLIC_PAYPAL_CLIENT_ID` and `NEXT_PUBLIC_APP_URL`.
+- `PAYPAL_CLIENT_SECRET`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, and `GEMINI_API_KEY` are read server-side by route handlers where applicable.
+- The browser receives `NEXT_PUBLIC_PAYPAL_CLIENT_ID` and `NEXT_PUBLIC_APP_URL`. It also contains PayPal client code that attempts OAuth, but it has no access to the secret.
 - `.env`, `.env.local`, and `.env.production` are excluded from version control.
-- The PayPal client runs in simulated mode when the client ID is absent or set to `placeholder`. A live payout requires both a client ID and a client secret.
+- The browser shows a simulated PayPal result when the client ID is absent or set to `placeholder`. If a client ID is present, the browser OAuth request fails because the secret is unavailable.
 
 Do not log authorization headers, access tokens, or full credential payloads.
 
@@ -85,10 +90,11 @@ Do not log authorization headers, access tokens, or full credential payloads.
 
 The current implementation:
 
-- Uses PayPal Sandbox OAuth and `/v1/payments/payouts`.
-- Sends a `PayPal-Request-Id` idempotency header.
-- Returns a formatted HTTP log for ledger inspection.
-- Does not implement Orders, Vault tokenization, webhooks, refunds, or dispute handling.
+- Contains PayPal Sandbox OAuth and `/v1/payments/payouts` code in `src/lib/paypal/client.ts`.
+- Invokes that code only from the client-side `AgentChat` component, where a live OAuth exchange cannot succeed.
+- Generates a `PayPal-Request-Id` header per call using the current timestamp and random values. It is not deterministic and does not prevent duplicate payouts.
+- Records workspace releases locally without calling PayPal.
+- Does not implement a server payout route, Orders, Vault tokenization, webhooks, refunds, or dispute handling.
 
 The application does not store card numbers and is not designed to handle raw PAN data.
 
@@ -105,7 +111,10 @@ The current implementation is suitable for controlled evaluation, not multi-tena
 5. PII detection and redaction before AI provider calls.
 6. Secret rotation and environment separation.
 7. PayPal webhook signature verification and reconciliation.
-8. Independent security review and penetration testing.
+8. A server-authoritative payout route that uses the PayPal secret.
+9. Deduplication of ledger events and deterministic idempotency keys.
+10. An audit scorer that does not auto-pass GitHub URLs.
+11. Independent security review and penetration testing.
 
 Browser `localStorage` can be modified by the user. It must not be treated as a source of truth for financial reconciliation.
 

@@ -2,11 +2,11 @@
 
 ## Status
 
-- **Version:** 0.6.0
+- **Version:** 0.6.1
 - **Automated tests:** 5 suites, 58 passing checks
 - **Build:** production build configured with webpack
-- **Deployment:** Docker and Render blueprint included
-- **Settlement rail:** PayPal Sandbox Payouts
+- **Deployment:** Docker and Render blueprint included; deployed payout not verified
+- **Settlement rail:** PayPal Sandbox client code; workspace settlement is recorded locally
 - **Persistence:** browser `localStorage`
 - **AI:** streamed OpenAI/OpenRouter or Gemini assistant with fallback model
 
@@ -15,17 +15,19 @@ Implemented:
 - Dual outbound/inbound escrow portfolio.
 - Contract and milestone management.
 - Deterministic guardrails for budget, freeze, kill-switch, audit confidence, and human approval.
-- Heuristic deliverable audit.
-- PayPal Sandbox payout client with idempotency.
+- Heuristic deliverable audit with a known GitHub URL bypass.
+- PayPal Sandbox payout client code with per-call request identifiers.
 - AG Grid ledger with payload inspection.
 - Versioned browser persistence.
-- Intake link generation and copy-state feedback.
+- Intake link generation and copy-state feedback. The target page is not implemented.
 - Subcontracting metadata and parent mandate display.
 
 Not implemented:
 
 - Authentication, authorization, and tenant isolation.
 - Server-side persistence or immutable audit storage.
+- A server-side PayPal payout route or verified live Sandbox payout.
+- Deterministic idempotency or ledger deduplication.
 - Production PayPal onboarding, webhooks, refunds, or disputes.
 - KYC/KYB and sanctions screening.
 - Subscription billing or usage metering.
@@ -81,6 +83,8 @@ npm run build
 
 ### PayPal
 
+- [ ] Add a server-side payout route that reads `PAYPAL_CLIENT_SECRET`.
+- [ ] Replace per-call request identifiers with stable, deduplicated idempotency keys.
 - [ ] Verify Sandbox payout behavior with real Sandbox credentials.
 - [ ] Add webhook signature verification.
 - [ ] Add payout reconciliation and failure recovery.
@@ -97,7 +101,8 @@ npm run build
 - [ ] Add CI that runs type validation, tests, and build.
 - [ ] Deploy to Render with Sandbox credentials.
 - [ ] Verify the health check at `/`.
-- [ ] Verify payout execution and payload inspection against the deployed service.
+- [ ] Verify the deployed workspace records a local settlement and makes no PayPal request.
+- [ ] Verify the server payout route only after it is implemented.
 - [ ] Confirm logs do not expose secrets.
 
 ---

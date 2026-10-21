@@ -1,6 +1,9 @@
 # End-to-End Verification Plan
 
-This plan verifies the implemented dual-perspective portfolio, milestone audit, guardrails, PayPal Sandbox payout flow, and AG Grid ledger. It replaces the earlier role-switching test plan; account type and contract perspective are independent, and there is no in-app role switch.
+This plan verifies the implemented dual-perspective portfolio, milestone audit, guardrails, local settlement recording, and AG Grid ledger. It replaces the earlier role-switching test plan; account type and contract perspective are independent, and there is no in-app role switch.
+
+> [!IMPORTANT]
+> The workspace does not execute PayPal payouts. A release marks the milestone complete and writes a local `PAYOUT_EXECUTED` event with a generated `PAYPAL-BATCH-*` identifier. Use this plan to verify that behavior, not to claim a Sandbox payment.
 
 ---
 
@@ -11,18 +14,19 @@ Covered:
 - Contract creation for outbound and inbound perspectives.
 - Portfolio and workspace navigation.
 - Deliverable audit and confidence result.
-- Autonomous settlement at or below $1,000 USD.
+- Autonomous settlement recording at or below $1,000 USD.
 - Human authorization above $1,000 USD.
 - Contract freeze, kill-switch, and remaining-budget blocks.
 - Subcontract badge and parent mandate display.
 - Intake link generation and clipboard states.
-- Ledger updates and PayPal payload inspection.
+- Ledger updates and payload inspection.
 - Browser persistence after refresh.
 
 Not covered:
 
 - Authentication, multi-user access, or tenant isolation.
-- Production PayPal disbursement.
+- Live PayPal Sandbox disbursement; no server payout route exists.
+- The unimplemented `/escrow/intake/{slug}` page.
 - Automated browser testing.
 - Load, concurrency, or accessibility certification.
 
@@ -45,7 +49,7 @@ For an isolated test pass, clear these browser keys before starting:
 - `agenticpay_envelope_v2`
 - `agenticpay_logs_v2`
 
-If the PayPal client ID is absent or set to `placeholder`, payout calls run in simulated mode and the ledger marks the result with a simulated batch ID. A live payout requires both a client ID and a client secret. Use Sandbox credentials when verifying the real REST request.
+If the browser has no PayPal client ID, the chat's PayPal client returns a simulated result. If a client ID is configured, the browser still lacks `PAYPAL_CLIENT_SECRET`, so OAuth fails. Workspace releases do not call PayPal. A live Sandbox payout cannot be verified until a server-side route is implemented.
 
 ### Low-resource option
 
@@ -95,12 +99,13 @@ Expected:
 1. Open the milestone.
 2. Enter a deliverable URL, for example:
    `https://github.com/agency/e2e-integration/pull/42`
-3. Enter acceptance criteria that include terms present in the deliverable.
+3. Optionally enter acceptance criteria or deliverable text.
 4. Run the audit.
 
 Expected:
 
 - `/api/agent/audit` returns a confidence score of at least 85%.
+- The URL alone receives 91 or higher, which is a known bypass of substantive content review.
 - The result shows `AUTONOMOUS` for a `$100.00` milestone.
 - The rationale is displayed.
 - A ledger event records the audit with actor `BUYER_AI`.
@@ -108,16 +113,16 @@ Expected:
 ### Test 4: Release an autonomous settlement
 
 1. Authorize the milestone release.
-2. Wait for the payout result.
+2. Observe the result.
 
 Expected:
 
 - The ledger records `PAYOUT_EXECUTED`.
 - The milestone becomes `COMPLETED`.
-- `Settled` increases by exactly `$100.00`.
+- `Settled` increases by `$100.00` for that applied log.
+- The payload contains a generated `PAYPAL-BATCH-*` identifier and a synthetic HTTP log.
 - Refreshing the page preserves the updated amount.
-- If live Sandbox credentials are configured, the payload contains a PayPal batch ID.
-- If the client ID is absent or set to `placeholder`, the payload is clearly marked as simulated.
+- No PayPal request is made, regardless of configured credentials.
 
 ### Test 5: Human authorization above the cap
 
@@ -129,8 +134,8 @@ Expected:
 
 - The result returns `HUMAN_APPROVAL_REQUIRED`.
 - The milestone enters `AUDITED_PENDING_APPROVAL`.
-- No payout occurs until the human authorization action is used.
-- After authorization, the ledger records `PAYOUT_EXECUTED` and `Settled` increases by `$1,500.00`.
+- No settlement record exists until the human authorization action is used.
+- After authorization, the ledger records a synthetic `PAYOUT_EXECUTED` and `Settled` increases by `$1,500.00`.
 
 ### Test 6: Contract freeze
 
@@ -141,7 +146,7 @@ Expected:
 Expected:
 
 - The contract status becomes `PAUSED`.
-- The release is blocked before PayPal is called.
+- The release is blocked before a local settlement record is written.
 - A `CONTRACT_FROZEN` event is recorded with high or critical risk.
 - Resuming the contract restores the ability to release, subject to other guardrails.
 
@@ -152,9 +157,9 @@ Expected:
 
 Expected:
 
-- The audit request returns HTTP `423`.
+- The audit request returns HTTP `423` when `killSwitchActive` is sent in the request body.
 - The response includes `settlementMode: "REJECTED"`, `riskLevel: "CRITICAL"`, and `requiresHumanApproval: true`.
-- No payout request is sent.
+- The workspace blocks milestone release while the kill-switch is active.
 - The ledger records `KILL_SWITCH_REVOKED`.
 - Deactivating the kill-switch restores normal operation.
 
@@ -166,7 +171,7 @@ Expected:
 
 Expected:
 
-- The request is blocked before the PayPal client runs.
+- The request is blocked before a local settlement record is written.
 - The message references the remaining project budget.
 - A `REJECTED` guardrail event is recorded.
 - No settled amount changes.
@@ -187,8 +192,8 @@ Expected:
 ### Test 10: Intake link
 
 1. From the portfolio, copy the client escrow intake link.
-2. Paste it into a new tab.
-3. Verify the slug and origin.
+2. Verify the copied URL and clipboard feedback.
+3. Open the URL in a new tab.
 
 Expected:
 
@@ -196,6 +201,7 @@ Expected:
 - The origin matches the current application origin.
 - The button shows a copied state.
 - If clipboard access is denied, the UI shows `Clipboard Unavailable — Copy Link Manually`.
+- The target page returns 404 because the intake route is not implemented.
 
 ### Test 11: AG Grid ledger
 
@@ -208,7 +214,7 @@ Expected:
 
 - Rows render with timestamp, project, actor, action, amount, confidence, risk, and status.
 - Filtering and sorting work.
-- The payload inspector displays the returned HTTP log.
+- The payload inspector displays a local synthetic log or a server-returned audit log. It is not necessarily an HTTP response from PayPal.
 - Freeze actions are available only for eligible outbound contracts.
 
 ### Test 12: Business capacity card
@@ -247,13 +253,14 @@ Expected:
 - [ ] Outbound and inbound contracts render in the correct swimlane.
 - [ ] Perspective labels use funder/beneficiary terminology.
 - [ ] Audit returns confidence and settlement mode.
-- [ ] Autonomous release works at or below $1,000 USD.
+- [ ] Autonomous settlement is recorded locally at or below $1,000 USD.
 - [ ] Human authorization is required above $1,000 USD.
 - [ ] Freeze blocks release.
-- [ ] Kill-switch blocks audit and payout with HTTP 423.
+- [ ] Kill-switch blocks audit (with request-body flag) and local settlement.
 - [ ] Remaining-budget guard blocks over-cap releases.
 - [ ] Subcontract badge and parent mandate are correct.
-- [ ] Intake link uses the current origin and reports copy state.
-- [ ] Ledger updates once per payout.
+- [ ] Intake link is generated and reports copy state; target route returns 404.
+- [ ] Ledger updates for each applied settlement log; duplicate-log behavior remains a known gap.
+- [ ] No PayPal request is made by the workspace release flow.
 - [ ] Browser refresh preserves state.
 - [ ] TypeScript, tests, and build pass.
