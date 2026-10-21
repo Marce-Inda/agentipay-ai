@@ -10,7 +10,7 @@ AgenticPay AI delegates settlement preparation to software while retaining deter
 | :--- | :--- |
 | Human authority | Amounts above $1,000 USD require explicit human authorization. |
 | Non-AI financial control | Budget, kill-switch, freeze, audit threshold, and payout eligibility are enforced in TypeScript. |
-| Transparency | The ledger records actor, action, amount, audit confidence, risk level, status, and PayPal payload logs. |
+| Transparency | The ledger records actor, action, amount, audit confidence, risk level, status, and settlement logs. |
 | Contestability | A rejected or held milestone can be reviewed and, where appropriate, re-audited or manually authorized. |
 | Bounded automation | The AI assistant cannot execute payouts or override guardrails. |
 | Data minimization | The application collects only fields needed for contract and settlement workflows. |
@@ -55,7 +55,7 @@ The current implementation provides:
 
 Known limitations:
 
-- The AI chat displays a hardcoded 98% audit confidence and a simulated seller acceptance flow; it does not run the deterministic audit.
+- The AI chat is negotiation-only. Audit confidence and settlement outcomes come from deterministic server and workspace flows.
 - The audit endpoint auto-passes GitHub and pull-request URLs, so an empty deliverable can receive a passing score.
 
 The implementation does **not** provide a model chain-of-thought, a formal explanation report, or an independent audit certificate. The AI response is an advisory conversation, not evidence of financial correctness.
@@ -86,7 +86,7 @@ Production use should include representative test cases, human review for subjec
 - PayPal client code generates a `PayPal-Request-Id`, but keys are per-call and do not prevent duplicate payouts.
 - The ledger helper increments once per applied log; it does not deduplicate repeated log IDs.
 - The audit scorer can pass a GitHub URL without substantive content.
-- The AI chat's 98% confidence is a fixed presentation value, not an audit result.
+- The AI chat does not generate audit confidence or settlement outcomes.
 
 The audit is not a guarantee that work is correct, complete, or legally acceptable. Complex deliverables should be reviewed by a human.
 

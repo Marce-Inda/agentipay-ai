@@ -6,7 +6,7 @@
 - **Automated tests:** 5 suites, 58 passing checks
 - **Build:** production build configured with webpack
 - **Deployment:** Docker and Render blueprint included; deployed payout not verified
-- **Settlement rail:** PayPal Sandbox client code; workspace settlement is recorded locally
+- **Settlement rail:** PayPal Sandbox adapter retained but not wired; workspace settlement is recorded locally
 - **Persistence:** browser `localStorage`
 - **AI:** streamed OpenAI/OpenRouter or Gemini assistant with fallback model
 
@@ -16,10 +16,9 @@ Implemented:
 - Contract and milestone management.
 - Deterministic guardrails for budget, freeze, kill-switch, audit confidence, and human approval.
 - Heuristic deliverable audit with a known GitHub URL bypass.
-- PayPal Sandbox payout client code with per-call request identifiers.
+- Unused PayPal Sandbox payout adapter with per-call request identifiers.
 - AG Grid ledger with payload inspection.
 - Versioned browser persistence.
-- Intake link generation and copy-state feedback. The target page is not implemented.
 - Subcontracting metadata and parent mandate display.
 
 Not implemented:

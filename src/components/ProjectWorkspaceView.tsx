@@ -15,26 +15,35 @@ import {
   FileText,
   Send,
   Edit3,
-  AlertTriangle,
   ExternalLink,
   X,
   Sparkles,
   Check,
 } from 'lucide-react';
-import { BudgetEnvelope, ProjectContract, ProjectMilestone, TransactionLog, UserProfile } from '../lib/types';
+import { BudgetEnvelope, ProjectContract, ProjectMilestone, TransactionLog } from '../lib/types';
 import { AgentChat } from './AgentChat';
 import { CommandCenter } from './CommandCenter';
+
+function getSettlementBlockReason(
+  envelope: BudgetEnvelope,
+  projectStatus: ProjectContract['status']
+): string | null {
+  if (envelope.killSwitchActive) {
+    return 'CRITICAL: Emergency Kill-Switch is ACTIVE. All settlements are halted.';
+  }
+  if (projectStatus === 'PAUSED') {
+    return 'Settlements are frozen for this contract. Resume the contract before settling milestones.';
+  }
+  return null;
+}
 
 interface ProjectWorkspaceViewProps {
   project: ProjectContract;
   envelope: BudgetEnvelope;
   projects: ProjectContract[];
   logs: TransactionLog[];
-  currentProfile?: UserProfile;
   onBackToPortfolio: () => void;
-  onSelectProject: (projectId: string) => void;
   onToggleProjectFreeze: (projectId: string) => void;
-  onUpdateEnvelope: (newEnvelope: BudgetEnvelope) => void;
   onAddLog: (log: TransactionLog) => void;
   onUpdateProject?: (updatedProject: ProjectContract) => void;
 }
@@ -87,7 +96,7 @@ const EditCriteriaModal: React.FC<EditCriteriaModalProps> = ({ milestone, onClos
             className="w-full bg-[#0F1115] border border-[#252830] focus:border-amber-500/50 rounded-xl p-3 text-xs text-white placeholder-slate-500 outline-none resize-none leading-relaxed"
           />
           <p className="text-[11px] text-slate-500">
-            The AI Audit Agent will verify the contractor&apos;s submitted proof against these exact criteria before approving the escrow release.
+            The AI Audit Agent will verify the contractor&apos;s submitted proof against these exact criteria before approving settlement.
           </p>
         </div>
 
@@ -119,6 +128,7 @@ const EditCriteriaModal: React.FC<EditCriteriaModalProps> = ({ milestone, onClos
 interface SubmitProofModalProps {
   milestone: ProjectMilestone;
   project: ProjectContract;
+  envelope: BudgetEnvelope;
   onClose: () => void;
   onAuditSuccess: (
     milestoneId: string,
@@ -135,6 +145,7 @@ interface SubmitProofModalProps {
 const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
   milestone,
   project,
+  envelope,
   onClose,
   onAuditSuccess,
   onAddLog,
@@ -157,6 +168,31 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
     e.preventDefault();
     if (!proofText.trim() && !proofUrl.trim()) return;
 
+    const blockReason = getSettlementBlockReason(envelope, project.status);
+    if (blockReason) {
+      const isKillSwitch = envelope.killSwitchActive;
+      setAuditResult({
+        success: false,
+        auditConfidenceScore: 0,
+        reason: blockReason,
+        riskLevel: isKillSwitch ? 'CRITICAL' : 'HIGH',
+      });
+      onAddLog({
+        id: `log-audit-blocked-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        projectId: project.id,
+        projectName: project.name,
+        agentRole: 'GUARDRAIL',
+        action: `Settlement blocked: ${blockReason}`,
+        amountUSD: 0,
+        recipientEmail: project.vendorEmail,
+        auditConfidenceScore: 0,
+        status: isKillSwitch ? 'KILL_SWITCH_REVOKED' : 'CONTRACT_FROZEN',
+        riskLevel: isKillSwitch ? 'CRITICAL' : 'HIGH',
+      });
+      return;
+    }
+
     setIsAuditing(true);
     setAuditResult(null);
 
@@ -170,10 +206,14 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
           expectedRequirements: milestone.acceptanceCriteria || milestone.description,
           milestoneTitle: milestone.title,
           milestoneAmountUSD: milestone.amountUSD,
+          envelope,
         }),
       });
 
       const data = await res.json();
+      data.requiresHumanApproval = Boolean(
+        data.requiresHumanApproval || (data.success && project.perspective === 'INCOMING')
+      );
       setAuditResult(data);
 
       if (data.success && data.auditConfidenceScore >= 85) {
@@ -188,24 +228,29 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
             true
           );
 
+          const holdReason =
+            project.perspective === 'INCOMING'
+              ? 'contractor submissions require client authorization'
+              : 'amount exceeds the autonomous settlement threshold';
+
           onAddLog({
             id: `log-audit-${Date.now()}`,
             timestamp: new Date().toISOString(),
             projectId: project.id,
             projectName: project.name,
             agentRole: 'GUARDRAIL',
-            action: `Milestone Audited (${data.auditConfidenceScore}% Score) — Dual-Key Human Signature Required: "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD exceeds $1,000 autonomous threshold)`,
+            action: `Milestone Audited (${data.auditConfidenceScore}% Score) — Client Authorization Required: "${milestone.title}" (${holdReason})`,
             amountUSD: milestone.amountUSD,
             recipientEmail: project.vendorEmail,
             auditConfidenceScore: data.auditConfidenceScore,
             status: 'ESCROW_LOCKED',
             riskLevel: 'MEDIUM',
-            httpPayloadLog: `AUDIT VERIFIED: Score ${data.auditConfidenceScore}%. Settlement held in escrow pending client manual authorization. (Idempotency Key: ${data.idempotencyKey || 'REQ_IDEMPOTENT'})`,
+            httpPayloadLog: `AUDIT VERIFIED: Score ${data.auditConfidenceScore}%. Settlement held pending client authorization. (Idempotency Key: ${data.idempotencyKey || 'REQ_IDEMPOTENT'})`,
           });
         } else {
           const batchId =
             data.simulatedBatchId ||
-            `PAYPAL-BATCH-${Date.now().toString(36).toUpperCase()}`;
+            `SETTLE-${Date.now().toString(36).toUpperCase()}`;
 
           onAuditSuccess(
             milestone.id,
@@ -223,14 +268,14 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
             projectId: project.id,
             projectName: project.name,
             agentRole: 'BUYER_AI',
-            action: `Milestone Audit Approved (${data.auditConfidenceScore}% Score): "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD Released via PayPal Vault)`,
+            action: `Milestone Audit Approved (${data.auditConfidenceScore}% Score): "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD recorded in local settlement ledger)`,
             amountUSD: milestone.amountUSD,
             recipientEmail: project.vendorEmail,
             auditConfidenceScore: data.auditConfidenceScore,
             status: 'PAYOUT_EXECUTED',
             riskLevel: data.riskLevel || 'LOW',
             payPalTransactionId: batchId,
-            httpPayloadLog: `POST https://api-m.sandbox.paypal.com/v1/payments/payouts [201 Created Batch: ${batchId}] (PayPal-Request-Id: ${data.idempotencyKey || 'IDEMPOTENT'})`,
+            httpPayloadLog: `LOCAL SETTLEMENT RECORD: Batch ${batchId}; no external payout API called. (Idempotency Key: ${data.idempotencyKey || 'IDEMPOTENT'})`,
           });
         }
       } else {
@@ -250,6 +295,12 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
       }
     } catch (err: any) {
       console.error('[Audit Modal Error]:', err);
+      setAuditResult({
+        success: false,
+        auditConfidenceScore: 0,
+        reason: 'The audit service could not be reached. Please retry the submission.',
+        riskLevel: 'HIGH',
+      });
     } finally {
       setIsAuditing(false);
     }
@@ -320,7 +371,7 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
 
           <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-            <span>Protected by OWASP LLM01 Prompt Injection Guardrails. Minimum 85% confidence required for automated settlement.</span>
+            <span>Protected by OWASP LLM01 Prompt Injection Guardrails. Minimum 85% confidence required for audit approval; contractor submissions always require client authorization.</span>
           </div>
 
           {/* Audit Result Display */}
@@ -334,16 +385,20 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
             >
               <div className="flex items-center justify-between font-bold">
                 <span>
-                  {auditResult.success ? '✅ Audit Passed & Escrow Released' : '⚠️ Audit Verification Rejected'}
+                  {auditResult.success
+                    ? auditResult.requiresHumanApproval
+                      ? '✅ Audit Passed — Awaiting Client Authorization'
+                      : '✅ Audit Passed — Local Settlement Recorded'
+                    : '⚠️ Audit Verification Rejected'}
                 </span>
                 <span className="font-mono bg-black/40 px-2 py-0.5 rounded border border-current">
                   Score: {auditResult.auditConfidenceScore}%
                 </span>
               </div>
               <p className="text-[11px] leading-relaxed">{auditResult.reason}</p>
-              {auditResult.simulatedBatchId && (
+              {auditResult.simulatedBatchId && !auditResult.requiresHumanApproval && (
                 <div className="text-[10px] font-mono text-emerald-400/90 pt-1">
-                  PayPal Payout Batch: {auditResult.simulatedBatchId}
+                  Settlement Reference: {auditResult.simulatedBatchId}
                 </div>
               )}
             </div>
@@ -370,205 +425,13 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
               ) : (
                 <>
                   <Send className="w-4 h-4" />
-                  <span>Run AI Audit & Release Escrow</span>
+                  <span>Run AI Audit & Submit Proof</span>
                 </>
               )}
             </button>
           </div>
         </form>
       </div>
-    </div>
-  );
-};
-
-// -------------------------------------------------------------
-// DeliverableAuditForm Component (Quick inspection tool)
-// -------------------------------------------------------------
-interface DeliverableAuditFormProps {
-  project: ProjectContract;
-  onAddLog: (log: TransactionLog) => void;
-  onUpdateProject?: (updatedProject: ProjectContract) => void;
-}
-
-const DeliverableAuditForm: React.FC<DeliverableAuditFormProps> = ({
-  project,
-  onAddLog,
-  onUpdateProject,
-}) => {
-  const [deliverableText, setDeliverableText] = useState('');
-  const [isAuditing, setIsAuditing] = useState(false);
-  const [auditResult, setAuditResult] = useState<{
-    success: boolean;
-    auditConfidenceScore: number;
-    reason: string;
-    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-    simulatedBatchId?: string;
-  } | null>(null);
-
-  const pendingMilestone = (project.milestones || []).find((m) => m.status === 'PENDING');
-
-  const handleRunAudit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!deliverableText.trim() || isAuditing) return;
-
-    setIsAuditing(true);
-    setAuditResult(null);
-
-    const expectedReqs = pendingMilestone?.acceptanceCriteria || `Milestone completion for ${project.name}`;
-
-    try {
-      const res = await fetch('/api/agent/audit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deliverableText,
-          expectedRequirements: expectedReqs,
-          milestoneTitle: pendingMilestone?.title || project.name,
-          milestoneAmountUSD: pendingMilestone?.amountUSD || 0,
-        }),
-      });
-
-      const data = await res.json();
-      setAuditResult(data);
-
-      if (data.success && pendingMilestone && onUpdateProject) {
-        if (data.requiresHumanApproval) {
-          const updatedMilestones = (project.milestones || []).map((m) =>
-            m.id === pendingMilestone.id
-              ? {
-                  ...m,
-                  status: 'AUDITED_PENDING_APPROVAL' as const,
-                  auditScore: data.auditConfidenceScore,
-                  auditRationale: data.reason,
-                  deliverableProof: deliverableText,
-                  requiresHumanApproval: true,
-                  submittedAt: new Date().toISOString(),
-                }
-              : m
-          );
-
-          onUpdateProject({
-            ...project,
-            milestones: updatedMilestones,
-          });
-
-          onAddLog({
-            id: `log-audit-${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            projectId: project.id,
-            projectName: project.name,
-            agentRole: 'GUARDRAIL',
-            action: `Milestone Audited (${data.auditConfidenceScore}% Score) — Dual-Key Human Signature Required: "${pendingMilestone.title}" ($${pendingMilestone.amountUSD.toFixed(2)} USD exceeds $1,000 threshold)`,
-            amountUSD: pendingMilestone.amountUSD,
-            recipientEmail: project.vendorEmail,
-            auditConfidenceScore: data.auditConfidenceScore || 0,
-            status: 'ESCROW_LOCKED',
-            riskLevel: 'MEDIUM',
-            httpPayloadLog: `AUDIT VERIFIED: Score ${data.auditConfidenceScore}%. Settlement held in escrow pending client manual authorization. (Idempotency Key: ${data.idempotencyKey || 'REQ_IDEMPOTENT'})`,
-          });
-        } else {
-          const batchId =
-            data.simulatedBatchId ||
-            `PAYPAL-BATCH-${Date.now().toString(36).toUpperCase()}`;
-
-          const updatedMilestones = (project.milestones || []).map((m) =>
-            m.id === pendingMilestone.id
-              ? {
-                  ...m,
-                  status: 'COMPLETED' as const,
-                  auditScore: data.auditConfidenceScore,
-                  auditRationale: data.reason,
-                  deliverableProof: deliverableText,
-                  payPalBatchId: batchId,
-                }
-              : m
-          );
-
-          onUpdateProject({
-            ...project,
-            spentUSD: project.spentUSD + pendingMilestone.amountUSD,
-            milestones: updatedMilestones,
-          });
-
-          onAddLog({
-            id: `log-audit-${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            projectId: project.id,
-            projectName: project.name,
-            agentRole: 'BUYER_AI',
-            action: `Milestone Settled via AI Audit: "${pendingMilestone.title}" ($${pendingMilestone.amountUSD.toFixed(2)} USD via PayPal Vault)`,
-            amountUSD: pendingMilestone.amountUSD,
-            recipientEmail: project.vendorEmail,
-            auditConfidenceScore: data.auditConfidenceScore || 0,
-            status: 'PAYOUT_EXECUTED',
-            riskLevel: data.riskLevel || 'LOW',
-            payPalTransactionId: batchId,
-            httpPayloadLog: `POST https://api-m.sandbox.paypal.com/v1/payments/payouts [201 Created Batch: ${batchId}] (PayPal-Request-Id: ${data.idempotencyKey || 'IDEMPOTENT'})`,
-          });
-        }
-      } else {
-        onAddLog({
-          id: `log-audit-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          projectId: project.id,
-          projectName: project.name,
-          agentRole: 'BUYER_AI',
-          action: `Deliverable Audit Evaluated (Score: ${data.auditConfidenceScore || 0}%) - ${data.reason || ''}`,
-          amountUSD: 0,
-          recipientEmail: project.vendorEmail,
-          auditConfidenceScore: data.auditConfidenceScore || 0,
-          status: data.success ? 'AUDITING_DELIVERABLE' : 'GUARDRAIL_CHECKING',
-          riskLevel: data.riskLevel || 'LOW',
-        });
-      }
-    } catch (err: any) {
-      console.error('[Audit Form Error]:', err);
-    } finally {
-      setIsAuditing(false);
-    }
-  };
-
-  return (
-    <div className="space-y-3">
-      <form onSubmit={handleRunAudit} className="flex flex-col md:flex-row gap-3">
-        <input
-          type="text"
-          value={deliverableText}
-          onChange={(e) => setDeliverableText(e.target.value)}
-          placeholder={
-            pendingMilestone
-              ? `Paste deliverable proof for ${pendingMilestone.title} (PR link, commit, code summary)...`
-              : 'Paste Pull Request URL, code diff snippet, or deliverable proof text...'
-          }
-          className="flex-1 bg-[#0F1115] border border-[#252830] focus:border-amber-500/50 rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-500 outline-none"
-        />
-        <button
-          type="submit"
-          disabled={isAuditing || !deliverableText.trim()}
-          className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap"
-        >
-          {isAuditing ? 'Auditing Deliverable...' : 'Run Audit Inspection'}
-        </button>
-      </form>
-
-      {auditResult && (
-        <div
-          className={`p-3 rounded-lg border text-xs flex items-center justify-between ${
-            auditResult.success
-              ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
-              : 'bg-rose-950/40 border-rose-500/30 text-rose-300'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span className="font-bold">Score: {auditResult.auditConfidenceScore}%</span>
-            <span>—</span>
-            <span>{auditResult.reason}</span>
-          </div>
-          <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-black/40 border border-current">
-            Risk: {auditResult.riskLevel}
-          </span>
-        </div>
-      )}
     </div>
   );
 };
@@ -581,15 +444,15 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
   envelope,
   projects,
   logs,
-  currentProfile,
   onBackToPortfolio,
-  onSelectProject,
   onToggleProjectFreeze,
-  onUpdateEnvelope,
   onAddLog,
   onUpdateProject,
 }) => {
   const isIncoming = project.perspective === 'INCOMING';
+  const parentProject = project.parentProjectId
+    ? projects.find((p) => p.id === project.parentProjectId)
+    : undefined;
 
   // Modal states
   const [editingMilestone, setEditingMilestone] = useState<ProjectMilestone | null>(null);
@@ -617,7 +480,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
       projectId: project.id,
       projectName: project.name,
       agentRole: 'GUARDRAIL',
-      action: `Acceptance Criteria Updated for Phase #${milestoneId}: Specifications locked in Escrow Envelope.`,
+      action: `Acceptance Criteria Updated for Phase #${milestoneId}: Specifications saved to Escrow Envelope.`,
       amountUSD: 0,
       recipientEmail: project.vendorEmail,
       auditConfidenceScore: 100,
@@ -626,7 +489,6 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
     });
   };
 
-  // Handle successful audit submission (Contractor side)
   // Handle successful audit submission (Contractor side)
   const handleAuditSuccess = (
     milestoneId: string,
@@ -642,7 +504,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
     const targetMilestone = (project.milestones || []).find((m) => m.id === milestoneId);
     if (!targetMilestone) return;
 
-    const isPendingApproval = Boolean(requiresHumanApproval);
+    const isPendingApproval = Boolean(requiresHumanApproval) || isIncoming;
 
     const updatedMilestones = (project.milestones || []).map((m) =>
       m.id === milestoneId
@@ -652,7 +514,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
             auditScore: score,
             auditRationale: rationale,
             deliverableProof: proofUrl || proofText,
-            payPalBatchId: batchId,
+            payPalBatchId: isPendingApproval ? undefined : batchId,
             submittedAt: new Date().toISOString(),
             requiresHumanApproval: isPendingApproval,
           }
@@ -661,18 +523,54 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
 
     const updatedProject = {
       ...project,
-      spentUSD: isPendingApproval ? project.spentUSD : project.spentUSD + targetMilestone.amountUSD,
       milestones: updatedMilestones,
     };
 
     onUpdateProject(updatedProject);
   };
 
-  // Dual-Key Human Authorization Handler (Hiring Client / Accounts Payable side)
+  // Client Authorization Handler (Hiring Client / Accounts Payable side)
   const handleAuthorizeMilestone = (milestone: ProjectMilestone) => {
-    if (!onUpdateProject) return;
+    if (!onUpdateProject || isIncoming) return;
 
-    const batchId = `PAYPAL-BATCH-${Date.now().toString(36).toUpperCase()}-HUMAN`;
+    const blockReason = getSettlementBlockReason(envelope, project.status);
+    if (blockReason) {
+      const isKillSwitch = envelope.killSwitchActive;
+      onAddLog({
+        id: `log-auth-blocked-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        projectId: project.id,
+        projectName: project.name,
+        agentRole: 'GUARDRAIL',
+        action: `Settlement blocked: ${blockReason}`,
+        amountUSD: 0,
+        recipientEmail: project.vendorEmail,
+        auditConfidenceScore: 0,
+        status: isKillSwitch ? 'KILL_SWITCH_REVOKED' : 'CONTRACT_FROZEN',
+        riskLevel: isKillSwitch ? 'CRITICAL' : 'HIGH',
+      });
+      return;
+    }
+
+    const remainingBudgetUSD = Math.max(0, project.budgetCapUSD - project.spentUSD);
+    if (milestone.amountUSD > remainingBudgetUSD) {
+      onAddLog({
+        id: `log-auth-over-budget-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        projectId: project.id,
+        projectName: project.name,
+        agentRole: 'GUARDRAIL',
+        action: `Settlement blocked: milestone "${milestone.title}" ($${milestone.amountUSD.toFixed(2)}) exceeds the remaining envelope balance ($${remainingBudgetUSD.toFixed(2)})`,
+        amountUSD: 0,
+        recipientEmail: project.vendorEmail,
+        auditConfidenceScore: 0,
+        status: 'REJECTED',
+        riskLevel: 'HIGH',
+      });
+      return;
+    }
+
+    const batchId = `SETTLE-${Date.now().toString(36).toUpperCase()}-CLIENT`;
 
     const updatedMilestones = (project.milestones || []).map((m) =>
       m.id === milestone.id
@@ -687,7 +585,6 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
 
     onUpdateProject({
       ...project,
-      spentUSD: project.spentUSD + milestone.amountUSD,
       milestones: updatedMilestones,
     });
 
@@ -697,14 +594,14 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
       projectId: project.id,
       projectName: project.name,
       agentRole: 'BUYER_AI',
-      action: `Human-in-the-Loop Escrow Release Authorized: "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD disbursed via PayPal Vault)`,
+      action: `Client Authorized Milestone Settlement: "${milestone.title}" ($${milestone.amountUSD.toFixed(2)} USD recorded in local settlement ledger)`,
       amountUSD: milestone.amountUSD,
       recipientEmail: project.vendorEmail,
-      auditConfidenceScore: milestone.auditScore || 100,
+      auditConfidenceScore: milestone.auditScore ?? 0,
       status: 'PAYOUT_EXECUTED',
       riskLevel: 'LOW',
       payPalTransactionId: batchId,
-      httpPayloadLog: `POST https://api-m.sandbox.paypal.com/v1/payments/payouts [201 Created Batch: ${batchId}] (Dual-Key Authorization Signed)`,
+      httpPayloadLog: `LOCAL SETTLEMENT RECORD: Batch ${batchId}; client authorization recorded; no external payout API called.`,
     });
   };
 
@@ -744,7 +641,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                     : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                 }`}
               >
-                {isIncoming ? '🛠️ Role: Contractor (Escrow Claim)' : '💼 Role: Principal (Vault Funder)'}
+                {isIncoming ? '🛠️ Role: Contractor (Escrow Beneficiary)' : '💼 Role: Client (Escrow Funder)'}
               </span>
               {project.contractType === 'MSA_SOW' && (
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-purple-950/50 text-purple-300 border border-purple-500/30">
@@ -753,7 +650,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
               )}
               {project.isSubcontracted && (
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-indigo-950/50 text-indigo-300 border border-indigo-500/30">
-                  🔀 Subcontracted from #{project.parentProjectId}
+                  🔀 Subcontracted from {parentProject?.name || 'linked master contract'}
                 </span>
               )}
             </div>
@@ -793,37 +690,39 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
           <div className="flex items-center gap-2 bg-[#0F1115] border border-amber-500/20 px-3.5 py-2 rounded-lg">
             <div className="flex items-center text-slate-300">
               <Lock className="w-3.5 h-3.5 text-amber-400 mr-1" />
-              <span>{isIncoming ? 'Escrow Guarantee:' : 'Vault Ceiling:'} </span>
+              <span>{isIncoming ? 'Contract Value:' : 'Envelope Ceiling:'} </span>
               <strong className="text-white ml-1 font-mono">${project.budgetCapUSD.toFixed(2)} USD</strong>
             </div>
             <div className="h-3 w-px bg-slate-800" />
             <div className="flex items-center text-slate-300">
               <DollarSign className="w-3.5 h-3.5 text-emerald-400 mr-0.5" />
-              <span>{isIncoming ? 'Claimed:' : 'Settled:'} </span>
+              <span>Settled:</span>
               <strong className="text-emerald-400 ml-1 font-mono">${project.spentUSD.toFixed(2)}</strong>
             </div>
           </div>
 
-          <button
-            onClick={() => onToggleProjectFreeze(project.id)}
-            className={`text-xs px-3.5 py-2 rounded-lg border font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
-              project.status === 'PAUSED'
-                ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white border-amber-400/40'
-                : 'bg-[#252830] hover:bg-[#2d313c] text-amber-200 border-amber-500/30'
-            }`}
-          >
-            {project.status === 'PAUSED' ? (
-              <>
-                <PlayCircle className="w-4 h-4 text-amber-300" />
-                <span>Resume Escrow Releases</span>
-              </>
-            ) : (
-              <>
-                <PauseCircle className="w-4 h-4 text-amber-400" />
-                <span>Freeze Escrow Releases</span>
-              </>
-            )}
-          </button>
+          {!isIncoming && (
+            <button
+              onClick={() => onToggleProjectFreeze(project.id)}
+              className={`text-xs px-3.5 py-2 rounded-lg border font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
+                project.status === 'PAUSED'
+                  ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white border-amber-400/40'
+                  : 'bg-[#252830] hover:bg-[#2d313c] text-amber-200 border-amber-500/30'
+              }`}
+            >
+              {project.status === 'PAUSED' ? (
+                <>
+                  <PlayCircle className="w-4 h-4 text-amber-300" />
+                  <span>Resume Settlements</span>
+                </>
+              ) : (
+                <>
+                  <PauseCircle className="w-4 h-4 text-amber-400" />
+                  <span>Freeze Settlements</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -837,7 +736,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
             </h3>
           </div>
           <span className="text-xs text-slate-400">
-            Total Vault Allocation: <strong className="text-white font-mono">${project.budgetCapUSD.toFixed(2)} USD</strong>
+            Total Envelope Ceiling: <strong className="text-white font-mono">${project.budgetCapUSD.toFixed(2)} USD</strong>
           </span>
         </div>
 
@@ -877,12 +776,12 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                     }`}
                   >
                     {isCompleted
-                      ? '✅ PAID / SETTLED'
+                      ? '✅ SETTLED'
                       : isAuditedPending
-                      ? '🛡️ DUAL-KEY SIGNATURE REQ.'
+                      ? '🛡️ CLIENT AUTHORIZATION REQ.'
                       : isPending
                       ? '⏳ READY FOR AUDIT'
-                      : '🔒 ESCROW LOCKED'}
+                      : '🔒 MILESTONE LOCKED'}
                   </span>
                 </div>
 
@@ -927,7 +826,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                         Confidence Score:
                       </span>
                       <strong className="font-mono text-emerald-300 font-bold">
-                        {ms.auditScore || 98}%
+                        {ms.auditScore != null ? `${ms.auditScore}%` : '—'}
                       </strong>
                     </div>
 
@@ -940,7 +839,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
 
                     {ms.payPalBatchId && (
                       <div className="text-[10px] font-mono text-emerald-400/90 truncate bg-black/40 px-2 py-1 rounded border border-emerald-500/20">
-                        Batch: {ms.payPalBatchId}
+                        Settlement Ref: {ms.payPalBatchId}
                       </div>
                     )}
                   </div>
@@ -949,10 +848,10 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                     <div className="flex items-center justify-between text-[11px] bg-amber-950/40 px-2.5 py-1 rounded border border-amber-500/30">
                       <span className="text-amber-300 font-semibold flex items-center gap-1">
                         <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                        AI Audit Passed:
+                        Audit Approved:
                       </span>
                       <strong className="font-mono text-amber-300 font-bold">
-                        {ms.auditScore || 96}%
+                        {ms.auditScore != null ? `${ms.auditScore}%` : '—'}
                       </strong>
                     </div>
                     {!isIncoming ? (
@@ -961,12 +860,12 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                         className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-md active:scale-95"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Authorize & Release (${ms.amountUSD.toFixed(2)})</span>
+                        <span>Authorize Settlement (${ms.amountUSD.toFixed(2)})</span>
                       </button>
                     ) : (
                       <div className="w-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-semibold py-2 px-2.5 rounded-lg text-center flex items-center justify-center gap-1.5">
                         <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                        <span>Audit Passed ({ms.auditScore || 96}%). Awaiting Client Signature.</span>
+                        <span>Audit Approved{ms.auditScore != null ? ` (${ms.auditScore}%)` : ''}. Awaiting client authorization.</span>
                       </div>
                     )}
                   </div>
@@ -994,7 +893,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
 
                 {/* Payout Footer */}
                 <div className="pt-2 border-t border-current/10 flex items-center justify-between text-xs">
-                  <span className="font-medium text-slate-400">Milestone Payout:</span>
+                  <span className="font-medium text-slate-400">Milestone Value:</span>
                   <span className="font-bold text-emerald-400 font-mono">
                     ${ms.amountUSD.toFixed(2)} USD
                   </span>
@@ -1005,38 +904,16 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
         </div>
       </div>
 
-      {/* Deliverable Proof-of-Execution Audit Panel (Quick Input) */}
-      <div className="bg-[#16181D] border border-amber-500/20 rounded-xl p-4 shadow-xl">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-amber-400" />
-            <h3 className="text-sm font-bold text-white tracking-wide">
-              Proof-of-Execution Deliverable Audit (Multimodal Vision / Code Inspection)
-            </h3>
-          </div>
-          <span className="text-xs text-amber-400 bg-amber-950/60 px-2.5 py-1 rounded-md border border-amber-500/30">
-            Escrow Threshold: ≥ 85% Confidence Required
-          </span>
-        </div>
-
-        <DeliverableAuditForm
-          project={project}
-          onAddLog={onAddLog}
-          onUpdateProject={onUpdateProject}
-        />
-      </div>
-
       {/* Main Workspace Layout (Left: Negotiation Chat, Right: Audit Ledger) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Agentic Commerce Assistant */}
         <div className="lg:col-span-5 h-[540px]">
           <AgentChat
+            key={project.id}
             envelope={envelope}
             projects={projects}
             selectedProjectId={project.id}
-            onSelectProject={onSelectProject}
             onToggleProjectFreeze={onToggleProjectFreeze}
-            onUpdateEnvelope={onUpdateEnvelope}
             onAddLog={onAddLog}
           />
         </div>
@@ -1046,6 +923,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
           <CommandCenter
             logs={logs.filter((l) => l.projectId === project.id)}
             onToggleProjectFreeze={onToggleProjectFreeze}
+            canManageEscrow={!isIncoming}
           />
         </div>
       </div>
@@ -1063,6 +941,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
         <SubmitProofModal
           milestone={submittingMilestone}
           project={project}
+          envelope={envelope}
           onClose={() => setSubmittingMilestone(null)}
           onAuditSuccess={handleAuditSuccess}
           onAddLog={onAddLog}

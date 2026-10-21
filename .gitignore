@@ -21,6 +21,8 @@ next-env.d.ts
 .env.local
 .env.development
 .env.test
+.env.production
+.env.*.local
 !.env.example
 
 # Internal Agentic & Hackathon Planning Documents (Kept Local Only)

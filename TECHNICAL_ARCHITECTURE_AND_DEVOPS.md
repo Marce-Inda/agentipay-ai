@@ -122,7 +122,7 @@ On mount, it reads versioned `localStorage` keys. On change, it writes them back
 - Only `PAYOUT_EXECUTED` logs with a positive, finite amount update `spentUSD`.
 - Each applied payout log increments the matching project. Repeated application of the same log ID is not deduplicated and double-counts the amount.
 
-The workspace release path emits a synthetic `PAYOUT_EXECUTED` log without calling PayPal. The agent chat does not call the audit endpoint; it hardcodes a 98% audit result and a simulated acceptance flow. The two flows do not provide a consistent payment audit trail.
+The workspace release path emits a local `PAYOUT_EXECUTED` log without calling PayPal. The agent chat is negotiation-only; it does not call the audit endpoint or record settlements.
 
 ---
 
@@ -176,10 +176,10 @@ Configure PayPal and AI credentials in the Render dashboard. Do not commit secre
 
 | Variable | Used by | Notes |
 | :--- | :--- | :--- |
-| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | Browser PayPal client | Public client identifier. |
-| `PAYPAL_CLIENT_ID` | Browser PayPal client | Fallback identifier when the public variable is absent. |
-| `PAYPAL_CLIENT_SECRET` | Server environment | Server-only secret. The browser PayPal client cannot read it, and no server payout route currently consumes it. |
-| `PAYPAL_ENVIRONMENT` | Browser PayPal client | `sandbox` default; the production URL branch is not validated in this repository. |
+| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | PayPal adapter configuration | Public client identifier; not used by the runtime UI. |
+| `PAYPAL_CLIENT_ID` | PayPal adapter configuration | Server-side fallback identifier. |
+| `PAYPAL_CLIENT_SECRET` | PayPal adapter tests/future route | Server-only secret. No runtime route currently consumes it. |
+| `PAYPAL_ENVIRONMENT` | PayPal adapter | `sandbox` default; the production URL branch is not validated in this repository. |
 | `OPENAI_API_KEY` | AI provider | OpenAI-compatible key. |
 | `OPENROUTER_API_KEY` | AI provider | Enables the OpenRouter base URL. |
 | `GEMINI_API_KEY` | AI provider | Gemini fallback when no OpenAI-compatible key exists. |
@@ -202,10 +202,9 @@ The repository does not include automated CI workflows. Add a pipeline before re
 ## 7. Observability and failure handling
 
 - Route handlers log unexpected failures to the server console.
-- The browser-side PayPal client throws on OAuth failures; the workspace does not invoke it.
-- With no client ID, the chat's PayPal client returns `SIM_PAYOUT_` results and a simulated HTTP log.
-- Workspace releases generate `PAYPAL-BATCH-*` identifiers and synthetic HTTP payloads locally. They are not actual PayPal responses.
-- The audit endpoint can return a `simulatedBatchId`, which is also not a PayPal payment.
+- The PayPal client is not imported by the runtime UI; only unit tests exercise it.
+- Workspace releases generate `SETTLE-*` references and local settlement payloads. They are not PayPal responses.
+- The audit endpoint can return a `simulatedBatchId`, which is not a PayPal payment.
 - Client-side `localStorage` failures fall back to in-memory defaults and log a warning.
 - There is no centralized tracing, metrics, or error reporting service.
 

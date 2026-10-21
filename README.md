@@ -5,7 +5,7 @@
 AgenticPay AI is a dual-perspective escrow workspace for organizations that both commission work and deliver work. It combines an AI negotiation assistant, deterministic settlement controls, milestone deliverable audits, and an inspectable transaction ledger.
 
 > [!IMPORTANT]
-> **Implementation status (audit date: 2026-10-20).** The portfolio, milestone management, guardrail rules, deterministic audit endpoint, and AG Grid ledger are implemented. Settlement is not operational end to end: workspace releases record local `PAYOUT_EXECUTED` events with generated batch identifiers and do not call PayPal. The chat path instantiates the PayPal client in the browser, where `PAYPAL_CLIENT_SECRET` is unavailable. There is no authentication, rate limiting, server-side persistence, or server-authoritative payment route.
+> **Implementation status (audit date: 2026-10-20).** The portfolio, milestone management, guardrail rules, deterministic audit endpoint, and AG Grid ledger are implemented. Settlement is not operational end to end: workspace releases record local `PAYOUT_EXECUTED` events with generated `SETTLE-*` identifiers and do not call PayPal. The PayPal Sandbox client exists but is not imported by the runtime UI. There is no authentication, rate limiting, server-side persistence, or server-authoritative payment route.
 
 ---
 
@@ -21,14 +21,13 @@ AgenticPay AI keeps both roles in one portfolio. It supports subcontract metadat
 ### Core capabilities
 
 - **Dual-perspective portfolio:** parallel outbound and inbound swimlanes with search, status filters, and focus modes.
-- **Contract and milestone management:** escrow caps, vendor/client details, milestone acceptance criteria, deliverable proofs, and settlement state.
+- **Contract and milestone management:** contract envelope ceilings, vendor/client details, milestone acceptance criteria, deliverable proofs, and settlement state.
 - **Deterministic settlement guardrails:** per-transaction and daily ceilings, remaining-project-budget checks, kill-switch enforcement, contract freeze, and a $1,000 USD autonomous settlement cap.
 - **Milestone audit endpoint:** payload size limits, prompt-injection sanitization, isolated deliverable framing, heuristic confidence scoring, and human-approval escalation above the autonomous cap. GitHub and pull-request URLs are automatically treated as high-confidence evidence.
-- **PayPal Sandbox client (not operational end to end):** OAuth and `/v1/payments/payouts` logic exists in `src/lib/paypal/client.ts`, with a simulated mode. It is currently instantiated only inside the client-side `AgentChat` component, where `PAYPAL_CLIENT_SECRET` is unavailable, so a live payout cannot complete from that path. Workspace releases do not call the client at all.
+- **PayPal Sandbox client (not operational end to end):** OAuth and `/v1/payments/payouts` logic exists in `src/lib/paypal/client.ts`, with a simulated mode. The client is not imported by the current UI, and workspace releases do not call it. A server-side payout route is required before live Sandbox settlement can be verified.
 - **AI negotiation assistant:** streamed responses through OpenAI/OpenRouter or Gemini, with a configurable fallback model.
 - **AG Grid audit ledger:** transaction status, actor, risk level, audit confidence, settlement amount, and inspectable local or server-returned payloads.
 - **Local persistence:** profile, contracts, envelope, and ledger are persisted in browser `localStorage` under versioned keys.
-- **Intake link generation:** the portfolio can generate and copy an `/escrow/intake/<slug>` URL. That intake route is not implemented in the current application.
 
 ### Current implementation boundaries
 
@@ -36,7 +35,7 @@ These boundaries are intentional and should be considered when evaluating or ext
 
 - The application uses **PayPal Sandbox** configuration only. Orders, Vault tokenization, webhooks, refunds, disputes, and production disbursement are not implemented.
 - The milestone audit is a deterministic heuristic evaluator in `/api/agent/audit`; it is not a multimodal LLM vision service. A GitHub URL with no substantive deliverable text can pass the 85% gate.
-- The AI stream is an assistant for negotiation and explanations. It cannot call the audit endpoint or execute a payout. Its audit score is a hardcoded client-side presentation value, not an evaluation.
+- The AI stream is an assistant for negotiation and explanations. It cannot call the audit endpoint or execute a payout. It does not perform deliverable audits or write settlement records.
 - Portfolio state is client-side and stored in `localStorage`. There is no authentication, database, or multi-user server persistence in the current implementation.
 - `/api/agent/stream` and `/api/agent/audit` are unauthenticated, have no rate limiting, and trust budget and kill-switch fields supplied in the request body.
 - The platform does not custody funds. PayPal would remain the settlement rail once a server-side payout route is implemented.
@@ -47,11 +46,11 @@ These boundaries are intentional and should be considered when evaluating or ext
 ## How a settlement works
 
 1. **Create a contract** from the portfolio and select the outbound or inbound perspective.
-2. **Define the escrow cap and milestones**, including acceptance criteria and milestone amounts.
+2. **Define the envelope ceiling and milestones**, including acceptance criteria and milestone amounts.
 3. **Submit a deliverable** from the project workspace. The audit endpoint validates payload size and sanitizes untrusted text.
 4. **Receive an audit result** containing a confidence score, risk level, rationale, and settlement mode.
 5. **Release the milestone** if the score is at least 85% and the amount is within the remaining project budget. Amounts above $1,000 USD require explicit human authorization.
-6. **Record the outcome** in the transaction ledger. The workspace marks the milestone complete and writes a local `PAYOUT_EXECUTED` event with a generated `PAYPAL-BATCH-*` identifier. No PayPal request is made. `applyTransactionLogToProjects` increments the project's settled amount for each such log and does not deduplicate repeated log IDs.
+6. **Record the outcome** in the transaction ledger. The workspace marks the milestone complete and writes a local `PAYOUT_EXECUTED` event with a generated `SETTLE-*` identifier. No PayPal request is made. `applyTransactionLogToProjects` increments the project's settled amount for each such log and does not deduplicate repeated log IDs.
 
 ### Guardrail thresholds
 
@@ -74,7 +73,7 @@ Browser (Next.js App Router client)
   Portfolio / Workspace / Agent Chat / AG Grid ledger
   localStorage: profile, projects, envelope, logs
   Workspace: records local PAYOUT_EXECUTED events
-  AgentChat: attempts a browser-side PayPal client (no server secret)
+  AgentChat: negotiation only; no payout client
         |
         | POST /api/agent/stream        POST /api/agent/audit
         v
@@ -92,12 +91,12 @@ PayPal Sandbox REST API (client code only; not operational end to end)
 Key implementation files:
 
 - `src/app/page.tsx` — application state, hydration, contract creation, freeze handling.
-- `src/components/ProjectPortfolioView.tsx` — dual swimlanes, intake link, portfolio cards.
-- `src/components/ProjectWorkspaceView.tsx` — milestones, audit submission, payout authorization.
-- `src/components/AgentChat.tsx` — negotiation assistant and pre-payout guard checks.
+- `src/components/ProjectPortfolioView.tsx` — dual swimlanes and portfolio cards.
+- `src/components/ProjectWorkspaceView.tsx` — milestones, audit submission, and client-authorized settlement.
+- `src/components/AgentChat.tsx` — negotiation assistant and pre-settlement guard checks.
 - `src/components/CommandCenter.tsx` — AG Grid transaction ledger.
 - `src/lib/guardrails/enforcer.ts` — budget, audit, sanitization, and payload rules.
-- `src/lib/paypal/client.ts` — PayPal OAuth and payout client code; currently used from the browser only.
+- `src/lib/paypal/client.ts` — PayPal OAuth and payout client code; not imported by the runtime UI.
 - `src/lib/ledger.ts` — settled-balance helper; increments for each `PAYOUT_EXECUTED` log without deduplication.
 - `src/app/api/agent/audit/route.ts` — deterministic audit endpoint.
 - `src/app/api/agent/stream/route.ts` — streamed AI assistant endpoint.
@@ -151,7 +150,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Variable | Required | Purpose |
 | :--- | :--- | :--- |
-| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | For live Sandbox calls | PayPal client ID exposed to the browser configuration. |
+| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | Optional | Public PayPal client ID available to the browser build; not used by the runtime UI. |
 | `PAYPAL_CLIENT_ID` | Optional | Server-side client ID alias used when the public variable is absent. |
 | `PAYPAL_CLIENT_SECRET` | For live Sandbox calls | Server-only PayPal OAuth secret. Never expose to the client. |
 | `PAYPAL_ENVIRONMENT` | Optional | `sandbox` (default) or `production`. The current implementation is validated against Sandbox. |
@@ -162,7 +161,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `AI_FALLBACK_MODEL_NAME` | Optional | Fallback model name. Default: `meta-llama/llama-3.3-70b-instruct`. |
 | `NEXT_PUBLIC_APP_URL` | Optional | Public application URL used by deployment tooling. |
 
-If the PayPal client ID is missing or set to `placeholder`, the browser-side client returns a simulated payout result. If the client ID is set, the browser still cannot read `PAYPAL_CLIENT_SECRET`, so OAuth cannot complete and the request fails. A server-side payout route is required before live Sandbox settlement can be verified. No real funds move from the current workspace release path.
+The PayPal client is retained for future server-side integration but is not called by the UI or workspace release path. No real funds move. A server-side payout route is required before live Sandbox settlement can be verified.
 
 ### Available scripts
 
@@ -210,7 +209,7 @@ For Render, configure the required PayPal and AI environment variables in the se
 
 ## Security
 
-- AI provider keys and `PAYPAL_CLIENT_SECRET` are server-only. The browser PayPal client cannot read the secret, and no server payout route currently exists.
+- AI provider keys and `PAYPAL_CLIENT_SECRET` are server-only. The PayPal client is not used by the runtime UI, and no server payout route currently exists.
 - Financial decisions are made by deterministic TypeScript code, not by the language model. Some checks execute in the browser, so server-authoritative settlement is not yet implemented.
 - Deliverable input is bounded and sanitized before evaluation. The audit endpoint can be bypassed with a GitHub URL and is unauthenticated.
 - The kill-switch and contract freeze are checked before a local settlement record is written.

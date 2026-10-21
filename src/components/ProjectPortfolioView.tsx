@@ -15,13 +15,8 @@ import {
   GitFork, 
   ArrowDownLeft, 
   ArrowUpRight,
-  Briefcase,
   Layers,
-  Copy,
-  Share2,
-  Sparkles,
   RotateCcw,
-  Lock,
 } from 'lucide-react';
 import { BudgetEnvelope, ProjectContract, UserProfile } from '../lib/types';
 
@@ -45,17 +40,8 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'ACTIVE' | 'PAUSED'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [columnFocus, setColumnFocus] = useState<'DUAL' | 'OUTGOING' | 'INCOMING'>('DUAL');
-  const [copiedLink, setCopiedLink] = useState(false);
 
   const isBusiness = currentProfile?.role === 'BUSINESS' || currentProfile?.accountType === 'BUSINESS';
-
-  const handleCopyEscrowLink = () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(`https://agenticpay.ai/escrow/intake/${currentProfile?.id || 'enterprise'}`);
-    }
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
-  };
 
   // Separate Outgoing (Managed / Hiring) and Incoming (Assigned / Contractor)
   const outgoingProjectsRaw = projects.filter((p) => p.perspective !== 'INCOMING');
@@ -129,16 +115,16 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
             <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
               {isBusiness
                 ? 'Corporate governance active: Issues binding MSA & SOW contracts, manages tax compliance, and administers parallel inbound/outbound escrow envelopes.'
-                : 'Agile independent mode: Delivers client contracts with guaranteed escrow lock, and securely subcontracts specialized contributors.'}
+                : 'Agile independent mode: Delivers client contracts under structured escrow terms and subcontracts specialized contributors.'}
             </p>
           </div>
         </div>
 
         <div className="text-right text-xs font-mono shrink-0 bg-black/30 p-2.5 rounded-xl border border-current/20">
-          <span className="text-slate-400 block text-[11px]">PayPal Settlement Account:</span>
-          <span className="font-bold text-white text-xs">{currentProfile?.payPalAccountEmail || 'sandbox@paypal.com'}</span>
+          <span className="text-slate-400 block text-[11px]">Settlement Email:</span>
+          <span className="font-bold text-white text-xs">{currentProfile?.payPalAccountEmail || 'Not configured'}</span>
           <span className="text-[10px] text-emerald-400 flex items-center justify-end gap-1 mt-0.5 font-sans">
-            <CheckCircle2 className="w-3 h-3" /> Compliance Status: {currentProfile?.complianceStatus || 'VERIFIED'}
+            <CheckCircle2 className="w-3 h-3" /> Compliance Status: {currentProfile?.complianceStatus || 'PENDING'}
           </span>
         </div>
       </div>
@@ -252,7 +238,7 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
             ? 'Viewing all contracts — as employer and as vendor'
             : columnFocus === 'OUTGOING'
               ? 'Hiring mode — contracts you sponsor and administer'
-              : 'Contractor mode — contracts where you deliver and earn'}
+              : 'Contractor mode — contracts where you deliver milestones'}
         </span>
       </div>
 
@@ -294,20 +280,20 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
               </div>
 
               <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-                Agreements you sponsor and administer. Funds are pre-authorized in PayPal Vault envelopes and released only upon zero-trust AI audit milestone verification.
+                Agreements you sponsor and administer. Milestone budgets are bounded by deterministic ceilings and release records are created only after audit verification.
               </p>
 
               {/* Metrics Grid */}
               <div className="grid grid-cols-3 gap-2.5 bg-[#0F1115]/80 p-3 rounded-xl border border-slate-800/80 mb-3">
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-medium">Vault Cap Authorized</span>
+                  <span className="text-[10px] text-slate-400 block font-medium">Envelope Ceiling</span>
                   <span className="text-base font-bold text-amber-400 font-mono">${outgoingCap.toFixed(2)}</span>
                   <span className="text-[10px] text-slate-500 block">USD Total Limit</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block font-medium">Settled to Vendors</span>
                   <span className="text-base font-bold text-emerald-400 font-mono">${outgoingSpent.toFixed(2)}</span>
-                  <span className="text-[10px] text-slate-500 block">USD Released</span>
+                  <span className="text-[10px] text-slate-500 block">USD Recorded</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block font-medium">Active Governance</span>
@@ -323,7 +309,7 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                   <span>Zero-Trust LLM Guardrails Active</span>
                 </span>
                 <span className="text-[11px] font-mono text-slate-400">
-                  Status: 100% Protected
+                  Deterministic ceilings enforced
                 </span>
               </div>
             </div>
@@ -359,13 +345,13 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                           Accounts Payable • Procurement Hub
                         </span>
                         <h4 className="text-sm font-bold text-white mt-1">
-                          Deploy Pre-Authorized Vault Envelopes for Agency Partners
+                          Create Escrow Envelopes for Agency Partners
                         </h4>
                       </div>
                     </div>
 
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Pre-authorize milestone budget envelopes in PayPal Vault to contract engineering agencies or design studios. Tokens are locked with deterministic non-AI ceilings and disburse only upon verified AI audit proof.
+                      Define milestone budget envelopes to contract engineering agencies or design studios. Each envelope is bounded by deterministic non-AI ceilings and release records are created only after audit proof.
                     </p>
 
                     <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 font-mono bg-[#0f1115]/80 p-3 rounded-xl border border-slate-800">
@@ -392,6 +378,9 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                     100,
                     Math.round((project.spentUSD / project.budgetCapUSD) * 100)
                   );
+                  const parentProject = project.parentProjectId
+                    ? projects.find((p) => p.id === project.parentProjectId)
+                    : undefined;
 
                   return (
                     <div
@@ -402,13 +391,13 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                       <div>
                         <div className="flex items-center justify-between gap-2 mb-2">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-amber-950/80 text-amber-300 border border-amber-500/40">
-                              💼 DIRECT HIRE
-                            </span>
-
-                            {project.isSubcontracted && (
+                            {project.isSubcontracted ? (
                               <span className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-purple-950/80 text-purple-300 border border-purple-500/40 flex items-center gap-1">
                                 <GitFork className="w-2.5 h-2.5" /> SUBCONTRACTED
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-amber-950/80 text-amber-300 border border-amber-500/40">
+                                💼 DIRECT HIRE
                               </span>
                             )}
                           </div>
@@ -437,6 +426,13 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                             </div>
                           )}
 
+                          {project.isSubcontracted && (
+                            <div className="flex items-center gap-1.5 text-purple-300 text-[11px] font-mono mb-1">
+                              <GitFork className="w-3.5 h-3.5 shrink-0" />
+                              <span>Parent Mandate: {parentProject?.name || 'Linked master contract'}</span>
+                            </div>
+                          )}
+
                           <div className="flex items-center gap-1.5">
                             <Building2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                             <span>Contractor: <strong className="text-white">{project.vendorName}</strong></span>
@@ -447,10 +443,10 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                           </div>
                         </div>
 
-                        {/* Vault Budget Consumed Progress */}
+                        {/* Envelope Budget Consumed Progress */}
                         <div className="space-y-1.5 bg-[#0f1115] p-3 rounded-lg border border-slate-800">
                           <div className="flex justify-between text-xs font-semibold">
-                            <span className="text-slate-400">Vault Budget Consumed:</span>
+                            <span className="text-slate-400">Envelope Budget Consumed:</span>
                             <span className="text-emerald-400 font-mono">
                               ${project.spentUSD.toFixed(2)} / ${project.budgetCapUSD.toFixed(2)} USD
                             </span>
@@ -500,8 +496,8 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                         >
                           <span>
                             {project.perspective === 'OUTGOING'
-                              ? 'Manage Escrow Vault'
-                              : 'Deliver & Claim Payout'}
+                              ? 'Manage Escrow Envelope'
+                              : 'Deliver & Submit Proof'}
                           </span>
                           <ArrowRight className="w-3.5 h-3.5 text-slate-950" />
                         </button>
@@ -550,20 +546,20 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
               </div>
 
               <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-                Contracts where you deliver professional milestones. Client escrow is pre-funded and held in PayPal Vault envelopes, guaranteeing $0 non-payment risk upon verified delivery.
+                Contracts where you deliver professional milestones. Client funding and milestone settlement status are tracked against the contract envelope.
               </p>
 
               {/* Metrics Grid */}
               <div className="grid grid-cols-3 gap-2.5 bg-[#0F1115]/80 p-3 rounded-xl border border-slate-800/80 mb-3">
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-medium">Secured Client Vault</span>
+                  <span className="text-[10px] text-slate-400 block font-medium">Client Contract Value</span>
                   <span className="text-base font-bold text-cyan-400 font-mono">${incomingCap.toFixed(2)}</span>
-                  <span className="text-[10px] text-slate-500 block">USD Guaranteed</span>
+                  <span className="text-[10px] text-slate-500 block">USD Committed</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-medium">Claimed Payouts</span>
+                  <span className="text-[10px] text-slate-400 block font-medium">Settled Milestones</span>
                   <span className="text-base font-bold text-emerald-400 font-mono">${incomingClaimed.toFixed(2)}</span>
-                  <span className="text-[10px] text-slate-500 block">USD Received</span>
+                  <span className="text-[10px] text-slate-500 block">USD Recorded</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block font-medium">Active Deliverables</span>
@@ -576,10 +572,10 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
               <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-800/80">
                 <span className="text-xs text-cyan-300 font-medium flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>100% Guaranteed Payout ($0 Risk)</span>
+                  <span>Audit-gated milestone settlement</span>
                 </span>
                 <span className="text-[11px] font-mono text-slate-400">
-                  Funds Locked in PayPal Vault
+                  Local ledger reconciled
                 </span>
               </div>
             </div>
@@ -612,35 +608,25 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                       </div>
                       <div>
                         <span className="text-[10px] font-bold font-mono uppercase tracking-wider text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-500/40">
-                          Accounts Receivable • Intake Hub
+                          Accounts Receivable • Delivery Queue
                         </span>
                         <h4 className="text-sm font-bold text-white mt-1">
-                          Secure Guaranteed Client Escrow & Eliminate Default Risk
+                          No Inbound Contracts Assigned
                         </h4>
                       </div>
                     </div>
 
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Require corporate clients to pre-fund project milestones into PayPal Vault before kicking off development or delivery. Funds are safely locked in neutral escrow, guaranteeing $0 non-payment risk upon verified pull request or deliverable submission.
+                      Client-sponsored contracts appear here once assigned. Submit milestone proof, review audit outcomes, and track settlement references without authorization access to client funds.
                     </p>
 
                     <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 font-mono bg-[#0f1115]/80 p-3 rounded-xl border border-slate-800">
                       <span className="flex items-center gap-1.5 text-emerald-400">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> $0 Non-Payment Risk
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Audit-gated settlement
                       </span>
                       <span className="flex items-center gap-1.5 text-cyan-400">
-                        <Lock className="w-3.5 h-3.5" /> Pre-Funded Vault Lock
+                        <ShieldCheck className="w-3.5 h-3.5" /> Client-authorized release
                       </span>
-                    </div>
-
-                    <div className="pt-1">
-                      <button
-                        onClick={handleCopyEscrowLink}
-                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-slate-950 font-bold text-xs py-2.5 px-4 rounded-xl shadow-md transition-all active:scale-95"
-                      >
-                        {copiedLink ? <CheckCircle2 className="w-4 h-4 text-slate-950" /> : <Copy className="w-4 h-4 text-slate-950" />}
-                        <span>{copiedLink ? '✓ Escrow Intake Link Copied to Clipboard!' : 'Copy Client Escrow Intake Link'}</span>
-                      </button>
                     </div>
                   </div>
                 )
@@ -705,10 +691,10 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                           </div>
                         </div>
 
-                        {/* Claimed Funds vs Escrow Cap Progress */}
+                        {/* Settled Funds vs Envelope Progress */}
                         <div className="space-y-1.5 bg-[#0f1115] p-3 rounded-lg border border-slate-800">
                           <div className="flex justify-between text-xs font-semibold">
-                            <span className="text-slate-400">Claimed Funds / Escrow Cap:</span>
+                            <span className="text-slate-400">Settled / Envelope Cap:</span>
                             <span className="text-emerald-400 font-mono">
                               ${project.spentUSD.toFixed(2)} / ${project.budgetCapUSD.toFixed(2)} USD
                             </span>
@@ -728,7 +714,7 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                           onClick={() => onSelectProject(project.id)}
                           className="font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md active:scale-95 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-slate-950"
                         >
-                          <span>Deliver & Claim Payout</span>
+                          <span>Deliver & Submit Proof</span>
                           <ArrowRight className="w-3.5 h-3.5 text-slate-950" />
                         </button>
                       </div>
@@ -737,38 +723,34 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                 })
               )}
 
-              {/* Enterprise Client Capacity & Intake Link Card (Balances visual column height) */}
+              {/* Inbound Settlement Governance */}
               <div className="p-5 rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-[#121b24]/80 via-[#16181d] to-[#12232e]/40 shadow-xl space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5">
                     <div className="p-2 rounded-xl bg-cyan-950 border border-cyan-500/40 text-cyan-400">
-                      <Sparkles className="w-4 h-4" />
+                      <ShieldCheck className="w-4 h-4" />
                     </div>
                     <div>
-                      <span className="text-xs font-bold text-white block">Enterprise Client Capacity Available</span>
-                      <span className="text-[11px] text-slate-400">PayPal Vault escrow pre-funding ready for new incoming SOW mandates</span>
+                      <span className="text-xs font-bold text-white block">Inbound Settlement Governance</span>
+                      <span className="text-[11px] text-slate-400">Settlement authorization remains with the client</span>
                     </div>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 font-bold shrink-0">
-                    PRE-AUTHENTICATED
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 font-bold shrink-0">
+                    CLIENT-AUTHORIZED
                   </span>
                 </div>
 
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Accepting additional client contracts with guaranteed escrow locks. Share your pre-verified escrow intake link with prospective buyers to initiate automated milestone settlements.
+                  Contractors can submit milestone proof and review audit outcomes. Escrow release and settlement authorization are restricted to the client perspective.
                 </p>
 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
-                  <span className="text-[11px] text-slate-400 font-mono truncate">
-                    Intake: <strong className="text-cyan-300">agenticpay.ai/escrow/{currentProfile?.id || 'enterprise'}</strong>
+                <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800/80 text-[11px] font-mono">
+                  <span className="flex items-center gap-1.5 text-emerald-400">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Proof submission enabled
                   </span>
-                  <button
-                    onClick={handleCopyEscrowLink}
-                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 font-bold text-xs transition-all shrink-0 active:scale-95"
-                  >
-                    {copiedLink ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-cyan-300" />}
-                    <span>{copiedLink ? 'Copied!' : 'Copy Intake Link'}</span>
-                  </button>
+                  <span className="flex items-center gap-1.5 text-cyan-300">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Release controls restricted
+                  </span>
                 </div>
               </div>
             </div>

@@ -66,7 +66,7 @@ export class GuardrailEnforcer {
 
     return {
       allowed: true,
-      reason: `Budget Approved: $${amountUSD.toFixed(2)} within pre-authorized Vault envelope ceiling.`,
+      reason: `Budget Approved: $${amountUSD.toFixed(2)} within the contract envelope ceiling.`,
       riskLevel,
       requiresHumanApproval: amountUSD > AUTONOMOUS_SETTLEMENT_CAP_USD,
       settlementMode: amountUSD > AUTONOMOUS_SETTLEMENT_CAP_USD ? 'HUMAN_APPROVAL_REQUIRED' : 'AUTONOMOUS',

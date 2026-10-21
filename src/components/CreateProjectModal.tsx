@@ -72,7 +72,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           <div className="flex items-center gap-2 text-amber-400">
             <FolderPlus className="w-5 h-5" />
             <h3 className="font-bold text-lg text-white">
-              New Escrow Contract & Vault Initiative
+              New Escrow Contract
             </h3>
           </div>
           <button
@@ -99,7 +99,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 }`}
               >
                 💼 Direct Hire Contract
-                <span className="text-[10px] block opacity-70 font-normal">Standalone project initiative</span>
+                <span className="text-[10px] block opacity-70 font-normal">Standalone contract</span>
               </button>
 
               <button
@@ -119,7 +119,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             {isSubcontract && existingProjects.length > 0 && (
               <div className="pt-2">
                 <label className="text-[11px] text-cyan-300 block mb-1">
-                  Link to Parent Master Initiative:
+                  Link to Parent Contract:
                 </label>
                 <select
                   value={parentProjectId}
@@ -128,7 +128,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 >
                   {existingProjects.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} (${p.budgetCapUSD} USD)
+                      {p.name} (${p.budgetCapUSD.toFixed(2)} USD)
                     </option>
                   ))}
                 </select>
@@ -170,25 +170,25 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             <div>
               <label className="text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1">
                 <Mail className="w-3 h-3 text-amber-500/70" />
-                PayPal Contractor Email *
+                Contractor Settlement Email *
               </label>
               <input
                 type="email"
                 required
                 value={vendorEmail}
                 onChange={(e) => setVendorEmail(e.target.value)}
-                placeholder="vendor@sandbox.paypal.com"
+                placeholder="vendor@example.com"
                 className="w-full bg-[#0F1115] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
               />
             </div>
           </div>
 
-          {/* Vault Budget Cap & Legal Contract Type */}
+          {/* Envelope Ceiling & Legal Contract Type */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1">
                 <DollarSign className="w-3 h-3 text-emerald-400" />
-                Pre-Authorized Vault Ceiling *
+                Contract Envelope Ceiling *
               </label>
               <div className="flex items-center gap-2 bg-[#0F1115] border border-slate-800 rounded-lg px-3 py-2">
                 <span className="text-xs text-slate-400 font-bold">$</span>
@@ -203,6 +203,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 />
                 <span className="text-xs text-slate-500">USD</span>
               </div>
+              <p className="text-[10px] text-slate-500 mt-1.5">
+                The envelope ceiling is enforced locally. No funds are transferred when the contract is created.
+              </p>
             </div>
 
             <div>
@@ -249,7 +252,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               type="submit"
               className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 border border-amber-400/30 transition-all shadow-md active:scale-95"
             >
-              Pre-Authorize & Lock Escrow Contract
+              Create Escrow Contract
             </button>
           </div>
         </form>

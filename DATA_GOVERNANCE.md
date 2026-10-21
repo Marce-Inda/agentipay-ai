@@ -9,13 +9,13 @@ This document describes what data the current implementation processes, where it
 | Category | Examples | Storage | Notes |
 | :--- | :--- | :--- | :--- |
 | Account profile | Legal name, display name, email, PayPal settlement email, tax ID, billing address, account type | Browser `localStorage` (`agenticpay_profile_v2`) | Entered by the user. Not server-persisted. |
-| Contract data | Contract name, vendor/client names and emails, contract type, reference ID, escrow cap | Browser `localStorage` (`agenticpay_projects_v2`) | Includes milestones, acceptance criteria, and audit results. |
+| Contract data | Contract name, vendor/client names and emails, contract type, reference ID, envelope ceiling | Browser `localStorage` (`agenticpay_projects_v2`) | Includes milestones, acceptance criteria, and audit results. |
 | Financial envelope | Per-transaction cap, daily ceiling, spent today, active escrow, kill-switch state | Browser `localStorage` (`agenticpay_envelope_v2`) | Client-side state; not an authoritative ledger. |
-| Transaction ledger | Actor, action, amount, audit confidence, risk, status, PayPal payload log | Browser `localStorage` (`agenticpay_logs_v2`) | Rendered in AG Grid. |
+| Transaction ledger | Actor, action, amount, audit confidence, risk, status, settlement payload | Browser `localStorage` (`agenticpay_logs_v2`) | Rendered in AG Grid. |
 | AI prompts | Negotiation text and project context | Sent to the configured AI provider; not persisted server-side | May contain names, emails, or contract details entered by the user. |
 | Deliverables | Acceptance criteria, deliverable text or URL | Sent to `/api/agent/audit`; stored in the browser ledger | Truncated at 12,000 characters. |
-| PayPal credentials | Client ID, client secret | Environment variables | The public client ID reaches the browser. `PAYPAL_CLIENT_SECRET` is server-only; the browser PayPal client cannot read it. |
-| PayPal payout payloads | Batch ID, recipient, amount, HTTP log | Browser `localStorage` and route response | Current workspace records use generated `PAYPAL-BATCH-*` identifiers and synthetic payloads; they are not actual PayPal responses. |
+| PayPal credentials | Client ID, client secret | Environment variables | PayPal credentials are server-only. The PayPal client is not imported by the runtime UI. |
+| Settlement payloads | Local reference, recipient, amount, generated log | Browser `localStorage` | Current workspace records use generated `SETTLE-*` references. They are not PayPal responses and do not prove payment. |
 
 ---
 
@@ -40,9 +40,8 @@ User input
          workspace generates a PAYOUT_EXECUTED log
          no PayPal request is made
   |
-  +--> Optional browser PayPal client attempt
-         OAuth requires a secret the browser does not have
-         no live payout completes
+  +--> PayPal client (not imported by runtime UI)
+         no live payout path is reachable
 ```
 
 ---
@@ -50,11 +49,11 @@ User input
 ## 3. Privacy controls in the current build
 
 - **Data minimization by scope:** the application collects only the fields required for contract and settlement workflows.
-- **Secrets:** PayPal and AI provider keys are read from environment variables on the server. `PAYPAL_CLIENT_SECRET` is not exposed to the browser. The browser PayPal client therefore cannot complete live OAuth.
+- **Secrets:** PayPal and AI provider keys are read from environment variables on the server. The PayPal client is not imported by the runtime UI, so no browser OAuth path exists.
 - **Prompt-injection sanitization:** untrusted input is pattern-sanitized before it is sent to a model or wrapped into an audit block.
 - **Payload limiting:** deliverable text is truncated at 12,000 characters.
 - **Local deletion:** clearing browser storage removes profile, contract, envelope, and ledger data from that device.
-- **Simulated payout indicators:** when the browser has no PayPal client ID, the chat client returns a `SIM_PAYOUT_` result. Workspace settlement records are local and are not proof of payment.
+- **Settlement records:** the workspace writes local `PAYOUT_EXECUTED` records without calling an external payout API. These records are not proof of payment.
 - **No server retention:** prompts, deliverables, and settlement records are not persisted server-side by the current implementation.
 
 ---

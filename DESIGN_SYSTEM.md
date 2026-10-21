@@ -67,15 +67,15 @@ The design avoids neon gradients, decorative glass effects, and generic AI chat 
 Header
   - Product identity
   - Context badge: portfolio or active contract
-  - Outbound escrow metric
-  - Inbound escrow metric
-  - Escrow health
+  - Outbound envelope metric
+  - Inbound contract value metric
+  - Settlement health
   - Kill-switch
   - Account settings
 
 Portfolio view
   - Page title and portfolio actions
-  - Enterprise capacity summary (business accounts only)
+  - Account identity and compliance banner
   - Global toolbar: search, status filter, focus switch
   - Two-column swimlanes
       - Outbound Escrow / Accounts Payable
@@ -85,11 +85,11 @@ Portfolio view
 Workspace view
   - Back navigation and contract title
   - Perspective and parent mandate badges
-  - Escrow Guarantee / Vault Ceiling
-  - Claimed / Settled
+  - Contract Value / Envelope Ceiling
+  - Settled / Remaining
   - Freeze control (outbound only)
   - Agent assistant
-  - Milestone audit and release panel
+  - Milestone audit and settlement panel
   - Project ledger
 ```
 
@@ -99,8 +99,8 @@ Workspace view
 
 ### Header
 
-- Shows `outboundEscrowCap` and `inboundEscrowCap` separately.
-- Inbound uses `Claimed`; outbound uses `Settled`.
+- Shows `Outbound Envelope`, `Inbound Contract Value`, `Envelope Ceiling`, and `Settled` metrics.
+- Freeze-state copy reads `SETTLEMENTS FROZEN` when the kill-switch is engaged.
 - The workspace badge is static context, not a navigation control.
 - The kill-switch is visually prominent and changes the header to an alert state when active.
 
@@ -113,26 +113,10 @@ Workspace view
 
 ### Contract card
 
-- Title, counterparty, perspective badge, status badge, escrow cap, settled amount, and milestone progress.
+- Title, counterparty, perspective badge, status badge, envelope ceiling, settled amount, and milestone progress.
 - Subcontract badge is mutually exclusive: `SUBCONTRACTED` or `DIRECT HIRE`.
 - Parent mandate name is shown when a parent contract exists.
 - Selecting the card opens the workspace.
-
-### Intake link
-
-- The portfolio generates a link at `/escrow/intake/{slug}`.
-- The slug is derived from the legal company name, then the display name, sanitized for URL use.
-- The copy control has three states:
-  - `IDLE`: "Copy Client Escrow Intake Link"
-  - `COPIED`: "Link Copied"
-  - `FAILED`: "Clipboard Unavailable — Copy Link Manually"
-- The link uses `window.location.origin`, not a hardcoded domain.
-
-### Enterprise capacity card
-
-- Renders only when `role === 'BUSINESS'` or `accountType === 'BUSINESS'`.
-- Displays available capacity and the intake action.
-- Does not claim custody or guaranteed settlement.
 
 ### Workspace
 
@@ -144,10 +128,9 @@ Workspace view
 
 ### Agent assistant
 
-- Initial message identifies the active contract and the locally configured budget cap.
-- Preset actions insert prompts; they do not execute payouts.
-- Target amount is validated against the remaining budget before any local settlement record.
-- A blocked settlement produces a clear guardrail message and a `REJECTED` ledger event.
+- Initial message identifies the active contract, its envelope, and the negotiation-only scope.
+- The target amount is validated against the remaining envelope before any local settlement record.
+- A blocked negotiation produces a clear guardrail message and a `REJECTED` ledger event.
 
 ### AG Grid ledger
 
@@ -215,7 +198,7 @@ Use precise operational language:
 - Inbound Escrow / Accounts Receivable
 - Client (Escrow Funder)
 - Contractor (Escrow Beneficiary)
-- Escrow Cap, Vault Ceiling, Claimed, Settled
+- Contract Value, Envelope Ceiling, Settled, Remaining
 - Audit Confidence, Risk Level, Settlement Mode
 - Human Authorization, Contract Freeze, Kill-Switch
 

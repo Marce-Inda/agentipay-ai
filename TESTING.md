@@ -95,7 +95,7 @@ npm test -- ledger.test
 - Real PayPal Sandbox network calls in CI.
 - A server-side PayPal payout route, because none exists.
 - The audit endpoint's GitHub URL auto-pass with empty deliverable text.
-- The AI chat's hardcoded 98% audit score and simulated acceptance flow.
+- The negotiation-only AI chat has no automated browser coverage.
 - Ledger deduplication for repeated log IDs.
 - Authentication, authorization, rate limiting, and tenant isolation.
 - Accessibility and responsive layout.

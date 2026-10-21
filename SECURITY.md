@@ -10,7 +10,7 @@ AgenticPay AI combines AI-assisted negotiation with escrow settlement. The secur
 | :--- | :--- |
 | Browser to API | Route handlers validate request shape and apply heuristic guardrails. They do not authenticate callers or rate-limit requests. |
 | API to AI provider | Prompts are sanitized and sent server-side; provider keys never reach the browser. |
-| Browser to PayPal | The PayPal client currently runs in the browser. Only the public client ID is available; `PAYPAL_CLIENT_SECRET` is not, so OAuth cannot complete and no live payout can be made. |
+| Browser to PayPal | No browser-to-PayPal request path exists. The PayPal client is not imported by the runtime UI. |
 | AI to settlement | The model cannot authorize or execute payouts. Settlement requires deterministic checks and a workspace action, but those checks are not server-authoritative. |
 | Client state | Portfolio state is stored in `localStorage` and is not trusted as an authoritative ledger. |
 | Settlement execution | The workspace records local `PAYOUT_EXECUTED` events with generated batch IDs; no PayPal request is sent. |
@@ -49,7 +49,7 @@ amount <= project.budgetCapUSD - project.spentUSD
 
 `applyTransactionLogToProjects` is the only helper that increments `spentUSD`. It accepts only `PAYOUT_EXECUTED` logs with a positive finite amount. It processes each log passed to it and does not deduplicate repeated log IDs, so applying the same log twice double-counts the settled amount.
 
-The workspace emits a synthetic `PAYOUT_EXECUTED` log without calling PayPal. The AI chat displays a hardcoded 98% audit confidence and a simulated seller acceptance flow; it does not submit a deliverable to the audit endpoint.
+The workspace emits a local `PAYOUT_EXECUTED` log without calling PayPal. The AI chat is a negotiation assistant; it does not display an audit score, submit deliverables, or record settlements.
 
 ### Emergency controls
 
@@ -78,9 +78,9 @@ This is a pattern-based defense, not a complete prompt-injection solution. It sh
 ## 4. Credential handling
 
 - `PAYPAL_CLIENT_SECRET`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, and `GEMINI_API_KEY` are read server-side by route handlers where applicable.
-- The browser receives `NEXT_PUBLIC_PAYPAL_CLIENT_ID` and `NEXT_PUBLIC_APP_URL`. It also contains PayPal client code that attempts OAuth, but it has no access to the secret.
+- The browser receives `NEXT_PUBLIC_APP_URL`. The PayPal client is not imported by the runtime UI. `PAYPAL_CLIENT_SECRET` remains server-only.
 - `.env`, `.env.local`, and `.env.production` are excluded from version control.
-- The browser shows a simulated PayPal result when the client ID is absent or set to `placeholder`. If a client ID is present, the browser OAuth request fails because the secret is unavailable.
+- No browser OAuth or payout request is made. Workspace releases write local settlement records only.
 
 Do not log authorization headers, access tokens, or full credential payloads.
 
@@ -91,7 +91,7 @@ Do not log authorization headers, access tokens, or full credential payloads.
 The current implementation:
 
 - Contains PayPal Sandbox OAuth and `/v1/payments/payouts` code in `src/lib/paypal/client.ts`.
-- Invokes that code only from the client-side `AgentChat` component, where a live OAuth exchange cannot succeed.
+- Does not import or invoke that client from the runtime UI; only unit tests exercise it.
 - Generates a `PayPal-Request-Id` header per call using the current timestamp and random values. It is not deterministic and does not prevent duplicate payouts.
 - Records workspace releases locally without calling PayPal.
 - Does not implement a server payout route, Orders, Vault tokenization, webhooks, refunds, or dispute handling.

@@ -12,7 +12,7 @@ Autonomous software agents can negotiate and prepare work, but organizations sti
 - Deterministic budget and settlement guardrails.
 - Milestone deliverable audits.
 - A ledger that records local financial actions and audit outcomes.
-- PayPal as the intended settlement rail. The current build contains client-side payout code but does not execute live payouts.
+- PayPal as the intended settlement rail. The current build contains a Sandbox payout adapter and no runtime payout path.
 
 The target segments are:
 
@@ -63,7 +63,6 @@ Not implemented today:
 - KYC/KYB or sanctions screening.
 - Multimodal vision audit.
 - Server-side persistence or immutable audit storage.
-- A functional escrow intake page; the portfolio only generates the link.
 
 Commercial packaging below is therefore a strategy, not a description of shipped billing.
 

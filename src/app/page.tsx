@@ -7,6 +7,7 @@ import { ProjectWorkspaceView } from '../components/ProjectWorkspaceView';
 import { AccountSettingsModal } from '../components/AccountSettingsModal';
 import { CreateProjectModal } from '../components/CreateProjectModal';
 import { BudgetEnvelope, ProjectContract, TransactionLog, UserProfile } from '../lib/types';
+import { applyTransactionLogToProjects } from '../lib/ledger';
 
 const INITIAL_PROFILE: UserProfile = {
   id: 'usr-biz-1',
@@ -47,7 +48,7 @@ const INITIAL_PROJECTS: ProjectContract[] = [
         auditScore: 98,
         auditRationale: 'VERIFIED: Automated inspection confirmed OAuth2 token handling, PostgreSQL migrations, and 94% test suite coverage.',
         deliverableProof: 'https://github.com/agency/web-platform/pull/1',
-        payPalBatchId: 'AGENTICPAY_PROJ1_BATCH',
+        payPalBatchId: 'SETTLE-PROJ1-001',
       },
       {
         id: 'ms-1-2',
@@ -61,11 +62,11 @@ const INITIAL_PROJECTS: ProjectContract[] = [
       {
         id: 'ms-1-3',
         phaseNumber: 3,
-        title: 'Phase 3: PayPal Sandbox Integration & E2E Testing',
-        description: 'Real-time SSE streaming, Vault pre-authorization & E2E test suite',
+        title: 'Phase 3: Settlement Integration & E2E Testing',
+        description: 'Real-time SSE streaming, escrow envelope controls & E2E test suite',
         amountUSD: 75,
         status: 'LOCKED',
-        acceptanceCriteria: 'PayPal Sandbox REST API Vault integration, automated webhook handler with idempotent processing, and passing Jest test suite.',
+        acceptanceCriteria: 'Settlement API integration, idempotent transaction handling, and passing automated test suite.',
       },
     ],
   },
@@ -127,16 +128,16 @@ const INITIAL_PROJECTS: ProjectContract[] = [
         auditScore: 99,
         auditRationale: 'VERIFIED: Architecture blueprint verified against financial security standards and OpenAPI 3.0 specs.',
         deliverableProof: 'https://github.com/apex/settlement/pull/12',
-        payPalBatchId: 'APEX_BATCH_001',
+        payPalBatchId: 'SETTLE-APEX-001',
       },
       {
         id: 'ms-4-2',
         phaseNumber: 2,
         title: 'Phase 2: Payment Gateway & Microservice Worker',
-        description: 'Real-time PayPal Vault integration and automated settlement worker',
+        description: 'Settlement API integration and automated settlement worker',
         amountUSD: 500,
         status: 'PENDING',
-        acceptanceCriteria: 'PayPal Sandbox REST API Vault integration, automated webhook handler with idempotent processing, and unit test coverage >= 85%.',
+        acceptanceCriteria: 'Settlement API integration, automated webhook handler with idempotent processing, and unit test coverage >= 85%.',
       },
       {
         id: 'ms-4-3',
@@ -201,14 +202,14 @@ const INITIAL_LOGS: TransactionLog[] = [
     projectName: 'Web Platform Engineering',
     timestamp: '2026-10-07T12:00:00.000Z',
     agentRole: 'GUARDRAIL',
-    action: 'Project Contract Enforced: Web Platform Engineering ($250.00 Vault Cap)',
+    action: 'Milestone Settled in Local Ledger: Web Platform Engineering ($250.00 Envelope Cap)',
     amountUSD: 75,
     recipientEmail: 'dev@agency.com',
     auditConfidenceScore: 98,
     status: 'PAYOUT_EXECUTED',
     riskLevel: 'LOW',
-    payPalTransactionId: 'AGENTICPAY_PROJ1_BATCH',
-    httpPayloadLog: 'POST https://api-m.sandbox.paypal.com/v1/payments/payouts [201 Created]',
+    payPalTransactionId: 'SETTLE-PROJ1-001',
+    httpPayloadLog: 'LOCAL SETTLEMENT RECORD: Milestone 1 approved; no external payout API called.',
   },
   {
     id: 'log-init-2',
@@ -216,7 +217,7 @@ const INITIAL_LOGS: TransactionLog[] = [
     projectName: 'UI/UX Brand Redesign',
     timestamp: '2026-10-07T12:05:00.000Z',
     agentRole: 'GUARDRAIL',
-    action: 'Project Contract Active: UI/UX Brand Redesign ($150.00 Vault Cap)',
+    action: 'Project Contract Active: UI/UX Brand Redesign ($150.00 Envelope Cap)',
     amountUSD: 0,
     recipientEmail: 'design@studio.com',
     auditConfidenceScore: 100,
@@ -242,16 +243,22 @@ export default function Home() {
     try {
       const savedProfile = localStorage.getItem('agenticpay_profile_v2');
       if (savedProfile) {
-        setCurrentProfile(JSON.parse(savedProfile));
+        const parsed = JSON.parse(savedProfile) as UserProfile;
+        const accountType = parsed.accountType ?? (parsed.role === 'BUSINESS' ? 'BUSINESS' : 'PERSONAL');
+        setCurrentProfile({
+          ...parsed,
+          accountType,
+          role: accountType === 'BUSINESS' ? 'BUSINESS' : parsed.role === 'FREELANCER' ? 'FREELANCER' : 'PERSONAL',
+        });
       } else {
         setCurrentProfile(INITIAL_PROFILE);
       }
 
       const savedProjects = localStorage.getItem('agenticpay_projects_v2');
       if (savedProjects) {
-        const parsed: ProjectContract[] = JSON.parse(savedProjects);
-        if (parsed.length >= 4 && parsed.some((p) => p.perspective === 'INCOMING')) {
-          setProjects(parsed);
+        const parsed: unknown = JSON.parse(savedProjects);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setProjects(parsed as ProjectContract[]);
         } else {
           setProjects(INITIAL_PROJECTS);
         }
@@ -286,14 +293,7 @@ export default function Home() {
 
   const handleAddLog = (newLog: TransactionLog) => {
     setLogs((prev) => [newLog, ...prev]);
-
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === newLog.projectId
-          ? { ...p, spentUSD: p.spentUSD + (newLog.status === 'PAYOUT_EXECUTED' ? newLog.amountUSD : 0) }
-          : p
-      )
-    );
+    setProjects((prev) => applyTransactionLogToProjects(prev, newLog));
   };
 
   const handleSelectProject = (projectId: string) => {
@@ -328,7 +328,7 @@ export default function Home() {
       projectName: newProject.name,
       timestamp: new Date().toISOString(),
       agentRole: 'GUARDRAIL',
-      action: `New Escrow Contract Created: "${newProject.name}" (Vendor: ${newProject.vendorEmail} | Vault Cap: $${newProject.budgetCapUSD.toFixed(2)}${newProject.contractType ? ` | ${newProject.contractType}` : ''})`,
+      action: `New Escrow Contract Created: "${newProject.name}" (Vendor: ${newProject.vendorEmail} | Envelope Cap: $${newProject.budgetCapUSD.toFixed(2)}${newProject.contractType ? ` | ${newProject.contractType}` : ''})`,
       amountUSD: 0,
       recipientEmail: newProject.vendorEmail,
       auditConfidenceScore: 100,
@@ -339,24 +339,16 @@ export default function Home() {
 
   const handleToggleProjectFreeze = (projectId: string) => {
     setProjects((prev) =>
-      prev.map((p) =>
-        p.id === projectId
-          ? { ...p, status: p.status === 'PAUSED' ? 'ACTIVE' : 'PAUSED' }
-          : p
-      )
+      prev.map((p) => {
+        if (p.id !== projectId) return p;
+        if (p.perspective === 'INCOMING') return p;
+        return { ...p, status: p.status === 'PAUSED' ? 'ACTIVE' : 'PAUSED' };
+      })
     );
   };
 
   const handleUpdateProject = (updatedProject: ProjectContract) => {
-    setProjects((prev) => {
-      const next = prev.map((p) => (p.id === updatedProject.id ? updatedProject : p));
-      try {
-        localStorage.setItem('agenticpay_projects_v2', JSON.stringify(next));
-      } catch (e) {
-        console.error('Failed to sync updated project to localStorage', e);
-      }
-      return next;
-    });
+    setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
   };
 
   const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
@@ -395,11 +387,8 @@ export default function Home() {
             envelope={envelope}
             projects={projects}
             logs={logs}
-            currentProfile={currentProfile}
             onBackToPortfolio={() => setActiveView('PORTFOLIO')}
-            onSelectProject={handleSelectProject}
             onToggleProjectFreeze={handleToggleProjectFreeze}
-            onUpdateEnvelope={setEnvelope}
             onAddLog={handleAddLog}
             onUpdateProject={handleUpdateProject}
           />

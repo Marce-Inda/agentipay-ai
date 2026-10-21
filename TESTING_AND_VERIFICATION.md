@@ -14,7 +14,7 @@ A phase is considered verified only when its automated checks and the relevant m
 | 2 | Portfolio, workspace, AG Grid, account settings | Complete | Manual UI verification and production build |
 | 3 | Deterministic guardrails and PayPal Sandbox client code | Partial | Guardrail and PayPal unit suites pass; live payout wiring is absent |
 | 4 | Streamed AI assistant | Complete | `/api/agent/stream` tests passing |
-| 5 | Deliverable audit and local settlement workflow | Partial | `/api/agent/audit` and ledger tests pass; workspace settlement is simulated |
+| 5 | Deliverable audit and local settlement workflow | Partial | `/api/agent/audit` and ledger tests pass; workspace writes a local settlement record; no external payout is sent |
 | 6 | Deployment and production hardening | In progress | Docker and Render configuration present; production controls pending |
 
 ---
@@ -63,7 +63,7 @@ There is no CI workflow. These commands are run locally until a pipeline is adde
 | Payout request construction | `paypal.client.test.ts` | Unit-level request targets `/v1/payments/payouts` with a `PayPal-Request-Id` header. |
 | Payload log | `paypal.client.test.ts` | Response includes a formatted HTTP log. |
 | Error handling | `paypal.client.test.ts` | Non-success responses throw with useful context. |
-| Live Sandbox | Manual | Not verified. The client runs in the browser without the secret, and no server payout route exists. |
+| Live Sandbox | Manual | Not verified. The client is not imported by the runtime UI, and no server payout route exists. |
 
 Live Sandbox verification requires credentials and should not run in the default unit test suite.
 
@@ -108,13 +108,11 @@ Live Sandbox verification requires credentials and should not run in the default
 | Audit result | Confidence, risk, rationale, and settlement mode are displayed. |
 | Human approval | Milestone above $1,000 USD enters `AUDITED_PENDING_APPROVAL` and requires an explicit action. |
 | Budget guard | Over-budget release is blocked before a local settlement record is written. |
-| Intake link | Uses the current origin and `/escrow/intake/{slug}`. The target route is not implemented. |
-| Copy feedback | Shows copied or manual-copy fallback state. |
 | Subcontract badge | Shows exactly one of `SUBCONTRACTED` or `DIRECT HIRE`. |
 | Parent mandate | Parent contract name is displayed when linked. |
-| Capacity card | Renders only for business accounts. |
+| Account banner | Identifies business or individual account context and shows settlement email and compliance status. |
 | Ledger | Rows update after audit and a local settlement record; payload inspector opens. |
-| Settlement truth | Workspace marks milestones complete and emits synthetic `PAYOUT_EXECUTED` logs; no PayPal request is made. |
+| Settlement truth | Workspace marks milestones complete and emits local `PAYOUT_EXECUTED` logs with `SETTLE-*` references; no PayPal request is made. |
 | Persistence | Refresh preserves profile, contracts, envelope, and logs. |
 
 Use [E2E_DUAL_ROLE_GRID_TEST_PLAN.md](E2E_DUAL_ROLE_GRID_TEST_PLAN.md) for the full sequence.

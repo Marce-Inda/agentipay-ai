@@ -24,6 +24,26 @@ describe('/api/agent/audit', () => {
       expect(data.error).toBe('Deliverable content or URL is required for audit verification');
     });
 
+    it('should return 423 when the master kill-switch is active', async () => {
+      const req = {
+        json: async () => ({
+          deliverableText: 'Complete implementation with all requirements met',
+          expectedRequirements: 'Full compliance',
+          milestoneAmountUSD: 450,
+          envelope: { killSwitchActive: true },
+        }),
+      } as any as NextRequest;
+
+      const res = await POST(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(423);
+      expect(data.success).toBe(false);
+      expect(data.settlementMode).toBe('REJECTED');
+      expect(data.riskLevel).toBe('CRITICAL');
+      expect(data.requiresHumanApproval).toBe(true);
+    });
+
     it('should return 200 with valid deliverable text', async () => {
       const req = {
         json: async () => ({

@@ -25,7 +25,7 @@ AgenticPay AI
         |
         | No server payout call in the current build
         v
-PayPal Sandbox REST API (client-side code only; not operational)
+PayPal Sandbox REST API (adapter code present; not operational)
 ```
 
 The application does not claim to be a licensed escrow agent, money transmitter, or payment institution. Production operation would require legal and regulatory review in each jurisdiction.

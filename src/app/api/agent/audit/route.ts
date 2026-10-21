@@ -10,7 +10,23 @@ export async function POST(req: NextRequest) {
       expectedRequirements = 'Complete milestone deliverable according to specifications.',
       milestoneTitle = '',
       milestoneAmountUSD = 0,
+      envelope,
     } = body;
+
+    if (envelope?.killSwitchActive === true) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Emergency kill-switch is active. Escrow releases are halted.',
+          reason: 'CRITICAL: Emergency Kill-Switch is ACTIVE. All transactions halted.',
+          auditConfidenceScore: 0,
+          riskLevel: 'CRITICAL',
+          requiresHumanApproval: true,
+          settlementMode: 'REJECTED',
+        },
+        { status: 423 }
+      );
+    }
 
     if (!deliverableText.trim() && !deliverableUrl.trim()) {
       return NextResponse.json(

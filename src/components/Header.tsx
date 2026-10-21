@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   LayoutGrid,
   Settings,
+  PauseCircle,
 } from 'lucide-react';
 import { BudgetEnvelope, ProjectContract, UserProfile } from '../lib/types';
 
@@ -43,9 +44,20 @@ export const Header: React.FC<HeaderProps> = ({
   const isPortfolio = activeView === 'PORTFOLIO';
   const activeProject = projects.find((p) => p.id === selectedProjectId);
 
-  const totalVaultCap = projects.reduce((acc, p) => acc + p.budgetCapUSD, 0);
-  const totalSpent = projects.reduce((acc, p) => acc + p.spentUSD, 0);
+  const outboundEscrowCap = projects
+    .filter((p) => p.perspective !== 'INCOMING')
+    .reduce((acc, p) => acc + p.budgetCapUSD, 0);
+  const inboundEscrowCap = projects
+    .filter((p) => p.perspective === 'INCOMING')
+    .reduce((acc, p) => acc + p.budgetCapUSD, 0);
   const isBusiness = currentProfile.role === 'BUSINESS' || currentProfile.accountType === 'BUSINESS';
+  const hasPausedEscrow = projects.some((p) => p.status === 'PAUSED');
+  const escrowHealth = envelope.killSwitchActive
+    ? { label: 'EMERGENCY STOP', tone: 'text-red-400', icon: ShieldAlert }
+    : hasPausedEscrow
+    ? { label: 'SETTLEMENTS FROZEN', tone: 'text-amber-400', icon: PauseCircle }
+    : { label: 'SYSTEM HEALTHY', tone: 'text-emerald-400', icon: CheckCircle2 };
+  const EscrowHealthIcon = escrowHealth.icon;
 
   const [killSwitchConfirmPending, setKillSwitchConfirmPending] = React.useState(false);
 
@@ -123,24 +135,9 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-2 bg-[#0f1115] border border-amber-900/40 px-3 py-1.5 rounded-lg shadow-inner">
             <LayoutGrid className="w-4 h-4 text-amber-500" />
             <span className="text-slate-400 font-medium">Context:</span>
-            <select
-              value="PORTFOLIO"
-              onChange={(e) => {
-                if (e.target.value !== 'PORTFOLIO') {
-                  onSelectProject(e.target.value);
-                }
-              }}
-              className="bg-transparent text-amber-200 font-bold text-xs focus:outline-none cursor-pointer"
-            >
-              <option value="PORTFOLIO" className="bg-[#16181d] text-white">
-                📁 Global Portfolio ({projects.length} Contracts)
-              </option>
-              {projects.map((proj) => (
-                <option key={proj.id} value={proj.id} className="bg-[#16181d] text-white">
-                  ⚡ Open: {proj.name} (${proj.budgetCapUSD})
-                </option>
-              ))}
-            </select>
+            <span className="text-amber-200 font-bold text-xs">
+              📁 Global Portfolio ({projects.length} Contracts)
+            </span>
           </div>
         ) : (
           /* Active Project Workspace Breadcrumb & Switcher */
@@ -170,7 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
               </option>
               {projects.map((proj) => (
                 <option key={proj.id} value={proj.id} className="bg-[#16181d] text-white">
-                  {proj.status === 'PAUSED' ? '⏸️' : '⚡'} {proj.name} (${proj.budgetCapUSD})
+                  {proj.status === 'PAUSED' ? '⏸️' : '⚡'} {proj.name} (${proj.budgetCapUSD.toFixed(2)})
                 </option>
               ))}
             </select>
@@ -183,14 +180,14 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-3 bg-[#0f1115] border border-slate-800 px-3.5 py-1.5 rounded-lg">
             <div className="flex items-center text-slate-300">
               <Lock className="w-3.5 h-3.5 text-amber-500 mr-1" />
-              <span>Total Vault Cap: </span>
-              <strong className="text-white ml-1 font-mono">${totalVaultCap.toFixed(2)} USD</strong>
+              <span>Outbound Envelope: </span>
+              <strong className="text-white ml-1 font-mono">${outboundEscrowCap.toFixed(2)} USD</strong>
             </div>
             <div className="h-3 w-px bg-slate-800" />
             <div className="flex items-center text-slate-300">
-              <DollarSign className="w-3.5 h-3.5 text-emerald-400 mr-0.5" />
-              <span>Total Settled: </span>
-              <strong className="text-emerald-400 ml-1 font-mono">${totalSpent.toFixed(2)}</strong>
+              <DollarSign className="w-3.5 h-3.5 text-cyan-400 mr-0.5" />
+              <span>Inbound Contract Value: </span>
+              <strong className="text-cyan-300 ml-1 font-mono">${inboundEscrowCap.toFixed(2)} USD</strong>
             </div>
           </div>
         ) : (
@@ -198,7 +195,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-3 bg-[#0f1115] border border-cyan-500/30 px-3.5 py-1.5 rounded-lg">
             <div className="flex items-center text-slate-300">
               <Lock className="w-3.5 h-3.5 text-cyan-400 mr-1" />
-              <span>Project Cap: </span>
+              <span>Envelope Ceiling: </span>
               <strong className="text-white ml-1 font-mono">
                 ${activeProject?.budgetCapUSD.toFixed(2)} USD
               </strong>
@@ -206,7 +203,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="h-3 w-px bg-slate-800" />
             <div className="flex items-center text-slate-300">
               <DollarSign className="w-3.5 h-3.5 text-emerald-400 mr-0.5" />
-              <span>Spent: </span>
+              <span>Settled:</span>
               <strong className="text-emerald-400 ml-1 font-mono">
                 ${activeProject?.spentUSD.toFixed(2)}
               </strong>
@@ -216,11 +213,9 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Escrow Status Badge */}
         <div className="flex items-center gap-2 bg-[#0f1115] border border-slate-800 px-3 py-1.5 rounded-lg">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <EscrowHealthIcon className={`w-4 h-4 ${escrowHealth.tone}`} />
           <span className="text-slate-300 font-medium">Status:</span>
-          <span className="text-emerald-400 font-bold font-mono">
-            {isPortfolio ? 'SYSTEM HEALTHY' : (activeProject?.status || 'ACTIVE')}
-          </span>
+          <span className={`${escrowHealth.tone} font-bold font-mono`}>{escrowHealth.label}</span>
         </div>
 
         {/* Master Emergency Kill-Switch Toggle with Two-Click Confirmation */}

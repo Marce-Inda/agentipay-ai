@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- Removed unsupported payout, preset, simulated acceptance, and hardcoded audit-confidence behavior from the negotiation assistant.
+- Removed the portfolio intake-link, capacity-card, and account-switching surfaces that were not part of the current workflow.
+- Standardized workspace terminology to `Outbound Envelope`, `Inbound Contract Value`, `Envelope Ceiling`, `Settled`, and `Remaining`.
+- Clarified that workspace settlement writes local `SETTLE-*` records and does not call PayPal.
+- Aligned README, architecture, security, data-governance, design, testing, compliance, ethics, and contribution documentation with the current UI and settlement behavior.
+
+### Fixed
+
+- Removed stale prop wiring from the portfolio/workspace view boundary and unused account-profile dependencies.
+
+---
+
 ## [0.6.1] - 2026-10-20
 
 ### Changed

@@ -33,7 +33,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-If the browser has no PayPal client ID, the chat's PayPal client returns a simulated result. If a client ID is present, the browser still cannot read `PAYPAL_CLIENT_SECRET`, so OAuth fails. Workspace releases do not call PayPal. A live payout requires a new server-side route. The AI assistant requires a valid provider key.
+The PayPal client is not imported by the runtime UI. Workspace releases do not call PayPal. A live payout requires a new server-side route. The AI assistant requires a valid provider key.
 
 ---
 
@@ -83,7 +83,7 @@ Use production fintech language:
 - Inbound Escrow / Accounts Receivable
 - Client (Escrow Funder)
 - Contractor (Escrow Beneficiary)
-- Escrow Cap, Settled, Claimed
+- Contract Value, Envelope Ceiling, Settled, Remaining
 - Audit Confidence, Risk Level, Settlement Mode
 
 Avoid placeholder, demo, or temporary language in user-facing components.

@@ -3,7 +3,7 @@
 This plan verifies the implemented dual-perspective portfolio, milestone audit, guardrails, local settlement recording, and AG Grid ledger. It replaces the earlier role-switching test plan; account type and contract perspective are independent, and there is no in-app role switch.
 
 > [!IMPORTANT]
-> The workspace does not execute PayPal payouts. A release marks the milestone complete and writes a local `PAYOUT_EXECUTED` event with a generated `PAYPAL-BATCH-*` identifier. Use this plan to verify that behavior, not to claim a Sandbox payment.
+> The workspace does not execute PayPal payouts. A release marks the milestone complete and writes a local `PAYOUT_EXECUTED` event with a generated `SETTLE-*` identifier. Use this plan to verify that behavior, not to claim a Sandbox payment.
 
 ---
 
@@ -11,14 +11,13 @@ This plan verifies the implemented dual-perspective portfolio, milestone audit, 
 
 Covered:
 
-- Contract creation for outbound and inbound perspectives.
+- Contract creation for the outbound perspective and rendering of both perspectives.
 - Portfolio and workspace navigation.
 - Deliverable audit and confidence result.
 - Autonomous settlement recording at or below $1,000 USD.
 - Human authorization above $1,000 USD.
 - Contract freeze, kill-switch, and remaining-budget blocks.
 - Subcontract badge and parent mandate display.
-- Intake link generation and clipboard states.
 - Ledger updates and payload inspection.
 - Browser persistence after refresh.
 
@@ -26,7 +25,6 @@ Not covered:
 
 - Authentication, multi-user access, or tenant isolation.
 - Live PayPal Sandbox disbursement; no server payout route exists.
-- The unimplemented `/escrow/intake/{slug}` page.
 - Automated browser testing.
 - Load, concurrency, or accessibility certification.
 
@@ -49,7 +47,7 @@ For an isolated test pass, clear these browser keys before starting:
 - `agenticpay_envelope_v2`
 - `agenticpay_logs_v2`
 
-If the browser has no PayPal client ID, the chat's PayPal client returns a simulated result. If a client ID is configured, the browser still lacks `PAYPAL_CLIENT_SECRET`, so OAuth fails. Workspace releases do not call PayPal. A live Sandbox payout cannot be verified until a server-side route is implemented.
+The PayPal client is not imported by the runtime UI. Workspace releases do not call PayPal. A live Sandbox payout cannot be verified until a server-side route is implemented.
 
 ### Low-resource option
 
@@ -64,21 +62,20 @@ NODE_OPTIONS="--max-old-space-size=1024" npm run dev
 ### Test 1: Create an outbound contract
 
 1. Open the portfolio.
-2. Select **New Contract**.
-3. Choose the outbound perspective.
-4. Enter:
+2. Select **New Escrow Contract**.
+3. Enter:
    - Contract name: `E2E Integration Program`
    - Vendor: `Dev Agency LLC`
    - Email: `dev@agency.com`
-   - Escrow cap: `$250.00`
+   - Envelope ceiling: `$250.00`
    - Milestone: `Integration Delivery`, amount `$100.00`
-5. Save.
+4. Save.
 
 Expected:
 
 - The workspace opens for the new contract.
 - The portfolio card shows `Outbound Escrow • Accounts Payable`.
-- The header shows the outbound escrow cap.
+- The header shows the outbound envelope ceiling.
 - A `GUARDRAIL` ledger event records the contract creation.
 - `Settled` is `$0.00`.
 
@@ -90,8 +87,8 @@ Expected:
 Expected:
 
 - Role label reads `Client (Escrow Funder)`.
-- Summary labels include `Escrow Guarantee:` and `Vault Ceiling:`.
-- Amount labels include `Claimed:` and `Settled:`.
+- Summary labels include `Contract Value:` and `Envelope Ceiling:`.
+- Amount labels include `Settled:` and `Remaining:`.
 - The freeze control is available because this is an outbound contract.
 
 ### Test 3: Audit a deliverable
@@ -120,13 +117,13 @@ Expected:
 - The ledger records `PAYOUT_EXECUTED`.
 - The milestone becomes `COMPLETED`.
 - `Settled` increases by `$100.00` for that applied log.
-- The payload contains a generated `PAYPAL-BATCH-*` identifier and a synthetic HTTP log.
+- The payload contains a generated `SETTLE-*` identifier and a local settlement log.
 - Refreshing the page preserves the updated amount.
 - No PayPal request is made, regardless of configured credentials.
 
 ### Test 5: Human authorization above the cap
 
-1. Create or edit a contract with an escrow cap of `$2,000.00`.
+1. Create or edit a contract with an envelope ceiling of `$2,000.00`.
 2. Add a milestone of `$1,500.00`.
 3. Submit a deliverable that passes the audit.
 
@@ -165,7 +162,7 @@ Expected:
 
 ### Test 8: Remaining-budget guard
 
-1. Create an outbound contract with an escrow cap of `$200.00`.
+1. Create an outbound contract with an envelope ceiling of `$200.00`.
 2. Add a milestone of `$300.00`.
 3. Attempt to release it.
 
@@ -178,8 +175,8 @@ Expected:
 
 ### Test 9: Inbound contract and subcontracting
 
-1. Create an inbound contract with a parent contract reference.
-2. Save and inspect the portfolio card and workspace.
+1. Seed or hydrate an inbound contract with a parent contract reference. The creation modal currently creates outbound contracts.
+2. Inspect the portfolio card and workspace.
 
 Expected:
 
@@ -189,25 +186,11 @@ Expected:
 - The workspace uses `Contractor (Escrow Beneficiary)`.
 - The freeze control is hidden.
 
-### Test 10: Intake link
-
-1. From the portfolio, copy the client escrow intake link.
-2. Verify the copied URL and clipboard feedback.
-3. Open the URL in a new tab.
-
-Expected:
-
-- The URL follows `/escrow/intake/{slug}`.
-- The origin matches the current application origin.
-- The button shows a copied state.
-- If clipboard access is denied, the UI shows `Clipboard Unavailable — Copy Link Manually`.
-- The target page returns 404 because the intake route is not implemented.
-
-### Test 11: AG Grid ledger
+### Test 10: AG Grid ledger
 
 1. Open the ledger.
 2. Search and filter transactions.
-3. Inspect a payout payload.
+3. Inspect a settlement payload.
 4. Attempt a freeze action where permitted.
 
 Expected:
@@ -217,7 +200,7 @@ Expected:
 - The payload inspector displays a local synthetic log or a server-returned audit log. It is not necessarily an HTTP response from PayPal.
 - Freeze actions are available only for eligible outbound contracts.
 
-### Test 12: Business capacity card
+### Test 12: Account identity banner
 
 1. Open account settings.
 2. Switch the account type to `BUSINESS`.
@@ -226,9 +209,8 @@ Expected:
 
 Expected:
 
-- The enterprise capacity card appears only for business accounts.
-- The intake action remains available.
-- No custody or guaranteed-settlement claim is shown.
+- The banner identifies an Enterprise Business Account for business profiles and an Individual Professional Account otherwise.
+- The settlement email and compliance status are shown without custody or guaranteed-settlement claims.
 
 ---
 
@@ -259,7 +241,6 @@ Expected:
 - [ ] Kill-switch blocks audit (with request-body flag) and local settlement.
 - [ ] Remaining-budget guard blocks over-cap releases.
 - [ ] Subcontract badge and parent mandate are correct.
-- [ ] Intake link is generated and reports copy state; target route returns 404.
 - [ ] Ledger updates for each applied settlement log; duplicate-log behavior remains a known gap.
 - [ ] No PayPal request is made by the workspace release flow.
 - [ ] Browser refresh preserves state.

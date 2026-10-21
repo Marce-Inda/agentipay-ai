@@ -3,7 +3,7 @@
 This document describes the implemented architecture of AgenticPay AI: the client application, route handlers, financial guardrails, state model, PayPal integration code, and known boundaries.
 
 > [!IMPORTANT]
-> **Current limitation:** settlement is not operational end to end. Workspace releases write local `PAYOUT_EXECUTED` logs with generated batch identifiers and do not call PayPal. The PayPal client is instantiated only in the browser, where the OAuth secret is unavailable.
+> **Current limitation:** settlement is not operational end to end. Workspace releases write local `PAYOUT_EXECUTED` logs with generated batch identifiers and do not call PayPal. The PayPal client is not imported by the runtime UI.
 
 ---
 
@@ -18,7 +18,7 @@ This document describes the implemented architecture of AgenticPay AI: the clien
 |  - AG Grid transaction ledger                                         |
 |  - localStorage persistence (profile, projects, envelope, logs)       |
 |  - Workspace local settlement records                                 |
-|  - AgentChat browser-side PayPal client attempt                       |
+|  - AgentChat negotiation assistant (no payout client)                 |
 +-----------------------------------+-----------------------------------+
                                     |
                    POST /api/agent/stream   POST /api/agent/audit
@@ -47,11 +47,11 @@ The application is a modular monolith. There is no database, message broker, or 
 | :--- | :--- |
 | `src/app/page.tsx` | Owns profile, projects, budget envelope, and transaction logs. Hydrates from `localStorage`, creates contracts, applies ledger updates, and routes between portfolio and workspace views. |
 | `src/components/Header.tsx` | Portfolio/workspace navigation, directional escrow metrics, escrow health, and the master kill-switch. |
-| `src/components/ProjectPortfolioView.tsx` | Two-column outbound/inbound swimlanes, executive summaries, contract cards, subcontract badges, intake link, and business capacity card. |
-| `src/components/ProjectWorkspaceView.tsx` | Project header, milestone list, audit modal, payout authorization, project ledger, and freeze controls. |
-| `src/components/AgentChat.tsx` | Streamed negotiation assistant, preset actions, target amount, client-side guard checks, and a hardcoded 98% audit-confidence display. |
-| `src/components/CommandCenter.tsx` | AG Grid transaction ledger with risk, status, confidence, and PayPal payload inspection. |
-| `src/components/CreateProjectModal.tsx` | Contract creation, milestone setup, legal type, perspective, and parent-contract linkage. |
+| `src/components/ProjectPortfolioView.tsx` | Two-column outbound/inbound swimlanes, executive summaries, contract cards, and subcontract badges. |
+| `src/components/ProjectWorkspaceView.tsx` | Project header, milestone list, audit modal, client-authorized settlement, project ledger, and freeze controls. |
+| `src/components/AgentChat.tsx` | Streamed negotiation assistant with pre-settlement guard checks. It does not audit deliverables or record settlements. |
+| `src/components/CommandCenter.tsx` | AG Grid transaction ledger with risk, status, confidence, and settlement payload inspection. |
+| `src/components/CreateProjectModal.tsx` | Contract creation, milestone setup, legal type, settlement email, and optional parent-contract linkage. |
 | `src/components/AccountSettingsModal.tsx` | Legal identity, tax ID, settlement email, billing jurisdiction, and account tier. |
 
 ### View model
@@ -141,7 +141,7 @@ Hydration is guarded so invalid JSON falls back to the initial state. Writes beg
 7. Evaluate the result with `GuardrailEnforcer.evaluateAuditConfidence(score, amount)`.
 8. Return the score, rationale, risk level, sanitized text, settlement mode, a per-request idempotency key, and an optional simulated batch ID.
 
-The endpoint does not call an LLM and does not move funds. The GitHub/PR rule means a URL alone can pass the 85% gate without substantive deliverable text. The AI chat does not call this endpoint; it displays a hardcoded 98% confidence value.
+The endpoint does not call an LLM and does not move funds. The GitHub/PR rule means a URL alone can pass the 85% gate without substantive deliverable text. The AI chat does not call this endpoint or display an audit score.
 
 ### 4.3 Milestone release
 
@@ -149,10 +149,10 @@ The endpoint does not call an LLM and does not move funds. The GitHub/PR rule me
 2. A passing audit of `$1,000 USD` or less can be recorded as an autonomous settlement.
 3. A passing audit above `$1,000 USD` returns `HUMAN_APPROVAL_REQUIRED` and sets the milestone to `AUDITED_PENDING_APPROVAL`.
 4. Before recording a settlement, the workspace checks the project's remaining budget: `budgetCapUSD - spentUSD`.
-5. The workspace does **not** call PayPal. It marks the milestone complete and emits a `PAYOUT_EXECUTED` log with a generated `PAYPAL-BATCH-*` identifier and a synthetic HTTP payload. The audit response's `simulatedBatchId`, when present, is not a PayPal payment either.
+5. The workspace does **not** call PayPal. It marks the milestone complete and emits a `PAYOUT_EXECUTED` log with a generated `SETTLE-*` identifier and a local settlement payload. The audit response's `simulatedBatchId`, when present, is not a PayPal payment either.
 6. `applyTransactionLogToProjects` increments `spentUSD` for each `PAYOUT_EXECUTED` log passed to it. It does not deduplicate log IDs, so repeated log application double-counts settled amounts.
 
-The optional browser-side PayPal attempt occurs in `AgentChat`, not in the workspace release flow. It cannot read `PAYPAL_CLIENT_SECRET`; with no client ID it returns a simulated result, and with a client ID it fails OAuth.
+The PayPal client is not imported by the runtime UI. The workspace records settlements locally and does not initiate a PayPal request.
 
 ### 4.4 AI negotiation stream
 
@@ -206,10 +206,9 @@ The workspace and agent chat also enforce a **remaining project budget** check b
 
 The current integration is not operational end to end:
 
-- The client is imported only by the `'use client'` `AgentChat` component.
-- The browser has access only to the public client ID, never `PAYPAL_CLIENT_SECRET`.
-- With a client ID configured, OAuth fails in the browser. With no client ID, the simulated path is used.
-- The workspace release path bypasses the client and writes a local settlement record.
+- The client is not imported by the runtime UI; only its unit tests exercise it.
+- The workspace release path does not call the client and writes a local settlement record.
+- No server-side route invokes the client, so OAuth and payout execution are not reachable from the application.
 - `PayPal-Request-Id` is generated per invocation by `Date.now()` and random values. It is not deterministic and does not protect against duplicate payouts.
 
 **Not implemented:** a server-side payout route, Orders API, Vault tokenization, webhooks, refunds, disputes, and production onboarding.
@@ -235,9 +234,9 @@ The current integration is not operational end to end:
 - Audit scoring is heuristic and keyword-based, not semantic. GitHub/PR URLs bypass content evaluation.
 - Settlement is recorded locally; no server-side PayPal payout is executed.
 - PayPal Vault and production disbursement are out of scope.
-- The AI chat displays a hardcoded 98% audit confidence and does not invoke the audit endpoint.
+- The AI chat does not invoke the audit endpoint or record settlements.
 - Ledger application does not deduplicate `PAYOUT_EXECUTED` logs; repeated application double-counts.
-- The intake link is generated but `/escrow/intake/<slug>` is not implemented.
+- Client escrow intake links are not generated by the current portfolio UI.
 - Automated UI and end-to-end tests are not yet configured.
 - The AI fallback is a simple try/catch around stream construction; it does not retry partially streamed responses.
 

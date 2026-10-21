@@ -11,9 +11,14 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 interface CommandCenterProps {
   logs: TransactionLog[];
   onToggleProjectFreeze?: (projectId: string) => void;
+  canManageEscrow?: boolean;
 }
 
-export const CommandCenter: React.FC<CommandCenterProps> = ({ logs, onToggleProjectFreeze }) => {
+export const CommandCenter: React.FC<CommandCenterProps> = ({
+  logs,
+  onToggleProjectFreeze,
+  canManageEscrow = true,
+}) => {
   const [selectedLog, setSelectedLog] = useState<TransactionLog | null>(null);
 
   const columnDefs: ColDef<TransactionLog>[] = [
@@ -53,14 +58,14 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs, onToggleProj
         
         return (
           <span className={`px-2 py-0.5 rounded text-xs font-semibold border ${colorClass}`}>
-            {role === 'BUYER_AI' ? 'BUYER AGENT' : role === 'SELLER_AI' ? 'SELLER AGENT' : role === 'GUARDRAIL' ? 'GUARDRAIL' : 'PAYPAL ESCROW'}
+            {role === 'BUYER_AI' ? 'BUYER AGENT' : role === 'SELLER_AI' ? 'SELLER AGENT' : role === 'GUARDRAIL' ? 'GUARDRAIL' : 'SETTLEMENT LEDGER'}
           </span>
         );
       },
     },
     {
       field: 'action',
-      headerName: 'Milestone / Transaction Action',
+      headerName: 'Milestone / Settlement Action',
       flex: 1,
       minWidth: 200,
     },
@@ -77,6 +82,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs, onToggleProj
       width: 90,
       cellRenderer: (params: any) => {
         const score = params.value;
+        if (score == null) return <span className="font-bold text-slate-500">—</span>;
         const color = score >= 85 ? 'text-emerald-400' : 'text-amber-400';
         return <span className={`font-bold ${color}`}>{score}%</span>;
       },
@@ -114,12 +120,17 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs, onToggleProj
         } else if (status === 'GUARDRAIL_CHECKING' || status === 'AUDITING_DELIVERABLE') {
           icon = <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mr-1 animate-spin" />;
           textClass = 'text-amber-400';
+        } else if (status === 'AUDITED_PENDING_APPROVAL') {
+          icon = <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mr-1" />;
+          textClass = 'text-amber-400';
         }
+
+        const label = status === 'PAYOUT_EXECUTED' ? 'SETTLEMENT RECORDED' : status;
 
         return (
           <div className={`flex items-center text-xs font-medium ${textClass}`}>
             {icon}
-            <span>{status}</span>
+            <span>{label}</span>
           </div>
         );
       },
@@ -137,17 +148,17 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs, onToggleProj
               <button
                 onClick={() => setSelectedLog(log)}
                 className="flex items-center gap-1 bg-[#252830] hover:bg-amber-500/10 text-amber-400 text-xs px-2 py-1 rounded border border-amber-500/30 transition-all"
-                title="View PayPal REST Payload"
+                title="View Settlement Record"
               >
                 <Eye className="w-3 h-3" />
               </button>
             )}
 
-            {onToggleProjectFreeze && log.projectId && (
+            {canManageEscrow && onToggleProjectFreeze && log.projectId && (
               <button
                 onClick={() => onToggleProjectFreeze(log.projectId)}
                 className="flex items-center gap-1 bg-slate-800 hover:bg-amber-950/60 text-amber-400 text-xs px-2 py-1 rounded border border-amber-500/30 transition-all"
-                title="Freeze/Resume This Project Escrow"
+                title="Freeze/Resume Settlements for This Contract"
               >
                 <PauseCircle className="w-3.5 h-3.5" />
               </button>
@@ -197,7 +208,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs, onToggleProj
               <div className="flex items-center gap-2 text-amber-400">
                 <Terminal className="w-5 h-5" />
                 <h3 className="font-bold text-lg text-white">
-                  Escrow Settlement Detail ({selectedLog.projectName})
+                  Settlement Detail ({selectedLog.projectName})
                 </h3>
               </div>
               <button
@@ -211,8 +222,8 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ logs, onToggleProj
             <div className="space-y-2 text-xs text-slate-300">
               <div><strong>Project:</strong> <span className="text-amber-400 font-bold">{selectedLog.projectName}</span></div>
               <div><strong>Action:</strong> {selectedLog.action}</div>
-              <div><strong>Recipient:</strong> <span className="text-slate-200">{selectedLog.recipientEmail}</span></div>
-              <div><strong>PayPal Settlement Ref:</strong> <span className="font-mono text-emerald-400">{selectedLog.payPalTransactionId || 'N/A'}</span></div>
+              <div><strong>Counterparty:</strong> <span className="text-slate-200">{selectedLog.recipientEmail}</span></div>
+              <div><strong>Settlement Ref:</strong> <span className="font-mono text-emerald-400">{selectedLog.payPalTransactionId || 'N/A'}</span></div>
             </div>
 
             <div className="bg-[#0F1115] p-4 rounded-lg border border-amber-500/20 font-mono text-xs text-amber-300 overflow-x-auto max-h-60">
