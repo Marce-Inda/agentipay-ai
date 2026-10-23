@@ -5,7 +5,7 @@
 AgenticPay AI is a dual-perspective escrow workspace for organizations that both commission work and deliver work. It combines an AI negotiation assistant, deterministic settlement controls, milestone deliverable audits, and an inspectable transaction ledger.
 
 > [!IMPORTANT]
-> **Implementation status (2026-10-21).** The portfolio, milestone management, guardrail rules, deterministic audit endpoint, AG Grid ledger, authentication, tenant isolation, PostgreSQL-backed sessions, durable ledger, server-authoritative projects/envelopes, and atomic milestone settlement are implemented. Settlement records are durable internal ledger entries; no external PayPal payout request is sent. The PayPal Sandbox client remains available for a future server-side payout adapter.
+> **Implementation status (2026-10-22).** The portfolio, milestone management, guardrail rules, deterministic audit endpoint, AG Grid ledger, authentication, tenant isolation, PostgreSQL-backed sessions, durable ledger, server-authoritative projects/envelopes, and atomic milestone settlement are implemented. Settlement executes a server-side PayPal Payouts call against the PayPal Sandbox REST API when server-only credentials are configured; a deterministic simulated rail and a fail-closed suppressed rail are used when credentials are absent (credentials are mandatory in production).
 
 ---
 
@@ -16,7 +16,7 @@ Service contracts often involve two operational roles:
 - **Outbound escrow (Accounts Payable):** the organization hires a vendor, defines milestones, audits deliverables, and authorizes releases.
 - **Inbound escrow (Accounts Receivable):** the organization delivers work to a client, tracks the contract's declared value, and records milestone settlements in the durable ledger.
 
-AgenticPay AI keeps both roles in one portfolio. It supports subcontract metadata, where an incoming contract can reference a linked outgoing contract. No funds are transferred between them. Financial actions are evaluated by a non-AI TypeScript guardrail layer and the server-side settlement engine before a settlement record is written. The current settlement path does not make a PayPal request.
+AgenticPay AI keeps both roles in one portfolio. It supports subcontract metadata, where an incoming contract can reference a linked outgoing contract. Financial actions are evaluated by a non-AI TypeScript guardrail layer and the server-side settlement engine before a settlement is recorded and, when credentials are configured, a PayPal Sandbox payout is executed.
 
 ### Core capabilities
 
@@ -24,7 +24,7 @@ AgenticPay AI keeps both roles in one portfolio. It supports subcontract metadat
 - **Contract and milestone management:** contract envelope ceilings, vendor/client details, milestone acceptance criteria, deliverable proofs, and settlement state.
 - **Server-authoritative settlement:** PostgreSQL-backed projects and budget envelopes, atomic milestone settlement with row locking, server-checked audit confidence, per-transaction/daily/project ceilings, kill-switch enforcement, contract freeze, and a $1,000 USD autonomous settlement cap.
 - **Milestone audit endpoint:** payload size limits, prompt-injection sanitization, isolated deliverable framing, heuristic confidence scoring, and human-approval escalation above the autonomous cap. GitHub and pull-request URLs are automatically treated as high-confidence evidence.
-- **PayPal Sandbox client (reserved):** OAuth and `/v1/payments/payouts` logic exists in `src/lib/paypal/client.ts`, with a simulated mode. It is not imported by the runtime UI; durable settlement records currently stop at the internal ledger. A server-side payout route is required before live Sandbox settlement can be verified.
+- **PayPal Sandbox payout rail:** server-side executor integrated into `/settle`. When `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are set, settlement calls `/v1/oauth2/token` + `/v1/payments/payouts` with a deterministic `PayPal-Request-Id` and records the real `payout_batch_id`. Without credentials, payouts fail closed: a simulated rail (`PAYPAL_SIMULATION_MODE=true`, non-production only) or a suppressed rail records honest ledger entries without claiming funds moved.
 - **AI negotiation assistant:** streamed responses through OpenAI/OpenRouter or Gemini, with a configurable fallback model.
 - **AG Grid audit ledger:** transaction status, actor, risk level, audit confidence, settlement amount, and inspectable local or server-returned payloads.
 - **Authentication and tenant isolation:** scrypt password hashing, opaque server-side sessions stored in PostgreSQL, HttpOnly cookies, invite-gated production registration, login throttling, and same-origin CSRF checks.
@@ -43,9 +43,9 @@ These boundaries are intentional and should be considered when evaluating or ext
 - Authentication, sessions, ledger events, projects, and budget envelopes use PostgreSQL. Production refuses to serve without `DATABASE_URL`; development and tests use an in-memory repository.
 - Projects created through the API always start `ACTIVE`, with zero spend and pending milestones. Bootstrap sanitizes imported browser state and never trusts client audit scores, completion state, or spend totals.
 - `/api/agent/audit` persists audit outcomes against the server milestone when project and milestone IDs are supplied. Settlement requires a server-recorded audit score of at least 85%.
-- Settlement is atomic and idempotent for the same milestone. Duplicate or concurrent releases are rejected, and only the server settlement path can create `PAYOUT_EXECUTED` ledger events.
+- Settlement is atomic and idempotent for the same milestone. Duplicate or concurrent releases are rejected, and only the server settlement path can execute PayPal payouts or create `PAYOUT_EXECUTED` ledger events. A deterministic fingerprint (project ID + milestone ID + amount) derives the ledger event ID, `sender_batch_id`, and `PayPal-Request-Id`, so retries reuse the same payout request.
 - Browser storage remains a cache. Server state is the authority after reconciliation; a modified client cannot forge balances, spend, audit state, or payouts.
-- The platform does not custody funds and does not call PayPal from the settlement path. PayPal would remain a future external settlement rail.
+- The platform does not custody funds. Settlement dispatches to the PayPal Sandbox Payouts API through a server-side executor; payout failures return HTTP 502 with the escrow transaction rolled back, so no settlement state is committed unless the payout rail accepts the request.
 - The AI stream remains advisory. It cannot invoke settlement or write ledger events.
 
 ---
@@ -57,7 +57,7 @@ These boundaries are intentional and should be considered when evaluating or ext
 3. **Submit a deliverable** from the project workspace. The audit endpoint validates payload size and sanitizes untrusted text.
 4. **Receive an audit result** containing a confidence score, risk level, rationale, and settlement mode.
 5. **Record the server audit outcome.** When project and milestone IDs are supplied, a passing audit updates the server milestone to `AUDITED_PENDING_APPROVAL` with its score, rationale, proof, and approval requirement.
-6. **Release the milestone.** The server revalidates contract status, kill-switch, milestone audit state, amount, and budget ceilings. A successful release atomically marks the milestone complete, increments project and envelope spend, and writes a deduplicated `PAYOUT_EXECUTED` record with a deterministic server event ID. No PayPal request is made.
+6. **Release the milestone.** The server revalidates contract status, kill-switch, milestone audit state, amount, and budget ceilings, then executes the PayPal Payouts request inside the settlement transaction. A passing payout atomically marks the milestone complete, increments project and envelope spend, records the real PayPal `payout_batch_id` and `batch_status`, and writes a deduplicated `PAYOUT_EXECUTED` record with a deterministic server event ID. A payout failure rolls the transaction back and returns a structured failure without mutating state.
 7. **Refresh the ledger.** The workspace reconciles the returned project, envelope, and settlement event into its cache.
 
 ### Guardrail thresholds
@@ -71,7 +71,8 @@ These boundaries are intentional and should be considered when evaluating or ext
 | Kill-switch | Server envelope state blocks audits and settlement. |
 | Contract freeze | A paused contract blocks audits and settlement. |
 | Budget ceiling | Settlement cannot exceed the project's remaining budget, the per-transaction ceiling, or the daily ceiling. |
-| Duplicate release | A completed milestone cannot be settled again; the server event ID is deterministic per milestone. |
+| Duplicate release | A completed milestone cannot be settled again; the server event ID, `sender_batch_id`, and `PayPal-Request-Id` are deterministic per milestone. |
+| Payout failure | A PayPal payout rejection (for example `INSUFFICIENT_FUNDS`) returns HTTP 502 and rolls back the settlement transaction; the retry reuses the same idempotency context. |
 
 ---
 
@@ -92,13 +93,14 @@ Next.js route handlers
   GuardrailEnforcer + deterministic audit
   Server-authoritative projects and budget envelopes
   Atomic milestone settlement + deduplicated ledger event
-  No external payout route
+  Server-side PayPal payout executor
         |
         +--> PostgreSQL: users, sessions, projects, envelopes, ledger events
         |
-        | No server-to-PayPal payout call in the current implementation
+        | PayPal Sandbox REST API when PAYPAL_CLIENT_ID/PAYPAL_CLIENT_SECRET
+        | are configured; simulated or suppressed (fail-closed) rails otherwise
         v
-PayPal Sandbox REST API (reserved client code; not called at runtime)
+PayPal Sandbox REST API (/v1/oauth2/token + /v1/payments/payouts)
 ```
 
 Key implementation files:
@@ -112,10 +114,11 @@ Key implementation files:
 - `src/lib/guardrails/enforcer.ts` — budget, audit, sanitization, and payload rules.
 - `src/lib/auth/session.ts` — session lifecycle, cookie options, and origin validation.
 - `src/lib/auth/password.ts` — scrypt hashing and timing-resistant verification.
-- `src/lib/db/repository.ts` — PostgreSQL schema, projects/envelopes, atomic settlement, ledger, and in-memory test adapter.
-- `src/lib/settlement/settlement.ts` — server settlement rules, deterministic IDs, and payout-record construction.
+- `src/lib/db/repository.ts` — PostgreSQL schema, projects/envelopes, atomic settlement, ledger, and in-memory test adapter; the settlement transaction invokes the payout executor inside row locks and rolls back on payout failure.
+- `src/lib/settlement/settlement.ts` — server settlement rules, deterministic fingerprints, `PayPal-Request-Id`/`sender_batch_id` derivation, and payout-record construction.
+- `src/lib/paypal/client.ts` — PayPal OAuth and Payouts REST client with a deterministic simulation rail and a fail-closed suppressed rail.
+- `src/lib/paypal/executor.ts` — server-side `MilestonePayoutExecutor` factory used by `/settle`, including `PAYOUT_BLOCKED` audit events.
 - `src/lib/validation/project.ts` — project, envelope, bootstrap, and update schemas.
-- `src/lib/paypal/client.ts` — PayPal OAuth and payout client code; not imported by the runtime UI.
 - `src/lib/ledger.ts` — legacy local settled-balance helper used by client-side tests and migration paths.
 - `src/app/api/auth/*` — register, login, logout, and session endpoints.
 - `src/app/api/projects/*` — project list/create, bootstrap, freeze/criteria updates, and milestone settlement.
@@ -173,10 +176,10 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Variable | Required | Purpose |
 | :--- | :--- | :--- |
-| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | Optional | Public PayPal client ID available to the browser build; not used by the runtime UI. |
-| `PAYPAL_CLIENT_ID` | Optional | Server-side client ID alias used when the public variable is absent. |
-| `PAYPAL_CLIENT_SECRET` | For live Sandbox calls | Server-only PayPal OAuth secret. Never expose to the client. |
-| `PAYPAL_ENVIRONMENT` | Optional | `sandbox` (default) or `production`. The current implementation is validated against Sandbox. |
+| `PAYPAL_CLIENT_ID` | For live Sandbox payouts | Server-only PayPal OAuth client ID. When unset, payout rails fail closed (see `PAYPAL_SIMULATION_MODE`). |
+| `PAYPAL_CLIENT_SECRET` | For live Sandbox payouts | Server-only PayPal OAuth secret. Never expose to the client. |
+| `PAYPAL_MODE` | Optional | `sandbox` (default) or `live`. Also accepts `PAYPAL_ENV`/`PAYPAL_ENVIRONMENT`. The implementation is validated against Sandbox. |
+| `PAYPAL_SIMULATION_MODE` | Optional | Set `true` to allow the deterministic simulation rail without credentials in non-production builds. Default: `false` (payouts are suppressed without credentials). |
 | `OPENAI_API_KEY` | Optional | OpenAI-compatible provider key. |
 | `OPENROUTER_API_KEY` | Optional | OpenRouter key; when present, the provider uses the OpenRouter base URL. |
 | `GEMINI_API_KEY` | Optional | Gemini fallback provider key. |
@@ -190,7 +193,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `REGISTRATION_ENABLED` | Optional | Set `false` to disable new account creation. Default: enabled. |
 | `REGISTRATION_INVITE_CODE` | Production | Invite code required for account creation. |
 
-The PayPal client is retained for future server-side integration but is not called by the runtime UI or settlement path. No real funds move. A server-side payout route is required before live Sandbox settlement can be verified.
+Milestone settlement dispatches through the server-side PayPal payout executor. Without `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET`, the rail fails closed: non-production builds record an honest simulated or suppressed ledger entry, and production rejects settlement outright. Sandbox simulation never produces real transfers.
 
 ### Available scripts
 
@@ -211,7 +214,7 @@ There are no `lint` or `format` scripts in this repository. Follow the existing 
 
 ## Testing
 
-The current suite contains 12 Jest suites and 118 passing checks covering the guardrail enforcer, PayPal client, audit route and persistence, stream route, ledger helper, password hashing, repository isolation, project bootstrap, envelope preservation, atomic settlement, process-local rate limiting, ledger validation, and authenticated ledger/project APIs.
+The current suite contains 12 Jest suites and 126 passing checks covering the guardrail enforcer, PayPal payout rails (real, simulated, suppressed) and idempotency, audit route and persistence, stream route, ledger helper, password hashing, repository isolation, project bootstrap, envelope preservation, atomic settlement with payout-executor rollback, process-local rate limiting, ledger validation, and authenticated ledger/project APIs including live Sandbox payout-flow tests against a mocked PayPal endpoint.
 
 ```bash
 npm test -- --runInBand
@@ -240,14 +243,15 @@ GitHub Actions runs the test suite and production build on pushes and pull reque
 
 ## Security
 
-- AI provider keys and `PAYPAL_CLIENT_SECRET` are server-only. The PayPal client is not used by the runtime UI, and no external payout route currently exists.
+- AI provider keys and `PAYPAL_CLIENT_SECRET` are server-only. The PayPal payout executor runs exclusively in Next.js route handlers and server modules; PayPal credentials never reach the browser.
 - Financial decisions are made by deterministic TypeScript code, not by the language model. Projects, envelopes, audit state, budgets, and settlement are server-authoritative.
 - Deliverable input is bounded and sanitized before evaluation. A GitHub URL can contribute high-confidence evidence, so production deployments should add independent artifact verification.
 - Authentication uses scrypt password hashes, opaque HttpOnly sessions, and same-origin checks. Production registration requires an invite code.
 - LLM and transactional endpoints use process-local fixed-window quotas. This keeps Render free-tier deployment self-contained; counters reset on spin-down and are not shared across instances.
 - Kill-switch, contract freeze, audit status, and all budget ceilings are rechecked atomically by the server before settlement.
+- Payout execution happens inside the settlement transaction with row locks. A PayPal payout failure rolls the transaction back, returns HTTP 502 with a structured error, and records a `PAYOUT_BLOCKED` audit event; no state mutates when the rail rejects the request.
 - Browser storage remains a tenant-scoped cache and is not encrypted at rest. Shared-device use requires explicit sign-out.
-- No funds move externally. Connect a reviewed server-side payout adapter and reconciliation controls before treating settlement records as payment instructions.
+- The platform does not custody funds. Production deployments should add PayPal webhook reconciliation and independent payout monitoring before treating settlement records as payment instructions.
 
 See [SECURITY.md](SECURITY.md) for the full trust model.
 

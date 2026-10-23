@@ -14,8 +14,8 @@ This document describes what data the current implementation processes, where it
 | Transaction ledger | Actor, action, amount, audit confidence, risk, status, settlement payload | Browser `localStorage` (`agenticpay_logs_v2`) | Rendered in AG Grid. |
 | AI prompts | Negotiation text and project context | Sent to the configured AI provider; not persisted server-side | May contain names, emails, or contract details entered by the user. |
 | Deliverables | Acceptance criteria, deliverable text or URL | Sent to `/api/agent/audit`; stored in the browser ledger | Truncated at 12,000 characters. |
-| PayPal credentials | Client ID, client secret | Environment variables | PayPal credentials are server-only. The PayPal client is not imported by the runtime UI. |
-| Settlement payloads | Local reference, recipient, amount, generated log | Browser `localStorage` | Current workspace records use generated `SETTLE-*` references. They are not PayPal responses and do not prove payment. |
+| PayPal credentials | Client ID, client secret | Environment variables | PayPal credentials are server-only and used exclusively by the server-side payout executor. |
+| Settlement payloads | Event ID, recipient, amount, PayPal batch reference, HTTP payload log | Browser `localStorage` + PostgreSQL (`ledger_events`) | The server settlement path persists `PAYOUT_EXECUTED` events with deterministic IDs and, on the real rail, the PayPal `payout_batch_id` and `batch_status`. The browser copy is a tenant-scoped cache. |
 
 ---
 
@@ -36,12 +36,14 @@ User input
          send prompt to AI provider
          stream response to browser
   |
-  +--> Local settlement record
-         workspace generates a PAYOUT_EXECUTED log
-         no PayPal request is made
+  +--> Server milestone settlement
+         route invokes the PayPal payout executor
+         inside the settlement transaction; payout
+         failure rolls the transaction back
   |
-  +--> PayPal client (not imported by runtime UI)
-         no live payout path is reachable
+  +--> PayPal Sandbox REST API (credentials configured)
+         deterministic PayPal-Request-Id; fail-closed
+         simulated/suppressed rails without credentials
 ```
 
 ---
@@ -49,12 +51,11 @@ User input
 ## 3. Privacy controls in the current build
 
 - **Data minimization by scope:** the application collects only the fields required for contract and settlement workflows.
-- **Secrets:** PayPal and AI provider keys are read from environment variables on the server. The PayPal client is not imported by the runtime UI, so no browser OAuth path exists.
+- **Secrets:** PayPal and AI provider keys are read from environment variables on the server. No PayPal identifier or secret is bundled for the browser (`NEXT_PUBLIC_PAYPAL_CLIENT_ID` was removed; the payout executor runs only in server modules).
 - **Prompt-injection sanitization:** untrusted input is pattern-sanitized before it is sent to a model or wrapped into an audit block.
 - **Payload limiting:** deliverable text is truncated at 12,000 characters.
 - **Local deletion:** clearing browser storage removes profile, contract, envelope, and ledger data from that device.
-- **Settlement records:** the workspace writes local `PAYOUT_EXECUTED` records without calling an external payout API. These records are not proof of payment.
-- **No server retention:** prompts, deliverables, and settlement records are not persisted server-side by the current implementation.
+- **Settlement records:** the server settlement path persists `PAYOUT_EXECUTED` records in the durable ledger. On the real PayPal rail they include the sandbox `payout_batch_id`; on the suppressed rail they honestly state no external payout occurred. These records are not proof of payment.
 
 ---
 
@@ -63,16 +64,14 @@ User input
 The current implementation does **not** provide:
 
 - PII detection or redaction before AI provider calls.
-- Server-side persistence, encryption at rest, or tenant isolation.
-- Immutable or tamper-evident audit logs.
+- Encryption at rest detail reviews, immutable or tamper-evident audit logs.
 - Cryptographic hashing of deliverables or ledger entries.
 - Data retention schedules or automated deletion.
 - Data subject access or erasure workflows.
 - Consent management beyond the user's direct interaction with the application.
 - Data residency controls.
 - Role-based access control for account or contract data.
-- Authenticated APIs or tenant-scoped access to AI and audit routes.
-- A server-side settlement record that can be reconciled against PayPal.
+- PayPal side reconciliation beyond the payout response (webhooks, transaction status polling); the stored batch ID is the reconciliation handle but is not verified against PayPal after settlement.
 
 Browser `localStorage` is user-controlled. It must not be treated as an authoritative record for financial reconciliation or regulatory reporting.
 

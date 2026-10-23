@@ -39,7 +39,7 @@ describe('PayPalSandboxClient', () => {
   });
 
   describe('getAccessToken', () => {
-    it('should return simulated token when credentials are missing', async () => {
+    it('should return a deterministic simulated token when credentials are missing', async () => {
       const client = new PayPalSandboxClient({
         clientId: 'placeholder',
         clientSecret: 'placeholder',
@@ -48,6 +48,13 @@ describe('PayPalSandboxClient', () => {
 
       const token = await client.getAccessToken();
       expect(token).toContain('simulated_sandbox_oauth_token_');
+
+      const clientAgain = new PayPalSandboxClient({
+        clientId: 'placeholder',
+        clientSecret: 'placeholder',
+        simulationMode: true,
+      });
+      await expect(clientAgain.getAccessToken()).resolves.toBe(token);
     });
 
     it('should return simulated token when clientId is "placeholder"', async () => {
@@ -78,7 +85,9 @@ describe('PayPalSandboxClient', () => {
         simulationMode: true,
       });
 
-      await expect(client.getAccessToken()).rejects.toThrow('PayPal credentials are not configured');
+      await expect(client.getAccessToken()).rejects.toThrow(
+        'PayPal production credentials are required to execute payouts.'
+      );
     });
 
     it('should fetch real OAuth token with valid credentials', async () => {
@@ -133,12 +142,14 @@ describe('PayPalSandboxClient', () => {
 
   describe('executeMilestonePayout', () => {
     const mockPayoutRequest = {
+      projectId: 'proj-e2e-1',
+      milestoneId: 'ms-e2e-1',
       receiverEmail: 'vendor@example.com',
       amountUSD: 250,
       milestoneName: 'API Integration',
     };
 
-    it('should return simulated payout in simulated mode', async () => {
+    it('should return deterministic simulated payout by settlement context', async () => {
       const client = new PayPalSandboxClient({
         clientId: 'placeholder',
         clientSecret: 'placeholder',
@@ -147,8 +158,31 @@ describe('PayPalSandboxClient', () => {
 
       const result = await client.executeMilestonePayout(mockPayoutRequest);
       expect(result.success).toBe(true);
-      expect(result.payoutBatchId).toMatch(/^SIM_PAYOUT_[A-Z0-9]+$/);
+      expect(result.rail).toBe('SIMULATED');
+      expect(result.batchStatus).toBe('SIMULATED');
+      expect(result.payoutBatchId).toMatch(/^SIM_PAYOUT_[A-F0-9]+$/);
       expect(result.httpLog).toContain('POST');
+      expect(result.idempotencyKey).toMatch(/^REQ_[A-F0-9]{32}$/);
+
+      const retry = await client.executeMilestonePayout(mockPayoutRequest);
+      expect(retry.payoutBatchId).toBe(result.payoutBatchId);
+      expect(retry.idempotencyKey).toBe(result.idempotencyKey);
+    });
+
+    it('should fail closed when called without settlement context and without an idempotency key', async () => {
+      const client = new PayPalSandboxClient({
+        clientId: 'placeholder',
+        clientSecret: 'placeholder',
+        simulationMode: true,
+      });
+
+      await expect(
+        client.executeMilestonePayout({
+          receiverEmail: mockPayoutRequest.receiverEmail,
+          amountUSD: mockPayoutRequest.amountUSD,
+          milestoneName: mockPayoutRequest.milestoneName,
+        })
+      ).rejects.toThrow('Deterministic idempotency is required');
     });
 
     it('should execute real PayPal payout with valid credentials', async () => {
@@ -183,7 +217,65 @@ describe('PayPalSandboxClient', () => {
 
       const result = await client.executeMilestonePayout(mockPayoutRequest);
       expect(result.success).toBe(true);
+      expect(result.rail).toBe('PAYPAL_SANDBOX');
+      expect(result.batchStatus).toBe('SUCCESS');
       expect(result.payoutBatchId).toBe('PAYPAL_BATCH_12345');
+    });
+
+    it('should derive the deterministic PayPal-Request-Id from the settlement fingerprint', async () => {
+      const mockAccessToken = 'REAL_ACCESS_TOKEN';
+      const mockOAuthResponse = {
+        access_token: mockAccessToken,
+        token_type: 'Bearer',
+        expires_in: 32400,
+      };
+
+      const mockPayoutResponse = {
+        batch_header: {
+          payout_batch_id: 'PAYPAL_BATCH_RETRIES',
+          batch_status: 'PENDING',
+        },
+      };
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce(new Response(JSON.stringify(mockOAuthResponse), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify(mockPayoutResponse), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify(mockOAuthResponse), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify(mockPayoutResponse), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        }));
+
+      const client = new PayPalSandboxClient({
+        clientId: 'test-client-id',
+        clientSecret: 'test-client-secret',
+      });
+
+      const first = await client.executeMilestonePayout(mockPayoutRequest);
+      const second = await client.executeMilestonePayout(mockPayoutRequest);
+
+      expect(first.idempotencyKey).toBe(second.idempotencyKey);
+      expect(first.idempotencyKey).toMatch(/^REQ_[A-F0-9]{32}$/);
+
+      const firstCall = (global.fetch as jest.Mock).mock.calls[1];
+      const secondCall = (global.fetch as jest.Mock).mock.calls[3];
+      expect(firstCall[0]).toContain('/v1/payments/payouts');
+      expect(firstCall[1].headers['PayPal-Request-Id']).toBe(first.idempotencyKey);
+      expect(secondCall[1].headers['PayPal-Request-Id']).toBe(first.idempotencyKey);
+      expect(secondCall[1].body).toBe(firstCall[1].body);
+
+      const firstPayload = JSON.parse(firstCall[1].body);
+      expect(firstPayload.sender_batch_header.sender_batch_id).toMatch(/^SETTLE-[A-F0-9]{20}$/);
+      expect(firstPayload.items[0].sender_item_id).toMatch(/^ITEM_[A-F0-9]{20}$/);
     });
 
     it('should throw error on PayPal API rejection (401)', async () => {
@@ -272,17 +364,38 @@ describe('PayPalSandboxClient', () => {
         clientSecret: 'test-client-secret',
       });
 
-      await expect(client.executeMilestonePayout(mockPayoutRequest)).rejects.toThrow('Network timeout');
+      await expect(client.executeMilestonePayout(mockPayoutRequest)).rejects.toThrow(
+        'PayPal payouts network failure: Network timeout'
+      );
     });
 
-    it('should fail closed instead of silently simulating when credentials are absent', async () => {
+    it('should suppress the payout rail (no network) when credentials are absent and simulation is disabled', async () => {
       const client = new PayPalSandboxClient({
         clientId: 'placeholder',
         clientSecret: 'placeholder',
       });
 
+      const result = await client.executeMilestonePayout(mockPayoutRequest);
+      expect(result.success).toBe(true);
+      expect(result.rail).toBe('SUPPRESSED_RAIL');
+      expect(result.batchStatus).toBe('SUPPRESSED_RAIL');
+      expect(result.payoutBatchId).toMatch(/^SETTLE-[A-F0-9]{20}$/);
+      expect(result.httpLog).toContain('SUPPRESSED RAIL');
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      // Never claims funds moved through PayPal:
+      expect(result.payoutBatchId).not.toMatch(/^PAYPAL_/);
+    });
+
+    it('should reject outright in production without credentials even when the context is complete', async () => {
+      const client = new PayPalSandboxClient({
+        clientId: 'placeholder',
+        clientSecret: 'placeholder',
+        environment: 'production',
+      });
+
       await expect(client.executeMilestonePayout(mockPayoutRequest)).rejects.toThrow(
-        'PayPal credentials are not configured'
+        'PayPal production credentials are required to execute payouts.'
       );
     });
 
@@ -302,17 +415,22 @@ describe('PayPalSandboxClient', () => {
       expect(second.idempotencyKey).toBe(idempotencyKey);
     });
 
-    it('should generate unique batch ID for each payout', async () => {
+    it('should reuse the same batch id for the same settlement context and change it per milestone', async () => {
       const client = new PayPalSandboxClient({
         clientId: 'placeholder',
         clientSecret: 'placeholder',
         simulationMode: true,
       });
 
-      const result1 = await client.executeMilestonePayout(mockPayoutRequest);
-      const result2 = await client.executeMilestonePayout(mockPayoutRequest);
+      const first = await client.executeMilestonePayout(mockPayoutRequest);
+      const retry = await client.executeMilestonePayout(mockPayoutRequest);
+      expect(retry.payoutBatchId).toBe(first.payoutBatchId);
 
-      expect(result1.payoutBatchId).not.toBe(result2.payoutBatchId);
+      const otherMilestone = await client.executeMilestonePayout({
+        ...mockPayoutRequest,
+        milestoneId: 'ms-e2e-2',
+      });
+      expect(otherMilestone.payoutBatchId).not.toBe(first.payoutBatchId);
     });
 
     it('should send PayPal-Request-Id header in REST API payout calls for idempotency', async () => {
@@ -360,7 +478,7 @@ describe('PayPalSandboxClient', () => {
       expect(headers['PayPal-Request-Id']).toBe(customKey);
     });
 
-    it('should generate and return idempotencyKey in simulated mode', async () => {
+    it('should derive and return the deterministic idempotencyKey in simulated mode', async () => {
       const client = new PayPalSandboxClient({
         clientId: 'placeholder',
         clientSecret: 'placeholder',
@@ -369,6 +487,7 @@ describe('PayPalSandboxClient', () => {
 
       const result = await client.executeMilestonePayout(mockPayoutRequest);
       expect(result.idempotencyKey).toBeDefined();
+      expect(result.idempotencyKey).toMatch(/^REQ_[A-F0-9]{32}$/);
       expect(result.httpLog).toContain('PayPal-Request-Id');
     });
   });

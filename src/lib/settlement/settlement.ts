@@ -7,6 +7,11 @@ import type {
 
 export const MIN_SETTLEMENT_AUDIT_CONFIDENCE = 85;
 
+export type PayPalPayoutRail =
+  | 'PAYPAL_SANDBOX'
+  | 'SIMULATED'
+  | 'SUPPRESSED_RAIL';
+
 export interface SettlementSuccess {
   ok: true;
   project: ProjectContract;
@@ -16,11 +21,100 @@ export interface SettlementSuccess {
 
 export interface SettlementFailure {
   ok: false;
-  status: 404 | 409 | 422 | 423;
+  status: 404 | 409 | 422 | 423 | 502;
   error: string;
 }
 
 export type SettlementResult = SettlementSuccess | SettlementFailure;
+
+/**
+ * Canonical settlement fingerprint. Derives a deterministic SHA-256 identifier
+ * from projectId + milestoneId + amount, so the durable ledger event id, the
+ * PayPal sender_batch_id and the PayPal-Request-Id all address the same
+ * settlement across retries, restarts and deployments.
+ */
+export function buildMilestoneSettlementFingerprint(
+  projectId: string,
+  milestoneId: string,
+  amountUSD: number
+): string {
+  return createHash('sha256')
+    .update(`${projectId}\n${milestoneId}\n${amountUSD.toFixed(2)}`)
+    .digest('hex')
+    .toUpperCase();
+}
+
+/**
+ * Deterministic PayPal idempotency key, used as the PayPal-Request-Id header.
+ */
+export function buildMilestonePayoutIdempotencyKey(
+  projectId: string,
+  milestoneId: string,
+  amountUSD: number
+): string {
+  return `REQ_${buildMilestoneSettlementFingerprint(projectId, milestoneId, amountUSD).slice(0, 32)}`;
+}
+
+export interface MilestonePayoutExecution {
+  payPalBatchId: string;
+  payPalBatchStatus: string;
+  payPalRequestId: string | null;
+  payPalHttpLog: string;
+  payRail: PayPalPayoutRail;
+  payoutAttempted: boolean;
+}
+
+export interface MilestonePayoutExecutorContext {
+  projectId: string;
+  milestoneId: string;
+  milestoneTitle: string;
+  receiverEmail: string;
+  amountUSD: number;
+  settlementBatchId: string;
+}
+
+export type MilestonePayoutExecutor = (
+  context: MilestonePayoutExecutorContext
+) => Promise<MilestonePayoutExecution>;
+
+/**
+ * Folds the executed PayPal payout outcome into the settled milestone and its
+ * durable ledger event so the real payout_batch_id and HTTP log are retained.
+ */
+export function applyMilestonePayoutExecution(
+  success: SettlementSuccess,
+  milestoneId: string,
+  payout: MilestonePayoutExecution
+): SettlementSuccess {
+  const updatedProject: ProjectContract = {
+    ...success.project,
+    milestones: (success.project.milestones || []).map((item) =>
+      item.id === milestoneId
+        ? {
+            ...item,
+            payPalBatchId: payout.payPalBatchId,
+          }
+        : item
+    ),
+  };
+
+  const summary = payout.payoutAttempted
+    ? `PayPal ${payout.payRail} payout accepted: batch ${payout.payPalBatchId} (status ${payout.payPalBatchStatus}); PayPal-Request-Id ${payout.payPalRequestId ?? 'n/a'}.`
+    : `Payout rail suppressed: batch ${payout.payPalBatchId}; no PayPal payout attempted (sandbox credentials not configured); settlement recorded in durable ledger only.`;
+
+  const event: TransactionLog = {
+    ...success.event,
+    payPalTransactionId: payout.payPalBatchId,
+    httpPayloadLog: `${summary}\n${payout.payPalHttpLog}`,
+  };
+
+  return {
+    ok: true,
+    project: updatedProject,
+    envelope: success.envelope,
+    event,
+  };
+}
 
 export function buildMilestoneSettlement(
   project: ProjectContract,
@@ -102,10 +196,11 @@ export function buildMilestoneSettlement(
     };
   }
 
-  const fingerprint = createHash('sha256')
-    .update(`${project.id}\n${milestone.id}\n${amountUSD.toFixed(2)}`)
-    .digest('hex')
-    .toUpperCase();
+  const fingerprint = buildMilestoneSettlementFingerprint(
+    project.id,
+    milestone.id,
+    amountUSD
+  );
   const batchId = `SETTLE-${fingerprint.slice(0, 20)}`;
   const eventId = `srv-settle-${fingerprint.slice(0, 40).toLowerCase()}`;
   const timestamp = now.toISOString();
@@ -143,7 +238,7 @@ export function buildMilestoneSettlement(
     status: 'PAYOUT_EXECUTED',
     riskLevel: 'LOW',
     payPalTransactionId: batchId,
-    httpPayloadLog: `DURABLE SETTLEMENT RECORD: Batch ${batchId}; server-validated milestone authorization; no external payout API called.`,
+    httpPayloadLog: `DURABLE SETTLEMENT RECORD: Batch ${batchId}; server-validated milestone authorization; pending executor outcome folds real PayPal payout details into this record.`,
   };
 
   return {

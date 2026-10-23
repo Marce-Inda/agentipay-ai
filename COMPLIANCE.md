@@ -10,8 +10,8 @@ AgenticPay AI is designed as a **non-custodial orchestration layer**:
 
 - The application does not accept, hold, pool, or transmit customer funds through an internal balance.
 - PayPal is the intended settlement rail.
-- The platform records contract terms, milestones, audit results, and local settlement events.
-- The current implementation does not execute a PayPal payout end to end. Workspace releases write local `PAYOUT_EXECUTED` records with generated identifiers.
+- The platform records contract terms, milestones, audit results, and durable settlement events.
+- Settlement dispatches to the PayPal Sandbox Payouts API through a server-side executor when credentials are configured; without credentials the rail fails closed (honest simulated/suppressed ledger entries in non-production, rejection in production).
 
 ```text
 Client / Contractor
@@ -21,11 +21,13 @@ Client / Contractor
 AgenticPay AI
   deterministic guardrails
   heuristic audit record
-  local settlement record
+  server settlement transaction
         |
-        | No server payout call in the current build
+        | PayPal Sandbox payout with deterministic
+        | PayPal-Request-Id (credentials configured)
+        | fail-closed simulated/suppressed rail otherwise
         v
-PayPal Sandbox REST API (adapter code present; not operational)
+PayPal Sandbox REST API (/v1/oauth2/token + /v1/payments/payouts)
 ```
 
 The application does not claim to be a licensed escrow agent, money transmitter, or payment institution. Production operation would require legal and regulatory review in each jurisdiction.
@@ -41,11 +43,11 @@ The application does not claim to be a licensed escrow agent, money transmitter,
 | Audit threshold | 85% confidence; lower scores are rejected. |
 | Kill-switch | Blocks milestone release in the client; the audit route also reads a flag from its request body. |
 | Contract freeze | Blocks releases for a specific outbound contract. |
-| Idempotency | A `PayPal-Request-Id` header is generated per call using time and random values. It is not deterministic and does not prevent duplicate payouts. |
+| Idempotency | A deterministic settlement fingerprint (project ID + milestone ID + amount) derives the `PayPal-Request-Id` and `sender_batch_id`, so retries reuse the same payout request. |
 | Prompt-injection sanitization | Pattern replacement and isolated deliverable framing. |
 | Payload limiting | 12,000-character deliverable cap. |
-| Ledger consistency | Each applied `PAYOUT_EXECUTED` log increments settled funds; repeated log IDs are not deduplicated. |
-| Settlement execution | Local record only. No server-side PayPal payout is executed. |
+| Ledger consistency | Each applied `PAYOUT_EXECUTED` log increments settled funds; duplicate release and concurrent settlement attempts are rejected and deterministic event IDs are derived per milestone from the server settlement path. |
+| Settlement execution | Server-side PayPal Payouts execution inside the settlement transaction with atomic rollback on payout failure (HTTP 502) and honest simulated/suppressed record-only rails without credentials. |
 
 ---
 
@@ -57,7 +59,7 @@ The following are production requirements, not current capabilities:
 - AML and sanctions screening.
 - Licensing or regulatory registration.
 - Production PayPal onboarding and underwriting.
-- A server-side PayPal payout route and verified Sandbox payout.
+- PayPal webhook reconciliation, refund handling, and verified payout receipt.
 - Chargeback protection, reserve management, and dispute adjudication.
 - Binding legal contracts, electronic signatures, or arbitration workflows.
 - Tax reporting, invoicing compliance, and jurisdiction-specific withholding.
@@ -75,8 +77,8 @@ Do not represent the current build as a compliant production escrow service.
 
 | Milestone amount | Audit result | Settlement path |
 | :--- | :--- | :--- |
-| <= $1,000 USD | >= 85% | Eligible for an autonomous local settlement record after budget checks. No PayPal payment is made. |
-| > $1,000 USD | >= 85% | `HUMAN_APPROVAL_REQUIRED`; explicit workspace authorization is required before a local settlement record. |
+| <= $1,000 USD | >= 85% | Eligible for an autonomous settlement after budget checks; the server-side PayPal Payouts rail (or honest record-only rail without credentials) is executed inside the settlement transaction. |
+| > $1,000 USD | >= 85% | `HUMAN_APPROVAL_REQUIRED`; explicit workspace authorization is required before the settlement path executes. |
 | Any amount | < 85% | Rejected; the milestone remains locked. |
 
 ### 4.2 Objective acceptance criteria
@@ -130,9 +132,9 @@ Before operating with real funds:
 - [ ] Obtain jurisdiction-specific legal review.
 - [ ] Confirm PayPal product eligibility and onboarding requirements.
 - [ ] Implement KYC/KYB and sanctions screening where required.
-- [ ] Add authentication, authorization, and tenant isolation.
-- [ ] Persist contracts, milestones, and ledger events server-side.
-- [ ] Add a server-side payout route with stable idempotency and reconciliation.
+- [x] Authentication, authorization, and tenant isolation are implemented.
+- [x] Contracts, milestones, and ledger events are persisted server-side.
+- [ ] Verify live Sandbox payouts end to end and add PayPal webhook reconciliation with dispute handling.
 - [ ] Add immutable audit logging and export.
 - [ ] Implement dispute, refund, and chargeback procedures.
 - [ ] Add privacy notices and data subject request handling.

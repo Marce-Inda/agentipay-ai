@@ -176,10 +176,10 @@ Configure PayPal and AI credentials in the Render dashboard. Do not commit secre
 
 | Variable | Used by | Notes |
 | :--- | :--- | :--- |
-| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | PayPal adapter configuration | Public client identifier; not used by the runtime UI. |
-| `PAYPAL_CLIENT_ID` | PayPal adapter configuration | Server-side fallback identifier. |
-| `PAYPAL_CLIENT_SECRET` | PayPal adapter tests/future route | Server-only secret. No runtime route currently consumes it. |
-| `PAYPAL_ENVIRONMENT` | PayPal adapter | `sandbox` default; the production URL branch is not validated in this repository. |
+| `PAYPAL_CLIENT_ID` | PayPal payout rail | Server-only OAuth client ID consumed by `/settle` when configured. |
+| `PAYPAL_CLIENT_SECRET` | PayPal payout rail | Server-only OAuth secret. Never exposed to the client bundle. |
+| `PAYPAL_MODE` | PayPal payout rail | `sandbox` (default) or `live`. |
+| `PAYPAL_SIMULATION_MODE` | PayPal payout rail | `true` allows the deterministic simulated rail without credentials in non-production; default `false` (fail closed). |
 | `OPENAI_API_KEY` | AI provider | OpenAI-compatible key. |
 | `OPENROUTER_API_KEY` | AI provider | Enables the OpenRouter base URL. |
 | `GEMINI_API_KEY` | AI provider | Gemini fallback when no OpenAI-compatible key exists. |
@@ -195,15 +195,15 @@ npm test -- --runInBand
 npm run build
 ```
 
-The repository does not include automated CI workflows. Add a pipeline before relying on merge gates.
+GitHub Actions runs the test suite and production build on pushes and pull requests to `main` via `.github/workflows/ci.yml`.
 
 ---
 
 ## 7. Observability and failure handling
 
 - Route handlers log unexpected failures to the server console.
-- The PayPal client is not imported by the runtime UI; only unit tests exercise it.
-- Workspace releases generate `SETTLE-*` references and local settlement payloads. They are not PayPal responses.
+- The payout executor runs server-side only; PayPal OAuth tokens and payout payloads never reach the browser.
+- Successful settlements fold the PayPal `payout_batch_id`/`batch_status` (real rail) or an honest simulated/suppressed reference into ledger payloads; add centralized tracing and post-payout reconciliation in production.
 - The audit endpoint can return a `simulatedBatchId`, which is not a PayPal payment.
 - Client-side `localStorage` failures fall back to in-memory defaults and log a warning.
 - There is no centralized tracing, metrics, or error reporting service.

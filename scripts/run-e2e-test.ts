@@ -151,10 +151,16 @@ async function runE2ETestSuite() {
 
   // PayPal Sandbox REST Client Execution
   const paypalClient = new PayPalSandboxClient();
+  const e2eMilestone = vendorProject.milestones?.[0];
+  if (!e2eMilestone) {
+    throw new Error('E2E milestone not found');
+  }
   const payoutResult = await paypalClient.executeMilestonePayout({
     receiverEmail: vendorProject.vendorEmail,
     amountUSD: payoutAmountUSD,
-    milestoneName: 'Phase 1: API & Escrow Webhooks',
+    milestoneName: e2eMilestone.title,
+    projectId: vendorProject.id,
+    milestoneId: e2eMilestone.id,
   });
 
   if (!payoutResult.success) {

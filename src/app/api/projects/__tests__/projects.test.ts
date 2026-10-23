@@ -273,4 +273,195 @@ describe('/api/projects', () => {
     const events = await repository.listLedgerEvents(user.id, 10);
     expect(events.filter((event) => event.event.status === 'PAYOUT_EXECUTED')).toHaveLength(1);
   });
+
+  describe('PayPal payout rail integration', () => {
+    const originalPayPalClientId = process.env.PAYPAL_CLIENT_ID;
+    const originalPayPalSecret = process.env.PAYPAL_CLIENT_SECRET;
+    let originalFetch: typeof global.fetch;
+
+    afterAll(() => {
+      if (originalPayPalClientId === undefined) {
+        delete process.env.PAYPAL_CLIENT_ID;
+      } else {
+        process.env.PAYPAL_CLIENT_ID = originalPayPalClientId;
+      }
+      if (originalPayPalSecret === undefined) {
+        delete process.env.PAYPAL_CLIENT_SECRET;
+      } else {
+        process.env.PAYPAL_CLIENT_SECRET = originalPayPalSecret;
+      }
+    });
+
+    async function seedSettlement(email: string, projectId: string, milestoneId: string) {
+      const repository = getRepository();
+      const user = await repository.createUser({
+        email,
+        passwordHash: 'hash',
+      });
+      const project: ProjectContract = {
+        ...projectPayload,
+        id: projectId,
+        spentUSD: 0,
+        status: 'ACTIVE',
+        milestones: [
+          {
+            ...projectPayload.milestones![0],
+            id: milestoneId,
+            status: 'AUDITED_PENDING_APPROVAL',
+            auditScore: 95,
+            payPalBatchId: undefined,
+          },
+        ],
+      };
+      await repository.upsertProject(user.id, project);
+      await repository.upsertEnvelope(user.id, {
+        ...envelopePayload,
+        spentTodayUSD: 0,
+        activeEscrowUSD: 0,
+      });
+
+      const token = `${email}-session-token-with-sufficient-entropy`;
+      await repository.createSession({
+        tokenHash: hashSessionToken(token),
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      return { cookie: `${SESSION_COOKIE_NAME}=${token}`, userId: user.id };
+    }
+
+    it('settles through the real PayPal Sandbox payout API and records the live batch id', async () => {
+      process.env.PAYPAL_CLIENT_ID = 'route-test-client-id';
+      process.env.PAYPAL_CLIENT_SECRET = 'route-test-client-secret';
+      originalFetch = global.fetch;
+      const settleUrl = 'http://localhost/api/projects/proj-paypal/milestones/ms-paypal/settle';
+      try {
+        const { cookie } = await seedSettlement('paypal@example.com', 'proj-paypal', 'ms-paypal');
+        (global as unknown as { fetch: unknown }).fetch = jest.fn();
+        (global.fetch as jest.Mock)
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({ access_token: 'ROUTE_OAUTH_TOKEN', token_type: 'Bearer' }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } }
+            )
+          )
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                batch_header: {
+                  payout_batch_id: 'PAYPAL_BATCH_ROUTE',
+                  batch_status: 'PENDING',
+                },
+              }),
+              { status: 201, headers: { 'Content-Type': 'application/json' } }
+            )
+          );
+
+        const response = await settleMilestone(
+          request(settleUrl, { method: 'POST', cookie }),
+          context({ projectId: 'proj-paypal', milestoneId: 'ms-paypal' })
+        );
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.event.payPalTransactionId).toBe('PAYPAL_BATCH_ROUTE');
+        expect(data.project.milestones[0].payPalBatchId).toBe('PAYPAL_BATCH_ROUTE');
+        expect(data.event.httpPayloadLog).toContain('PAYPAL_SANDBOX');
+        expect(data.project.spentUSD).toBe(75);
+
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        const payoutCall = (global.fetch as jest.Mock).mock.calls[1];
+        expect(payoutCall[0]).toBe('https://api-m.sandbox.paypal.com/v1/payments/payouts');
+        expect(payoutCall[1].headers['PayPal-Request-Id']).toMatch(/^REQ_[A-F0-9]{32}$/);
+        expect(JSON.parse(payoutCall[1].body).sender_batch_header.sender_batch_id).toMatch(
+          /^SETTLE-[A-F0-9]{20}$/
+        );
+
+        const duplicate = await settleMilestone(
+          request(settleUrl, { method: 'POST', cookie }),
+          context({ projectId: 'proj-paypal', milestoneId: 'ms-paypal' })
+        );
+        expect(duplicate.status).toBe(409);
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('returns a structured failure and aborts settlement when PayPal rejects the payout', async () => {
+      process.env.PAYPAL_CLIENT_ID = 'route-test-client-id';
+      process.env.PAYPAL_CLIENT_SECRET = 'route-test-client-secret';
+      originalFetch = global.fetch;
+      const settleUrl = 'http://localhost/api/projects/proj-reject/milestones/ms-reject/settle';
+      try {
+        const { cookie, userId } = await seedSettlement('paypalreject@example.com', 'proj-reject', 'ms-reject');
+        (global as unknown as { fetch: unknown }).fetch = jest.fn();
+        (global.fetch as jest.Mock)
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({ access_token: 'ROUTE_OAUTH_TOKEN', token_type: 'Bearer' }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } }
+            )
+          )
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({ name: 'INSUFFICIENT_FUNDS', message: 'Insufficient funds' }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            )
+          );
+
+        const failed = await settleMilestone(
+          request(settleUrl, { method: 'POST', cookie }),
+          context({ projectId: 'proj-reject', milestoneId: 'ms-reject' })
+        );
+        const failedData = await failed.json();
+
+        expect(failed.status).toBe(502);
+        expect(failedData.error).toContain('PayPal payout failed');
+        expect(failedData.error).toContain('PayPal Payout Failed [400]');
+
+        const repository = getRepository();
+        const project = await repository.getProject(userId, 'proj-reject');
+        expect(project?.spentUSD).toBe(0);
+        expect(project?.milestones?.[0].status).toBe('AUDITED_PENDING_APPROVAL');
+        expect(project?.milestones?.[0].payPalBatchId).toBeUndefined();
+        const envelope = await repository.getEnvelope(userId);
+        expect(envelope?.spentTodayUSD).toBe(0);
+        const events = await repository.listLedgerEvents(userId, 10);
+        expect(events.filter((event) => event.event.status === 'PAYOUT_EXECUTED')).toHaveLength(0);
+
+        (global.fetch as jest.Mock)
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({ access_token: 'ROUTE_OAUTH_TOKEN', token_type: 'Bearer' }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } }
+            )
+          )
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                batch_header: {
+                  payout_batch_id: 'PAYPAL_BATCH_RETRY',
+                  batch_status: 'PENDING',
+                },
+              }),
+              { status: 201, headers: { 'Content-Type': 'application/json' } }
+            )
+          );
+
+        const retry = await settleMilestone(
+          request(settleUrl, { method: 'POST', cookie }),
+          context({ projectId: 'proj-reject', milestoneId: 'ms-reject' })
+        );
+        const retryData = await retry.json();
+        expect(retry.status).toBe(200);
+        expect(retryData.project.milestones[0].payPalBatchId).toBe('PAYPAL_BATCH_RETRY');
+
+        const rejectedRequestId = (global.fetch as jest.Mock).mock.calls[1][1].headers['PayPal-Request-Id'];
+        const retryRequestId = (global.fetch as jest.Mock).mock.calls[3][1].headers['PayPal-Request-Id'];
+        expect(retryRequestId).toBe(rejectedRequestId);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
 });

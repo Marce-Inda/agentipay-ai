@@ -10,11 +10,11 @@ AgenticPay AI combines AI-assisted negotiation with escrow settlement. The secur
 | :--- | :--- |
 | Browser to API | Route handlers validate request shape, require an authenticated session, enforce same-origin requests, and apply heuristic guardrails. Login and registration are rate-limited per process. |
 | API to AI provider | Prompts are sanitized and sent server-side; provider keys never reach the browser. |
-| Browser to PayPal | No browser-to-PayPal request path exists. The PayPal client is not imported by the runtime UI. |
+| Browser to PayPal | No browser-to-PayPal request path exists. PayPal credentials and the payout executor are server-only. The browser only sees settlement results returned by route handlers. |
 | AI to settlement | The model cannot authorize or execute payouts. Settlement is revalidated and executed server-side against stored project, envelope, and audit state. |
 | Client state | Browser storage is a tenant-scoped cache. Projects, envelopes, audits, and settlement are server-authoritative; client-submitted spend and completion state are ignored or sanitized. |
 | Session state | Opaque 32-byte tokens are stored in an HttpOnly, SameSite=Lax cookie. PostgreSQL stores only SHA-256 token hashes; sessions expire after 12 hours. |
-| Settlement execution | An authenticated, same-origin route atomically checks server state, records one deduplicated `PAYOUT_EXECUTED` event, and updates spend. No external PayPal request is sent. |
+| Settlement execution | An authenticated, same-origin route atomically checks server state, invokes the server-side PayPal payout executor inside the settlement transaction, records one deduplicated `PAYOUT_EXECUTED` event with the real PayPal `payout_batch_id` on success, and updates spend. Payout failure returns HTTP 502 and rolls the transaction back. Without credentials the rail fails closed (simulation/suppression in non-production; rejection in production). |
 
 ---
 
@@ -50,9 +50,9 @@ The client may pre-check for UX, but client-supplied spend, envelope, audit, and
 
 ### Ledger integrity
 
-Only the server settlement path can create `PAYOUT_EXECUTED`; the ledger validation schema and ledger API reject client-submitted payout events. Settlement runs under PostgreSQL row locks and inserts a deterministic event ID, so retries and concurrent releases cannot double-pay or double-count.
+Only the server settlement path can execute payouts and create `PAYOUT_EXECUTED`; the ledger validation schema and ledger API reject client-submitted payout events. Settlement runs under PostgreSQL row locks and inserts a deterministic event ID derived from the settlement fingerprint. The same fingerprint derives the PayPal `sender_batch_id` and `PayPal-Request-Id`, so retries and concurrent releases cannot double-pay or double-count.
 
-The settlement record is durable but does not call PayPal. The AI chat is a negotiation assistant; it does not display an audit score, submit deliverables, or record settlements.
+The simulation and suppressed rails are honest record-only modes: they never claim funds moved through PayPal and are unavailable in production builds without credentials. The AI chat is a negotiation assistant; it does not display an audit score, submit deliverables, or record settlements.
 
 ### Emergency controls
 
@@ -149,9 +149,9 @@ This is a pattern-based defense, not a complete prompt-injection solution. It sh
 ## 5. Credential handling
 
 - `PAYPAL_CLIENT_SECRET`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, and `GEMINI_API_KEY` are read server-side by route handlers where applicable.
-- The browser receives `NEXT_PUBLIC_APP_URL`. The PayPal client is not imported by the runtime UI. `PAYPAL_CLIENT_SECRET` remains server-only.
+- The browser receives `NEXT_PUBLIC_APP_URL`. PayPal credentials (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`) and the payout executor are exclusively server-side; the removed `NEXT_PUBLIC_PAYPAL_CLIENT_ID` variable guarantees no PayPal identifier or secret enters the client bundle.
 - `.env`, `.env.local`, and `.env.production` are excluded from version control.
-- No browser OAuth or payout request is made. Workspace releases write durable internal settlement records only.
+- PayPal authorization headers, access tokens, and payout request bodies are only used server-side within the executor; the ledger stores a redacted HTTP payload log, never the OAuth token.
 
 Do not log authorization headers, access tokens, or full credential payloads.
 
@@ -161,11 +161,11 @@ Do not log authorization headers, access tokens, or full credential payloads.
 
 The current implementation:
 
-- Contains PayPal Sandbox OAuth and `/v1/payments/payouts` code in `src/lib/paypal/client.ts`.
-- Does not import or invoke that client from the runtime UI; only unit tests exercise it.
-- Generates a `PayPal-Request-Id` header per call using the current timestamp and random values. It is not deterministic and does not prevent duplicate payouts.
-- Records workspace releases as internal server settlement records without calling PayPal.
-- Does not implement an external payout route, Orders, Vault tokenization, webhooks, refunds, or dispute handling.
+- Executes PayPal Sandbox payouts from `/settle` through the server-side executor (`src/lib/paypal/executor.ts`) using the OAuth + Payouts client in `src/lib/paypal/client.ts`.
+- Invokes the payout inside the PostgreSQL settlement transaction, so a payout rejection rolls back the milestone, project spend, envelope, and ledger atomically and returns HTTP 502.
+- Derives a deterministic `PayPal-Request-Id` and `sender_batch_id` from the settlement fingerprint, preventing duplicate payouts on retry.
+- Falls closed without credentials: non-production records an honest simulated or suppressed ledger entry; production rejects settlement outright.
+- Does not implement Orders, Vault tokenization, webhooks, refunds, or dispute handling.
 
 The application does not store card numbers and is not designed to handle raw PAN data.
 
@@ -179,11 +179,10 @@ The current implementation has authentication, tenant-scoped sessions, and durab
 2. Durable, cross-instance rate limiting for authentication and AI routes.
 3. PII detection and redaction before AI provider calls.
 4. Secret rotation and environment separation.
-5. PayPal webhook signature verification and reconciliation.
-6. A server-side external payout adapter with PayPal idempotency and recovery handling.
-7. An audit scorer that does not auto-pass GitHub URLs and verifies artifact ownership.
-8. Live PostgreSQL concurrency and failover testing.
-9. Independent security review and penetration testing.
+5. PayPal webhook signature verification and payout reconciliation (webhooks, refunds, chargebacks).
+6. An audit scorer that does not auto-pass GitHub URLs and verifies artifact ownership.
+7. Live PostgreSQL concurrency and failover testing with a live Sandbox rail.
+8. Independent security review and penetration testing.
 
 Browser `localStorage` is a cache and can be modified by the user. It must not be treated as a source of truth for financial reconciliation; server reconciliation is authoritative.
 

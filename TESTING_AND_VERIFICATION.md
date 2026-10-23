@@ -12,9 +12,9 @@ A phase is considered verified only when its automated checks and the relevant m
 | :--- | :--- | :--- | :--- |
 | 1 | Domain types, guardrails, ledger helper | Complete | TypeScript validation and ledger tests passing |
 | 2 | Portfolio, workspace, AG Grid, account settings | Complete | Manual UI verification and production build |
-| 3 | Deterministic guardrails and PayPal Sandbox client code | Partial | Guardrail and PayPal unit suites pass; live payout wiring is absent |
+| 3 | Deterministic guardrails and PayPal Sandbox payout rail | Partial | Guardrail and PayPal payout-rail suites pass; `/settle` executes the PayPal Payouts API with deterministic idempotency in tests against a mocked endpoint; live verified Sandbox payout is pending |
 | 4 | Streamed AI assistant | Complete | `/api/agent/stream` tests passing |
-| 5 | Deliverable audit and local settlement workflow | Partial | `/api/agent/audit` and ledger tests pass; workspace writes a local settlement record; no external payout is sent |
+| 5 | Deliverable audit and settlement workflow | Partial | `/api/agent/audit` and ledger tests pass; `/settle` executes the PayPal payout executor inside the settlement transaction; live verified Sandbox payout is pending |
 | 6 | Deployment and production hardening | In progress | Docker and Render configuration present; production controls pending |
 
 ---
@@ -30,10 +30,10 @@ npm run build
 Pass criteria:
 
 - TypeScript reports no errors.
-- Five Jest suites and 58 checks pass.
+- Twelve Jest suites and 126 checks pass.
 - Next.js production build completes.
 
-There is no CI workflow. These commands are run locally until a pipeline is added.
+GitHub Actions runs these gates on pushes and pull requests to `main` via `.github/workflows/ci.yml`.
 
 ---
 
@@ -107,12 +107,12 @@ Live Sandbox verification requires credentials and should not run in the default
 | Kill-switch | Header enters alert state; settlement attempts are blocked. |
 | Audit result | Confidence, risk, rationale, and settlement mode are displayed. |
 | Human approval | Milestone above $1,000 USD enters `AUDITED_PENDING_APPROVAL` and requires an explicit action. |
-| Budget guard | Over-budget release is blocked before a local settlement record is written. |
+| Budget guard | Over-budget release is blocked before the settlement transaction mutates state. |
 | Subcontract badge | Shows exactly one of `SUBCONTRACTED` or `DIRECT HIRE`. |
 | Parent mandate | Parent contract name is displayed when linked. |
 | Account banner | Identifies business or individual account context and shows settlement email and compliance status. |
-| Ledger | Rows update after audit and a local settlement record; payload inspector opens. |
-| Settlement truth | Workspace marks milestones complete and emits local `PAYOUT_EXECUTED` logs with `SETTLE-*` references; no PayPal request is made. |
+| Ledger | Rows update after audit and a settlement; payload inspector opens. |
+| Settlement truth | The server settlement path marks milestones complete and emits `PAYOUT_EXECUTED` logs with deterministic `SETTLE-`/`PAYOUT-` references. With PayPal credentials, the ledger carries the real sandbox `payout_batch_id`; without credentials, the entry honestly states the rail was simulated or suppressed. |
 | Persistence | Refresh preserves profile, contracts, envelope, and logs. |
 
 Use [E2E_DUAL_ROLE_GRID_TEST_PLAN.md](E2E_DUAL_ROLE_GRID_TEST_PLAN.md) for the full sequence.

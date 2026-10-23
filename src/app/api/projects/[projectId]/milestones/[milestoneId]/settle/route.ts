@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertTrustedOrigin, getSession } from '@/lib/auth/session';
 import { getRepository } from '@/lib/db/repository';
+import { createMilestonePayoutExecutor } from '@/lib/paypal/executor';
 import { logSecurityEvent } from '@/lib/security/events';
 import {
   RATE_LIMITS,
   checkRateLimit,
   rateLimitResponse,
 } from '@/lib/security/rate-limit';
+
+const SETTLE_ROUTE = '/api/projects/[projectId]/milestones/[milestoneId]/settle';
 
 function json(body: unknown, status: number) {
   return NextResponse.json(body, {
@@ -34,7 +37,7 @@ export async function POST(
     );
     if (!rate.allowed) {
       logSecurityEvent('RATE_LIMITED', {
-        route: '/api/projects/[projectId]/milestones/[milestoneId]/settle',
+        route: SETTLE_ROUTE,
         reason: 'Milestone settlement rate limit exceeded',
         status: 429,
       });
@@ -45,18 +48,26 @@ export async function POST(
     }
 
     const { projectId, milestoneId } = await context.params;
+
+    // The executor runs inside the repository transaction, after row locks
+    // confirm the envelope has remaining funds.
     const result = await getRepository().settleMilestone(
       session.user.id,
       projectId,
-      milestoneId
+      milestoneId,
+      createMilestonePayoutExecutor()
     );
 
     if (!result.ok) {
-      logSecurityEvent('BUDGET_REJECTED', {
-        route: '/api/projects/[projectId]/milestones/[milestoneId]/settle',
-        reason: result.error,
-        status: result.status,
-      });
+      if (result.status !== 502) {
+        logSecurityEvent('BUDGET_REJECTED', {
+          route: SETTLE_ROUTE,
+          reason: result.error,
+          status: result.status,
+        });
+      }
+      // PayPal payout failures are already booked via PAYOUT_BLOCKED inside
+      // the executor and surface as one structured, non-retryable response.
       return json({ error: result.error }, result.status);
     }
 

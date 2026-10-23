@@ -6,12 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Server-side PayPal Sandbox payout rail integrated with `/settle`: settlement dispatches `POST /v1/payments/payouts` through a new `MilestonePayoutExecutor` (`src/lib/paypal/executor.ts`) inside the settlement transaction.
+- Deterministic idempotency: the settlement fingerprint (project ID + milestone ID + amount) derives the ledger event ID, PayPal `sender_batch_id`, and `PayPal-Request-Id`, so retries reuse the same payout request.
+- Three fail-closed payout rails: `PAYPAL_SANDBOX` (credentials present), `SIMULATED` (no credentials + `PAYPAL_SIMULATION_MODE=true`, non-production only), and `SUPPRESSED_RAIL` (no credentials in non-production) with honest record-only ledger entries. Production without credentials rejects settlement.
+- Atomic payout rollback: a PayPal payout rejection rolls back milestone, project spend, envelope, and ledger changes and returns a structured HTTP 502; the retry reuses the same deterministic idempotency context.
+- Real PayPal batch details (`payout_batch_id`, `batch_status`) recorded on milestones, ledger events, and `PAYOUT_BLOCKED` audit events for blocked/rejected payouts.
+- Route and repository tests for the live payout flow: real batch id recording, 409 duplicate suppression without extra API calls, and 502 rollback on `INSUFFICIENT_FUNDS`.
+
 ### Changed
 
+- Removed `NEXT_PUBLIC_PAYPAL_CLIENT_ID` and client-side random idempotency keys; PayPal credentials and payout execution are server-only.
+- `.env.example` now documents `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_MODE`, and the payout rail contract.
+- Documentation (README, architecture, security, compliance, data governance, testing, roadmap) aligned with the wired payout rail and current test counts (12 suites, 126 checks).
 - Removed unsupported payout, preset, simulated acceptance, and hardcoded audit-confidence behavior from the negotiation assistant.
 - Removed the portfolio intake-link, capacity-card, and account-switching surfaces that were not part of the current workflow.
 - Standardized workspace terminology to `Outbound Envelope`, `Inbound Contract Value`, `Envelope Ceiling`, `Settled`, and `Remaining`.
-- Clarified that workspace settlement writes local `SETTLE-*` records and does not call PayPal.
 - Aligned README, architecture, security, data-governance, design, testing, compliance, ethics, and contribution documentation with the current UI and settlement behavior.
 
 ### Fixed

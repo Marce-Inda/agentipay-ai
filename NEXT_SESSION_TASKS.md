@@ -3,11 +3,11 @@
 ## Status
 
 - **Version:** 0.6.1
-- **Automated tests:** 5 suites, 58 passing checks
+- **Automated tests:** 12 suites, 126 passing checks
 - **Build:** production build configured with webpack
-- **Deployment:** Docker and Render blueprint included; deployed payout not verified
-- **Settlement rail:** PayPal Sandbox adapter retained but not wired; workspace settlement is recorded locally
-- **Persistence:** browser `localStorage`
+- **Deployment:** Docker and Render blueprint included; live verified Sandbox payout pending
+- **Settlement rail:** server-side PayPal Payouts executor wired into `/settle` with a deterministic `PayPal-Request-Id`; real Sandbox rail with credentials, honest simulated/suppressed rails (fail-closed) without them; production without credentials rejects settlement
+- **Persistence:** browser `localStorage` cache + PostgreSQL durable ledger (production requires `DATABASE_URL`)
 - **AI:** streamed OpenAI/OpenRouter or Gemini assistant with fallback model
 
 Implemented:
@@ -16,23 +16,23 @@ Implemented:
 - Contract and milestone management.
 - Deterministic guardrails for budget, freeze, kill-switch, audit confidence, and human approval.
 - Heuristic deliverable audit with a known GitHub URL bypass.
-- Unused PayPal Sandbox payout adapter with per-call request identifiers.
+- Authentication, tenant isolation, PostgreSQL-backed sessions, and durable server-side ledger.
+- Server settlement path with atomic rollback, duplicate-rejection, and kill-switch enforcement.
+- PayPal Sandbox payout executor: real rail (OAuth + `/v1/payments/payouts` with deterministic `PayPal-Request-Id`), simulation rail, and suppressed fail-closed rail.
 - AG Grid ledger with payload inspection.
-- Versioned browser persistence.
+- Tenant-scoped browser persistence with server reconciliation.
 - Subcontracting metadata and parent mandate display.
 
 Not implemented:
 
-- Authentication, authorization, and tenant isolation.
-- Server-side persistence or immutable audit storage.
-- A server-side PayPal payout route or verified live Sandbox payout.
-- Deterministic idempotency or ledger deduplication.
-- Production PayPal onboarding, webhooks, refunds, or disputes.
+- Role-based authorization, email verification, and password recovery.
+- PayPal webhooks, refunds, disputes, and payout reconciliation.
+- Live verified Sandbox payout against developer.paypal.com.
+- Production PayPal onboarding.
 - KYC/KYB and sanctions screening.
 - Subscription billing or usage metering.
 - Multimodal vision audit.
 - Automated browser or end-to-end tests.
-- CI/CD workflows.
 
 ---
 
@@ -97,11 +97,11 @@ npm run build
 - [ ] Run the manual plan in [E2E_DUAL_ROLE_GRID_TEST_PLAN.md](E2E_DUAL_ROLE_GRID_TEST_PLAN.md).
 - [ ] Add automated component tests for portfolio, workspace, and agent chat.
 - [ ] Add an end-to-end browser suite.
-- [ ] Add CI that runs type validation, tests, and build.
+- [x] CI runs type validation, tests, and build on `main` (`.github/workflows/ci.yml`).
 - [ ] Deploy to Render with Sandbox credentials.
 - [ ] Verify the health check at `/`.
-- [ ] Verify the deployed workspace records a local settlement and makes no PayPal request.
-- [ ] Verify the server payout route only after it is implemented.
+- [ ] Verify a live Sandbox payout end to end: settle a milestone with credentials, confirm the `payout_batch_id` in the PayPal Sandbox dashboard, and confirm the ledger records it.
+- [ ] Add PayPal webhook signature verification and payout reconciliation.
 - [ ] Confirm logs do not expose secrets.
 
 ---

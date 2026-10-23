@@ -3,7 +3,7 @@
 This plan verifies the implemented dual-perspective portfolio, milestone audit, guardrails, local settlement recording, and AG Grid ledger. It replaces the earlier role-switching test plan; account type and contract perspective are independent, and there is no in-app role switch.
 
 > [!IMPORTANT]
-> The workspace does not execute PayPal payouts. A release marks the milestone complete and writes a local `PAYOUT_EXECUTED` event with a generated `SETTLE-*` identifier. Use this plan to verify that behavior, not to claim a Sandbox payment.
+> Settlement dispatches through the server-side PayPal Payouts executor. With `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` configured, a release calls the PayPal Sandbox Payouts API and records the real `payout_batch_id`. Without credentials, the rail fails closed: the release records an honest simulated or suppressed ledger entry, without claiming a Sandbox payment. Verify both modes before relying on either.
 
 ---
 
@@ -47,7 +47,7 @@ For an isolated test pass, clear these browser keys before starting:
 - `agenticpay_envelope_v2`
 - `agenticpay_logs_v2`
 
-The PayPal client is not imported by the runtime UI. Workspace releases do not call PayPal. A live Sandbox payout cannot be verified until a server-side route is implemented.
+The payout executor is server-side only. With credentials, `/settle` calls `https://api-m.sandbox.paypal.com/v1/payments/payouts` and stores the returned batch ID. Without credentials, payouts fail closed. To verify a live Sandbox payout end to end, configure credentials and confirm the batch in the PayPal developer dashboard.
 
 ### Low-resource option
 
@@ -117,9 +117,9 @@ Expected:
 - The ledger records `PAYOUT_EXECUTED`.
 - The milestone becomes `COMPLETED`.
 - `Settled` increases by `$100.00` for that applied log.
-- The payload contains a generated `SETTLE-*` identifier and a local settlement log.
+- The payload contains a deterministic `SETTLE-`/`PAYOUT-` reference and the settlement HTTP log. With credentials configured, it also carries the real sandbox `payout_batch_id`; without credentials it honestly reports the simulated or suppressed rail.
 - Refreshing the page preserves the updated amount.
-- No PayPal request is made, regardless of configured credentials.
+- Without credentials no PayPal request is made; with credentials the modeled request uses a deterministic `PayPal-Request-Id` so a retry cannot double-pay.
 
 ### Test 5: Human authorization above the cap
 

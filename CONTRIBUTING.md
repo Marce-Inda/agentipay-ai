@@ -33,7 +33,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-The PayPal client is not imported by the runtime UI. Workspace releases do not call PayPal. A live payout requires a new server-side route. The AI assistant requires a valid provider key.
+Milestone settlement executes the PayPal Sandbox Payouts rail server-side when `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are configured; without credentials it fails closed with a simulated or suppressed ledger entry (never claiming funds moved). The AI assistant requires a valid provider key.
 
 ---
 

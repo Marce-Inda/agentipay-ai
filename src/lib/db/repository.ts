@@ -1,7 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import type { BudgetEnvelope, ProjectContract, TransactionLog } from '@/lib/types';
-import { buildMilestoneSettlement, type SettlementResult } from '@/lib/settlement/settlement';
+import {
+  buildMilestoneSettlement,
+  applyMilestonePayoutExecution,
+  type MilestonePayoutExecutor,
+  type MilestonePayoutExecution,
+  type SettlementResult,
+  type SettlementSuccess,
+} from '@/lib/settlement/settlement';
+import { PayPalPayoutError } from '@/lib/paypal/client';
 
 export interface AuthUser {
   id: string;
@@ -72,7 +80,8 @@ export interface AgenticPayRepository {
   settleMilestone(
     userId: string,
     projectId: string,
-    milestoneId: string
+    milestoneId: string,
+    payoutExecutor?: MilestonePayoutExecutor
   ): Promise<SettlementResult>;
 }
 
@@ -122,6 +131,41 @@ function memoryProjects(userId: string): Map<string, ProjectContract> {
 
 function ledgerKey(userId: string, eventId: string): string {
   return `${userId}:${eventId}`;
+}
+
+/**
+ * Runs the real PayPal payouts executor for an already-authorized settlement.
+ * A PayPal failure aborts the settlement atomically: no funds are deducted
+ * from the envelope and nothing is committed to the durable ledger — the
+ * caller receives one structured, non-retryable failure instead.
+ */
+async function runMilestonePayout(
+  success: SettlementSuccess,
+  milestoneId: string,
+  executor: MilestonePayoutExecutor
+): Promise<SettlementResult> {
+  const milestone = (success.project.milestones || []).find((item) => item.id === milestoneId);
+  let payout: MilestonePayoutExecution;
+  try {
+    payout = await executor({
+      projectId: success.project.id,
+      milestoneId,
+      milestoneTitle: milestone?.title || 'Milestone',
+      receiverEmail: success.event.recipientEmail,
+      amountUSD: success.event.amountUSD,
+      settlementBatchId: success.event.payPalTransactionId || '',
+    });
+  } catch (error) {
+    if (error instanceof PayPalPayoutError) {
+      return {
+        ok: false,
+        status: 502,
+        error: `PayPal payout failed: ${error.message}`,
+      };
+    }
+    throw error;
+  }
+  return applyMilestonePayoutExecution(success, milestoneId, payout);
 }
 
 function createMemoryRepository(): AgenticPayRepository {
@@ -272,7 +316,7 @@ function createMemoryRepository(): AgenticPayRepository {
       return envelope;
     },
 
-    async settleMilestone(userId, projectId, milestoneId) {
+    async settleMilestone(userId, projectId, milestoneId, payoutExecutor) {
       const projects = memoryProjects(userId);
       const project = projects.get(projectId);
       if (!project) {
@@ -282,8 +326,12 @@ function createMemoryRepository(): AgenticPayRepository {
       if (!envelope) {
         return { ok: false, status: 409, error: 'Budget envelope is not configured.' };
       }
-      const result = buildMilestoneSettlement(project, envelope, milestoneId);
+      let result = buildMilestoneSettlement(project, envelope, milestoneId);
       if (!result.ok) return result;
+      if (payoutExecutor) {
+        result = await runMilestonePayout(result, milestoneId, payoutExecutor);
+        if (!result.ok) return result;
+      }
       projects.set(projectId, result.project);
       getMemoryState().envelopes.set(userId, result.envelope);
       await this.appendLedgerEvent(userId, result.event);
@@ -705,7 +753,7 @@ function createPostgresRepository(): AgenticPayRepository {
       return envelope;
     },
 
-    async settleMilestone(userId, projectId, milestoneId) {
+    async settleMilestone(userId, projectId, milestoneId, payoutExecutor) {
       await ensurePostgresSchema();
       const client = await getPostgresPool().connect();
       try {
@@ -732,10 +780,20 @@ function createPostgresRepository(): AgenticPayRepository {
         }
         const project = projectResult.rows[0].data as ProjectContract;
         const envelope = envelopeResult.rows[0].data as BudgetEnvelope;
-        const result = buildMilestoneSettlement(project, envelope, milestoneId);
+        let result = buildMilestoneSettlement(project, envelope, milestoneId);
         if (!result.ok) {
           await client.query('ROLLBACK');
           return result;
+        }
+        if (payoutExecutor) {
+          // Executed inside the transaction, after row locks confirm the
+          // envelope has funds: a PayPal failure rolls the whole settlement
+          // back atomically.
+          result = await runMilestonePayout(result, milestoneId, payoutExecutor);
+          if (!result.ok) {
+            await client.query('ROLLBACK');
+            return result;
+          }
         }
         await client.query(
           `UPDATE agenticpay_projects
