@@ -19,6 +19,11 @@ import {
   X,
   Sparkles,
   Check,
+  Wrench,
+  GitFork,
+  Clock,
+  AlertTriangle,
+  Zap,
 } from 'lucide-react';
 import { BudgetEnvelope, ProjectContract, ProjectMilestone, TransactionLog } from '../lib/types';
 import { AUTONOMOUS_SETTLEMENT_CAP_USD } from '../lib/guardrails/enforcer';
@@ -440,12 +445,17 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
               }`}
             >
               <div className="flex items-center justify-between font-bold">
-                <span>
+                <span className="flex items-center gap-1.5">
+                  {auditResult.success ? (
+                    <CheckCircle2 className="w-4 h-4" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4" />
+                  )}
                   {auditResult.success
                     ? auditResult.requiresHumanApproval
-                      ? '✅ Audit Passed — Awaiting Client Authorization'
-                      : '✅ Audit Passed — Durable Settlement Recorded'
-                    : '⚠️ Audit Verification Rejected'}
+                      ? 'Audit Passed — Awaiting Client Authorization'
+                      : 'Audit Passed — Durable Settlement Recorded'
+                    : 'Audit Verification Rejected'}
                 </span>
                 <span className="font-mono bg-black/40 px-2 py-0.5 rounded border border-current">
                   Score: {auditResult.auditConfidenceScore}%
@@ -662,31 +672,39 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                 {project.name}
               </h2>
               <span
-                className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center gap-1 ${
                   project.status === 'ACTIVE'
                     ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/40'
                     : 'bg-amber-950/60 text-amber-400 border-amber-500/40'
                 }`}
               >
-                {project.status === 'ACTIVE' ? '⚡ ACTIVE' : '⏸️ PAUSED'}
+                {project.status === 'ACTIVE' ? (
+                  <><Zap className="w-3 h-3" /> ACTIVE</>
+                ) : (
+                  <><PauseCircle className="w-3 h-3" /> PAUSED</>
+                )}
               </span>
               <span
-                className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono border ${
+                className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono border flex items-center gap-1 ${
                   isIncoming
                     ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
                     : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                 }`}
               >
-                {isIncoming ? '🛠️ Role: Contractor (Escrow Beneficiary)' : '💼 Role: Client (Escrow Funder)'}
+                {isIncoming ? (
+                  <><Wrench className="w-3 h-3" /> Role: Contractor (Escrow Beneficiary)</>
+                ) : (
+                  <><Building2 className="w-3 h-3" /> Role: Client (Escrow Funder)</>
+                )}
               </span>
               {project.contractType === 'MSA_SOW' && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-purple-950/50 text-purple-300 border border-purple-500/30">
-                  📜 Binding MSA & SOW ({project.contractReferenceId || 'Enforced'})
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-purple-950/50 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                  <FileText className="w-3 h-3" /> Binding MSA & SOW ({project.contractReferenceId || 'Enforced'})
                 </span>
               )}
               {project.isSubcontracted && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-indigo-950/50 text-indigo-300 border border-indigo-500/30">
-                  🔀 Subcontracted from {parentProject?.name || 'linked master contract'}
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-indigo-950/50 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+                  <GitFork className="w-3 h-3" /> Subcontracted from {parentProject?.name || 'linked master contract'}
                 </span>
               )}
             </div>
@@ -826,7 +844,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                     {ms.title.split(':')[0] || `Phase ${ms.phaseNumber}`}
                   </span>
                   <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                       isCompleted
                         ? 'bg-emerald-950 text-emerald-400 border-emerald-500/50'
                         : isAuditedPending
@@ -836,13 +854,15 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                         : 'bg-slate-900 text-slate-500 border-slate-700'
                     }`}
                   >
-                    {isCompleted
-                      ? '✅ SETTLED'
-                      : isAuditedPending
-                      ? '🛡️ CLIENT AUTHORIZATION REQ.'
-                      : isPending
-                      ? '⏳ READY FOR AUDIT'
-                      : '🔒 MILESTONE LOCKED'}
+                    {isCompleted ? (
+                      <><CheckCircle2 className="w-3 h-3" /> SETTLED</>
+                    ) : isAuditedPending ? (
+                      <><ShieldCheck className="w-3 h-3" /> CLIENT AUTHORIZATION REQ.</>
+                    ) : isPending ? (
+                      <><Clock className="w-3 h-3" /> READY FOR AUDIT</>
+                    ) : (
+                      <><Lock className="w-3 h-3" /> MILESTONE LOCKED</>
+                    )}
                   </span>
                 </div>
 

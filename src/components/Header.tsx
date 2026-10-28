@@ -48,6 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const isPortfolio = activeView === 'PORTFOLIO';
   const activeProject = projects.find((p) => p.id === selectedProjectId);
+  const showKillSwitch = activeView !== 'PROJECT_WORKSPACE' || activeProject?.perspective !== 'INCOMING';
 
   const outboundEscrowCap = projects
     .filter((p) => p.perspective !== 'INCOMING')
@@ -140,8 +141,9 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-2 bg-[#0f1115] border border-amber-900/40 px-3 py-1.5 rounded-lg shadow-inner">
             <LayoutGrid className="w-4 h-4 text-amber-500" />
             <span className="text-slate-400 font-medium">Context:</span>
-            <span className="text-amber-200 font-bold text-xs">
-              📁 Global Portfolio ({projects.length} Contracts)
+            <span className="text-amber-200 font-bold text-xs flex items-center gap-1.5">
+              <LayoutGrid className="w-3.5 h-3.5 text-amber-500" />
+              Global Portfolio ({projects.length} Contracts)
             </span>
           </div>
         ) : (
@@ -168,11 +170,11 @@ export const Header: React.FC<HeaderProps> = ({
               className="bg-transparent text-cyan-200 font-bold text-xs focus:outline-none cursor-pointer max-w-[180px] truncate"
             >
               <option value="PORTFOLIO" className="bg-[#16181d] text-white">
-                📁 All Contracts Overview
+                All Contracts Overview
               </option>
               {projects.map((proj) => (
                 <option key={proj.id} value={proj.id} className="bg-[#16181d] text-white">
-                  {proj.status === 'PAUSED' ? '⏸️' : '⚡'} {proj.name} (${proj.budgetCapUSD.toFixed(2)})
+                  {proj.name} (${proj.budgetCapUSD.toFixed(2)})
                 </option>
               ))}
             </select>
@@ -224,33 +226,35 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Master Emergency Kill-Switch Toggle with Two-Click Confirmation */}
-        <button
-          onClick={handleToggleKillSwitch}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95 ${
-            envelope.killSwitchActive
-              ? 'bg-red-600 hover:bg-red-500 text-white animate-bounce shadow-red-600/50'
-              : killSwitchConfirmPending
-              ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse shadow-amber-600/50'
-              : 'bg-[#0f1115] hover:bg-red-950/40 text-red-400 border border-red-900/40'
-          }`}
-        >
-          {envelope.killSwitchActive ? (
-            <>
-              <ShieldAlert className="w-4 h-4 text-white" />
-              <span>MASTER KILL-SWITCH ACTIVE</span>
-            </>
-          ) : killSwitchConfirmPending ? (
-            <>
-              <Shield className="w-4 h-4 text-white" />
-              <span>Confirm Kill Switch</span>
-            </>
-          ) : (
-            <>
-              <Shield className="w-4 h-4 text-red-400" />
-              <span>Master Kill-Switch</span>
-            </>
-          )}
-        </button>
+        {showKillSwitch && (
+          <button
+            onClick={handleToggleKillSwitch}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95 ${
+              envelope.killSwitchActive
+                ? 'bg-red-600 hover:bg-red-500 text-white animate-bounce shadow-red-600/50'
+                : killSwitchConfirmPending
+                ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse shadow-amber-600/50'
+                : 'bg-[#0f1115] hover:bg-red-950/40 text-red-400 border border-red-900/40'
+            }`}
+          >
+            {envelope.killSwitchActive ? (
+              <>
+                <ShieldAlert className="w-4 h-4 text-white" />
+                <span>MASTER KILL-SWITCH ACTIVE</span>
+              </>
+            ) : killSwitchConfirmPending ? (
+              <>
+                <Shield className="w-4 h-4 text-white" />
+                <span>Confirm Kill Switch</span>
+              </>
+            ) : (
+              <>
+                <Shield className="w-4 h-4 text-red-400" />
+                <span>Master Kill-Switch</span>
+              </>
+            )}
+          </button>
+        )}
 
         {onLogout && (
           <button

@@ -17,6 +17,9 @@ import {
   ArrowUpRight,
   Layers,
   RotateCcw,
+  Wrench,
+  Info,
+  Zap,
 } from 'lucide-react';
 import { BudgetEnvelope, ProjectContract, UserProfile } from '../lib/types';
 
@@ -100,8 +103,12 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded font-mono bg-black/50 border border-current">
-                {isBusiness ? '🏢 Enterprise Business Account' : '👤 Individual Professional Account'}
+              <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded font-mono bg-black/50 border border-current flex items-center gap-1.5">
+                {isBusiness ? (
+                  <><Building2 className="w-3.5 h-3.5" /> Enterprise Business Account</>
+                ) : (
+                  <><User className="w-3.5 h-3.5" /> Individual Professional Account</>
+                )}
               </span>
               <span className="text-sm font-bold text-white">
                 {currentProfile?.legalCompanyName || currentProfile?.name}
@@ -195,25 +202,27 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
             </button>
             <button
               onClick={() => setColumnFocus('OUTGOING')}
-              title="Focus on Managed Contracts"
-              className={`px-2 py-1 rounded-md font-semibold transition-all ${
+              title="Focus on Client Contracts"
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition-all ${
                 columnFocus === 'OUTGOING'
                   ? 'bg-amber-950/80 text-amber-300 shadow border border-amber-500/40'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              💼 Hiring View
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Client View</span>
             </button>
             <button
               onClick={() => setColumnFocus('INCOMING')}
-              title="Focus on Assigned Contracts"
-              className={`px-2 py-1 rounded-md font-semibold transition-all ${
+              title="Focus on Contractor Contracts"
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition-all ${
                 columnFocus === 'INCOMING'
                   ? 'bg-cyan-950/80 text-cyan-300 shadow border border-cyan-500/40'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              🛠️ Contractor View
+              <Wrench className="w-3.5 h-3.5" />
+              <span>Contractor View</span>
             </button>
           </div>
 
@@ -232,12 +241,12 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
 
       {/* Context Chip — Role-specific guidance based on active view */}
       <div className="text-xs text-slate-400 px-3.5 py-1.5 rounded-lg bg-[#0f1115]/60 border border-slate-800/50 flex items-center gap-2">
-        <span className="text-[10px]">📌</span>
+        <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
         <span>
           {columnFocus === 'DUAL'
-            ? 'Viewing all contracts — as employer and as vendor'
+            ? 'Viewing all contracts — as Client (Escrow Funder) and as Contractor (Escrow Beneficiary)'
             : columnFocus === 'OUTGOING'
-              ? 'Hiring mode — contracts you sponsor and administer'
+              ? 'Client mode — contracts you fund and administer'
               : 'Contractor mode — contracts where you deliver milestones'}
         </span>
       </div>
@@ -269,7 +278,8 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                       </span>
                     </div>
                     <h3 className="text-base font-bold text-white mt-0.5 flex items-center gap-1.5">
-                      <span>💼 Contracts You Manage & Pay</span>
+                      <Building2 className="w-4 h-4 text-amber-400" />
+                      <span>Contracts You Fund & Administer</span>
                     </h3>
                   </div>
                 </div>
@@ -396,20 +406,24 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                                 <GitFork className="w-2.5 h-2.5" /> SUBCONTRACTED
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-amber-950/80 text-amber-300 border border-amber-500/40">
-                                💼 DIRECT HIRE
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-amber-950/80 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                                <Building2 className="w-2.5 h-2.5" /> CLIENT (ESCROW FUNDER)
                               </span>
                             )}
                           </div>
 
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap flex items-center gap-1 ${
                               project.status === 'ACTIVE'
                                 ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/50'
                                 : 'bg-amber-950/80 text-amber-300 border-amber-700/50'
                             }`}
                           >
-                            {project.status === 'ACTIVE' ? '⚡ ACTIVE' : '⏸️ PAUSED'}
+                            {project.status === 'ACTIVE' ? (
+                              <><Zap className="w-3 h-3" /> ACTIVE</>
+                            ) : (
+                              <><PauseCircle className="w-3 h-3" /> PAUSED</>
+                            )}
                           </span>
                         </div>
 
@@ -535,7 +549,8 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                       </span>
                     </div>
                     <h3 className="text-base font-bold text-white mt-0.5 flex items-center gap-1.5">
-                      <span>🛠️ Contracts Assigned to You</span>
+                      <Wrench className="w-4 h-4 text-cyan-400" />
+                      <span>Contracts Where You Deliver</span>
                     </h3>
                   </div>
                 </div>
@@ -646,8 +661,8 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                       <div>
                         <div className="flex items-center justify-between gap-2 mb-2">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-cyan-950/80 text-cyan-300 border border-cyan-500/40">
-                              🛠️ ASSIGNED CONTRACT
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 flex items-center gap-1">
+                              <Wrench className="w-2.5 h-2.5" /> CONTRACTOR (ESCROW BENEFICIARY)
                             </span>
 
                             {project.isSubcontracted && (
@@ -658,13 +673,17 @@ export const ProjectPortfolioView: React.FC<ProjectPortfolioViewProps> = ({
                           </div>
 
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap flex items-center gap-1 ${
                               project.status === 'ACTIVE'
                                 ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/50'
                                 : 'bg-amber-950/80 text-amber-300 border-amber-700/50'
                             }`}
                           >
-                            {project.status === 'ACTIVE' ? '⚡ ACTIVE' : '⏸️ PAUSED'}
+                            {project.status === 'ACTIVE' ? (
+                              <><Zap className="w-3 h-3" /> ACTIVE</>
+                            ) : (
+                              <><PauseCircle className="w-3 h-3" /> PAUSED</>
+                            )}
                           </span>
                         </div>
 
