@@ -21,6 +21,7 @@ import {
   Check,
 } from 'lucide-react';
 import { BudgetEnvelope, ProjectContract, ProjectMilestone, TransactionLog } from '../lib/types';
+import { AUTONOMOUS_SETTLEMENT_CAP_USD } from '../lib/guardrails/enforcer';
 import { AgentChat } from './AgentChat';
 import { CommandCenter } from './CommandCenter';
 
@@ -35,6 +36,29 @@ function getSettlementBlockReason(
     return 'Settlements are frozen for this contract. Resume the contract before settling milestones.';
   }
   return null;
+}
+
+type PaymentRailInfo = { label: string; tone: string; className: string };
+
+function getPaymentRailInfo(project: ProjectContract): PaymentRailInfo {
+  const settled = (project.milestones || []).filter((m) => m.status === 'COMPLETED');
+  if (settled.length === 0) {
+    return { label: 'PAYMENT RAIL: PENDING', tone: 'text-slate-400', className: 'border-slate-700 bg-[#0f1115]' };
+  }
+  const hasRealPayPal = settled.some((m) =>
+    m.payPalBatchId &&
+    !m.payPalBatchId.startsWith('SIM_PAYOUT_') &&
+    !m.payPalBatchId.startsWith('SETTLE-') &&
+    !m.payPalBatchId.startsWith('AGENTICPAY_')
+  );
+  const hasSimulated = settled.some((m) => m.payPalBatchId?.startsWith('SIM_PAYOUT_'));
+  if (hasRealPayPal) {
+    return { label: 'PAYMENT RAIL: PAYPAL SANDBOX', tone: 'text-emerald-400', className: 'border-emerald-500/40 bg-emerald-950/60' };
+  }
+  if (hasSimulated) {
+    return { label: 'PAYMENT RAIL: SIMULATED', tone: 'text-amber-300', className: 'border-amber-500/40 bg-amber-950/60' };
+  }
+  return { label: 'PAYMENT RAIL: LOCAL LEDGER', tone: 'text-slate-300', className: 'border-slate-700 bg-[#0f1115]' };
 }
 
 type MilestoneSettlementResponse =
@@ -480,6 +504,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
   onSettleMilestone,
 }) => {
   const isIncoming = project.perspective === 'INCOMING';
+  const railInfo = getPaymentRailInfo(project);
   const parentProject = project.parentProjectId
     ? projects.find((p) => p.id === project.parentProjectId)
     : undefined;
@@ -707,6 +732,18 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
               <span>Settled:</span>
               <strong className="text-emerald-400 ml-1 font-mono">${project.spentUSD.toFixed(2)}</strong>
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="text-[10px] font-mono px-2 py-1 rounded-lg border border-amber-500/30 bg-amber-950/40 text-amber-300"
+              title="Milestones at or below this amount settle autonomously after a passing audit; larger amounts require human-in-the-loop authorization."
+            >
+              Autonomous Release Ceiling: ≤ ${AUTONOMOUS_SETTLEMENT_CAP_USD.toFixed(2)}
+            </span>
+            <span className={`text-[10px] font-mono px-2 py-1 rounded-lg border ${railInfo.className} ${railInfo.tone}`}>
+              {railInfo.label}
+            </span>
           </div>
 
           {!isIncoming && (
