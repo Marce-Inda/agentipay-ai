@@ -187,6 +187,7 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
   onAddLog,
   onSettleMilestone,
 }) => {
+  const isIncoming = project.perspective === 'INCOMING';
   const [proofUrl, setProofUrl] = useState('');
   const [proofText, setProofText] = useState('');
   const [isAuditing, setIsAuditing] = useState(false);
@@ -294,7 +295,7 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
             data.auditConfidenceScore,
             data.reason,
             undefined,
-            true
+            false
           );
 
           const settlement = await onSettleMilestone(project.id, milestone.id);
@@ -361,11 +362,11 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-[#16181D] border border-cyan-500/30 rounded-2xl w-full max-w-xl shadow-2xl p-6 space-y-4">
+      <div className={`bg-[#16181D] border ${isIncoming ? 'border-cyan-500/30' : 'border-amber-500/30'} rounded-2xl w-full max-w-xl shadow-2xl p-6 space-y-4`}>
         <div className="flex items-center justify-between pb-3 border-b border-[#252830]">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-cyan-400" />
-            <h3 className="text-base font-bold text-white">Submit Milestone Deliverable</h3>
+            <ShieldCheck className={`w-5 h-5 ${isIncoming ? 'text-cyan-400' : 'text-amber-400'}`} />
+            <h3 className="text-base font-bold text-white">{isIncoming ? 'Submit Milestone Deliverable' : 'Review Deliverable & Approve Settlement'}</h3>
           </div>
           <button
             onClick={onClose}
@@ -387,8 +388,8 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
             <strong className="text-slate-300">Phase Objective:</strong> {milestone.description}
           </div>
           {milestone.acceptanceCriteria && (
-            <div className="text-[11px] bg-cyan-950/30 border border-cyan-500/30 rounded-lg p-2.5 text-cyan-200">
-              <strong className="text-cyan-300 block mb-0.5">Client Acceptance Criteria:</strong>
+            <div className={`text-[11px] ${isIncoming ? 'bg-cyan-950/30 border-cyan-500/30 text-cyan-200' : 'bg-amber-950/30 border-amber-500/30 text-amber-200'} border rounded-lg p-2.5`}>
+              <strong className={`block mb-0.5 ${isIncoming ? 'text-cyan-300' : 'text-amber-300'}`}>{isIncoming ? 'Client Acceptance Criteria:' : 'Acceptance Criteria:'}</strong>
               {milestone.acceptanceCriteria}
             </div>
           )}
@@ -424,7 +425,9 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
 
           <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-            <span>Protected by OWASP LLM01 Prompt Injection Guardrails. Minimum 85% confidence required for audit approval; contractor submissions always require client authorization.</span>
+            <span>{isIncoming
+              ? 'Protected by OWASP LLM01 Prompt Injection Guardrails. Minimum 85% confidence required for audit approval; contractor submissions always require client authorization.'
+              : 'Protected by OWASP LLM01 Prompt Injection Guardrails. Minimum 85% confidence required; releases at or below the $1,000 autonomous ceiling settle automatically after audit approval.'}</span>
           </div>
 
           {/* Audit Result Display */}
@@ -468,7 +471,7 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
             <button
               type="submit"
               disabled={isAuditing || (!proofText.trim() && !proofUrl.trim())}
-              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-lg transition active:scale-95 flex items-center gap-1.5"
+              className={`px-4 py-2 ${isIncoming ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500' : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500'} disabled:opacity-50 text-slate-950 font-bold text-xs rounded-lg transition active:scale-95 flex items-center gap-1.5`}
             >
               {isAuditing ? (
                 <>
@@ -478,7 +481,7 @@ const SubmitProofModal: React.FC<SubmitProofModalProps> = ({
               ) : (
                 <>
                   <Send className="w-4 h-4" />
-                  <span>Run AI Audit & Submit Proof</span>
+                  <span>{isIncoming ? 'Run AI Audit & Submit Proof' : 'Run Audit & Approve Release'}</span>
                 </>
               )}
             </button>
