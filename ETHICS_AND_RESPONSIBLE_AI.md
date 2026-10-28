@@ -21,7 +21,7 @@ AgenticPay AI delegates settlement preparation to software while retaining deter
 
 ### Autonomous settlement
 
-A milestone is eligible for an autonomous local settlement record only when:
+A milestone is eligible for an autonomous settlement only when:
 
 - The audit confidence is at least 85%.
 - The amount is $1,000 USD or less.
@@ -29,15 +29,15 @@ A milestone is eligible for an autonomous local settlement record only when:
 - The contract is not frozen.
 - The amount is within the project's remaining budget.
 
-This records a `PAYOUT_EXECUTED` event in browser storage. It does not transfer funds.
+This dispatches through the server-side PayPal Payouts rail inside the settlement transaction. With credentials it executes the Sandbox payout; without credentials it records an honest simulated or suppressed entry. The platform does not custody funds.
 
 ### Human authorization
 
-Amounts above $1,000 USD that pass the audit are placed in `AUDITED_PENDING_APPROVAL`. A human must authorize the local settlement record in the workspace. The AI does not have a path to bypass this state.
+Amounts above $1,000 USD that pass the audit are placed in `AUDITED_PENDING_APPROVAL`. A human must authorize the settlement in the workspace, which then dispatches through the server-side settlement rail. The AI does not have a path to bypass this state.
 
 ### Emergency intervention
 
-- The master kill-switch blocks milestone release in the client.
+- The master kill-switch blocks milestone release server-side (audit and settlement routes reject while active).
 - An outbound contract can be frozen to block releases.
 - The user can clear local state to remove browser-persisted records from that device.
 
@@ -50,7 +50,7 @@ The current implementation provides:
 - Audit confidence and a rationale string.
 - Risk level and settlement mode.
 - An actor-tagged transaction ledger.
-- Payload inspection for auditing; workspace settlement payloads are synthetic, not PayPal responses.
+- Payload inspection for auditing; on the real rail the payload carries the server-returned PayPal `payout_batch_id` and HTTP log, and without credentials it honestly records the simulated or suppressed rail.
 - Deterministic guardrail outcomes that can be traced to specific rules.
 
 Known limitations:
@@ -83,8 +83,8 @@ Production use should include representative test cases, human review for subjec
 - The autonomous settlement cap is $1,000 USD.
 - Deliverable input is limited to 12,000 characters.
 - Prompt-injection patterns are replaced before evaluation.
-- PayPal client code generates a `PayPal-Request-Id`, but keys are per-call and do not prevent duplicate payouts.
-- The ledger helper increments once per applied log; it does not deduplicate repeated log IDs.
+- A deterministic settlement fingerprint (project ID + milestone ID + amount) derives the PayPal `PayPal-Request-Id` and `sender_batch_id`, so retries and concurrent releases cannot double-pay.
+- The ledger helper increments once per applied log; it does not deduplicate repeated log IDs in the browser cache, but the server ledger deduplicates by event ID.
 - The audit scorer can pass a GitHub URL without substantive content.
 - The AI chat does not generate audit confidence or settlement outcomes.
 
@@ -99,7 +99,7 @@ Accountability is distributed across:
 - **User:** defines contract terms, milestones, recipients, and budgets.
 - **Platform operator:** configures environment variables, PayPal access, and deployment.
 - **Application:** enforces deterministic rules and records outcomes in browser storage.
-- **PayPal:** would execute the actual payout once a server-side integration exists. The current build does not send a payout request.
+- **PayPal:** executes the payout through the server-side executor when credentials are configured (Sandbox rail); without credentials the rail fails closed with an honest simulated or suppressed record.
 - **AI provider:** processes prompts under its own terms and retention policies.
 
 The current build does not provide immutable audit storage, legal attribution, or regulator-ready reporting. Production deployments need an accountable operating entity and documented escalation procedures.

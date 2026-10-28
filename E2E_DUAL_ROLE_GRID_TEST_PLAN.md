@@ -1,6 +1,6 @@
 # End-to-End Verification Plan
 
-This plan verifies the implemented dual-perspective portfolio, milestone audit, guardrails, local settlement recording, and AG Grid ledger. It replaces the earlier role-switching test plan; account type and contract perspective are independent, and there is no in-app role switch.
+This plan verifies the implemented dual-perspective portfolio, milestone audit, guardrails, server-authoritative settlement, and AG Grid ledger. It replaces the earlier role-switching test plan; account type and contract perspective are independent, and there is no in-app role switch.
 
 > [!IMPORTANT]
 > Settlement dispatches through the server-side PayPal Payouts executor. With `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` configured, a release calls the PayPal Sandbox Payouts API and records the real `payout_batch_id`. Without credentials, the rail fails closed: the release records an honest simulated or suppressed ledger entry, without claiming a Sandbox payment. Verify both modes before relying on either.
@@ -24,7 +24,7 @@ Covered:
 Not covered:
 
 - Authentication, multi-user access, or tenant isolation.
-- Live PayPal Sandbox disbursement; no server payout route exists.
+- Live verified PayPal Sandbox disbursement; the `/settle` payout flow is covered against a mocked PayPal endpoint.
 - Automated browser testing.
 - Load, concurrency, or accessibility certification.
 
@@ -132,7 +132,7 @@ Expected:
 - The result returns `HUMAN_APPROVAL_REQUIRED`.
 - The milestone enters `AUDITED_PENDING_APPROVAL`.
 - No settlement record exists until the human authorization action is used.
-- After authorization, the ledger records a synthetic `PAYOUT_EXECUTED` and `Settled` increases by `$1,500.00`.
+- After authorization, the server settlement path records `PAYOUT_EXECUTED` (real batch id with credentials, or an honest simulated/suppressed entry) and `Settled` increases by `$1,500.00`.
 
 ### Test 6: Contract freeze
 
@@ -143,7 +143,7 @@ Expected:
 Expected:
 
 - The contract status becomes `PAUSED`.
-- The release is blocked before a local settlement record is written.
+- The release is blocked before a settlement record is written.
 - A `CONTRACT_FROZEN` event is recorded with high or critical risk.
 - Resuming the contract restores the ability to release, subject to other guardrails.
 
@@ -168,7 +168,7 @@ Expected:
 
 Expected:
 
-- The request is blocked before a local settlement record is written.
+- The request is blocked before a settlement record is written.
 - The message references the remaining project budget.
 - A `REJECTED` guardrail event is recorded.
 - No settled amount changes.
@@ -225,7 +225,7 @@ npm run build
 Expected:
 
 - TypeScript validation passes.
-- Five Jest suites and 58 checks pass.
+- Twelve Jest suites and 126 checks pass.
 - Production build completes.
 
 ---
@@ -242,6 +242,6 @@ Expected:
 - [ ] Remaining-budget guard blocks over-cap releases.
 - [ ] Subcontract badge and parent mandate are correct.
 - [ ] Ledger updates for each applied settlement log; duplicate-log behavior remains a known gap.
-- [ ] No PayPal request is made by the workspace release flow.
+- [ ] The workspace release flow delegates to the server settlement route, which executes the payout rail (or fails closed without credentials).
 - [ ] Browser refresh preserves state.
 - [ ] TypeScript, tests, and build pass.

@@ -151,6 +151,17 @@ For detailed component boundaries and flows, see [ARCHITECTURE.md](ARCHITECTURE.
 
 ---
 
+## Sponsor tracks
+
+AgenticPay AI is positioned for the relevant prize tracks:
+
+- **Best Use of AG Grid.** The enterprise audit ledger (`src/components/CommandCenter.tsx`) uses a custom `ag-theme-quartz-dark` theme, typed column definitions, sortable/filterable columns, pagination, and custom cell renderers for actor, risk, audit-confidence, and status badges, plus a settlement-payload inspector. This is a genuine operational data grid, not a table mockup.
+- **Best Use of Render.** Deployment is a Docker web service (`Dockerfile`, `node:20-alpine`) defined in a Render blueprint (`render.yaml`) that provisions PostgreSQL and injects `DATABASE_URL`, with a health check at `/` — reproducible on the free tier.
+- **Best Use of PayPal + AI.** The PayPal Payouts executor is server-side and fail-closed across three rails (`PAYPAL_SANDBOX`, `SIMULATED`, `SUPPRESSED_RAIL`) with deterministic SHA-256 idempotency (`PayPal-Request-Id`, `sender_batch_id`) and atomic rollback inside a PostgreSQL row-lock transaction. The AI assistant is strictly advisory and never touches the settlement rail.
+- **Best Use of Agentic Commerce.** Autonomous agents can prepare and negotiate, but every release is bounded by deterministic, server-authoritative guardrails: an 85% audit gate, a $1,000 USD autonomous release ceiling, and human-in-the-loop authorization above it, plus kill-switch, freeze, and budget checks.
+
+---
+
 ## Quick start
 
 ### Prerequisites

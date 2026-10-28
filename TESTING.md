@@ -171,13 +171,6 @@ Guidelines:
 
 ## 7. CI/CD
 
-No CI workflow is committed. Before enabling merge gates, add a pipeline that runs:
-
-```bash
-npm ci
-npx tsc --noEmit
-npm test -- --runInBand
-npm run build
-```
+CI is committed in `.github/workflows/ci.yml` and runs on pushes and pull requests to `main`. It uses `npm ci`, the full Jest suite, `npx tsc --noEmit`, and a production Next.js build with read-only permissions and a single concurrency group.
 
 Use repository secrets for PayPal and AI credentials only if a dedicated Sandbox integration test is introduced. Unit tests should not require live credentials.

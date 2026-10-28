@@ -121,7 +121,8 @@ Workspace view
 ### Workspace
 
 - Role labels are `Client (Escrow Funder)` for outbound and `Contractor (Escrow Beneficiary)` for inbound.
-- Freeze controls are hidden for inbound contracts.
+- Freeze controls are hidden for inbound contracts; the master kill-switch is also hidden for inbound (contractor) contracts.
+- The workspace header shows an `Autonomous Release Ceiling` chip (≤ $1,000 USD) and a `Payment Rail` chip (`PAYPAL SANDBOX`, `SIMULATED`, `LOCAL LEDGER`, or `PENDING`) derived from the most recent settled milestone.
 - Remaining budget is displayed before release.
 - Audit results show confidence, risk, settlement mode, and rationale.
 - Milestones above the autonomous cap show an explicit human approval action.
@@ -129,7 +130,7 @@ Workspace view
 ### Agent assistant
 
 - Initial message identifies the active contract, its envelope, and the negotiation-only scope.
-- The target amount is validated against the remaining envelope before any local settlement record.
+- The target amount is validated against the remaining envelope before any settlement.
 - A blocked negotiation produces a clear guardrail message and a `REJECTED` ledger event.
 
 ### AG Grid ledger
@@ -152,7 +153,7 @@ Workspace view
 | `AUDITING_DELIVERABLE` | Cyan |
 | `ESCROW_LOCKED` | Copper |
 | `AUDITED_PENDING_APPROVAL` | Amber with approval action |
-| `PAYOUT_EXECUTED` | Emerald. Current workspace records are local settlement records and do not prove a PayPal payment. |
+| `PAYOUT_EXECUTED` | Emerald. Records a server-authoritative settlement; with PayPal credentials it carries the real `payout_batch_id`, otherwise it honestly records the simulated or suppressed rail. |
 | `REJECTED` | Crimson |
 | `CONTRACT_FROZEN` | Crimson |
 | `KILL_SWITCH_REVOKED` | Crimson with alert emphasis |
@@ -202,4 +203,6 @@ Use precise operational language:
 - Audit Confidence, Risk Level, Settlement Mode
 - Human Authorization, Contract Freeze, Kill-Switch
 
-Avoid placeholder language, simulated-sounding labels, or claims that the platform holds funds. PayPal is the intended settlement rail; the current build records settlement locally and does not send a PayPal payment.
+Avoid placeholder language, simulated-sounding labels, or claims that the platform holds funds. Settlement is server-authoritative and non-custodial: it dispatches to the PayPal Sandbox Payouts rail when credentials are configured and fails closed (simulated/suppressed) otherwise.
+
+Status and role badges use Lucide icons paired with text; emoji are not used in user-facing badges.

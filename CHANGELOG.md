@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.7.0] - 2026-10-28
 
 ### Added
 
@@ -14,6 +14,8 @@ All notable changes to this project are documented in this file.
 - Atomic payout rollback: a PayPal payout rejection rolls back milestone, project spend, envelope, and ledger changes and returns a structured HTTP 502; the retry reuses the same deterministic idempotency context.
 - Real PayPal batch details (`payout_batch_id`, `batch_status`) recorded on milestones, ledger events, and `PAYOUT_BLOCKED` audit events for blocked/rejected payouts.
 - Route and repository tests for the live payout flow: real batch id recording, 409 duplicate suppression without extra API calls, and 502 rollback on `INSUFFICIENT_FUNDS`.
+- Workspace header shows an `Autonomous Release Ceiling` chip (≤ $1,000 USD) and a `Payment Rail` chip derived from the settled milestone.
+- Role-adaptive audit modal: clients review and approve a deliverable; contractors submit it for audit.
 
 ### Changed
 
@@ -23,11 +25,14 @@ All notable changes to this project are documented in this file.
 - Removed unsupported payout, preset, simulated acceptance, and hardcoded audit-confidence behavior from the negotiation assistant.
 - Removed the portfolio intake-link, capacity-card, and account-switching surfaces that were not part of the current workflow.
 - Standardized workspace terminology to `Outbound Envelope`, `Inbound Contract Value`, `Envelope Ceiling`, `Settled`, and `Remaining`.
+- Replaced emoji badges with Lucide icons and unified role vocabulary to `Client (Escrow Funder)` / `Contractor (Escrow Beneficiary)`.
+- Master kill-switch is hidden for inbound (contractor) workspaces.
 - Aligned README, architecture, security, data-governance, design, testing, compliance, ethics, and contribution documentation with the current UI and settlement behavior.
 
 ### Fixed
 
 - Removed stale prop wiring from the portfolio/workspace view boundary and unused account-profile dependencies.
+- Moved `@types/pg` to `dependencies` so the Docker production build resolves `pg` types (TS7016).
 
 ---
 

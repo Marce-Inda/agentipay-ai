@@ -56,7 +56,7 @@ Behavior:
 - Streams plain text from the primary model.
 - Attempts the fallback model if the primary call throws before streaming starts. Failures after the response has started are not recovered.
 
-The route does not execute payouts. It also has no authentication, no rate limiting, and trusts `envelope`, `maxBudgetUSD`, and `killSwitchActive` from the caller. There is no demonstrated output-token cap.
+The route does not execute payouts. It requires an authenticated session and a same-origin request, is rate-limited (20 requests / minute), and trusts `envelope`, `maxBudgetUSD`, and `killSwitchActive` from the caller. There is no demonstrated output-token cap.
 
 ### `POST /api/agent/audit`
 
@@ -86,7 +86,7 @@ Responses:
 | `423` | Kill-switch active | `settlementMode: "REJECTED"`, `riskLevel: "CRITICAL"`, `requiresHumanApproval: true` |
 | `500` | Unexpected failure | `error` |
 
-The audit is deterministic. It does not call an LLM, inspect images, or move funds. A GitHub or pull-request URL receives a score of 91 or higher even when `deliverableText` is empty. Other non-empty deliverables receive 86. The route is unauthenticated and reads the kill-switch from the request body.
+The audit is deterministic. It does not call an LLM, inspect images, or move funds. A GitHub or pull-request URL receives a score of 91 or higher even when `deliverableText` is empty. Other non-empty deliverables receive 86. The route requires an authenticated session and a same-origin request, is rate-limited (30 requests / minute), and reads the kill-switch from both the request body and the server envelope.
 
 The `idempotencyKey` is generated per request. `simulatedBatchId` is not a PayPal batch ID. The route does not create a payout.
 
@@ -122,7 +122,7 @@ On mount, it reads versioned `localStorage` keys. On change, it writes them back
 - Only `PAYOUT_EXECUTED` logs with a positive, finite amount update `spentUSD`.
 - Each applied payout log increments the matching project. Repeated application of the same log ID is not deduplicated and double-counts the amount.
 
-The workspace release path emits a local `PAYOUT_EXECUTED` log without calling PayPal. The agent chat is negotiation-only; it does not call the audit endpoint or record settlements.
+The workspace delegates release to `POST /api/projects/[projectId]/milestones/[milestoneId]/settle`, which executes the server-side PayPal payout executor inside the settlement transaction. The agent chat is negotiation-only; it does not call the audit endpoint or record settlements.
 
 ---
 
@@ -212,18 +212,16 @@ GitHub Actions runs the test suite and production build on pushes and pull reque
 
 ## 8. Production hardening backlog
 
-The following items are required before multi-tenant production use:
+Implemented and verified: authentication, tenant isolation, server-side persistence (projects, envelopes, ledger events), the server-side PayPal payout route with deterministic idempotency, ledger deduplication, process-local rate limiting, and CI/CD with type, test, and build gates.
 
-1. Authentication, authorization, and tenant isolation.
-2. Server-side persistence for contracts, milestones, and ledger events.
-3. Immutable audit logging and export.
-4. A server-side payout route that uses the PayPal secret and a stable idempotency key.
-5. Ledger deduplication and reconciliation.
-6. PayPal webhooks and reconciliation.
-7. KYC/AML and sanctions screening where required.
-8. Rate limiting and abuse controls at the API boundary.
-9. Audit scoring that does not auto-pass URL-only deliverables.
-10. Automated UI and end-to-end tests.
-11. CI/CD with type, test, and build gates.
-12. Secret rotation and environment separation.
-13. Error monitoring and alerting.
+The following items remain before multi-tenant production use:
+
+1. Role-based authorization, email verification, and password recovery.
+2. Immutable audit logging and regulatory export.
+3. PayPal webhooks, payout reconciliation, refunds, and disputes.
+4. KYC/AML and sanctions screening where required.
+5. Audit scoring that does not auto-pass URL-only deliverables.
+6. Automated UI and end-to-end browser tests.
+7. Secret rotation and environment separation.
+8. Error monitoring and alerting.
+9. A live verified Sandbox payout and production PayPal onboarding.

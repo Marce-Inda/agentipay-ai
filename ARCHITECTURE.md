@@ -186,7 +186,7 @@ The endpoint does not call an LLM, call PayPal, or settle funds. The GitHub/PR r
 5. Streams a response from the primary model.
 6. Attempts a fallback to the configured secondary model if the primary call throws. The `try/catch` wraps stream construction, not failures that occur after streaming begins.
 
-The route requires an authenticated session and a same-origin request. It is not rate-limited. It trusts `envelope`, `maxBudgetUSD`, and `killSwitchActive` values supplied in the request body. The assistant is advisory: it does not call the audit endpoint and does not execute payouts.
+The route requires an authenticated session and a same-origin request. It is rate-limited (20 requests / minute). It trusts `envelope`, `maxBudgetUSD`, and `killSwitchActive` values supplied in the request body. The assistant is advisory: it does not call the audit endpoint and does not execute payouts.
 
 ---
 

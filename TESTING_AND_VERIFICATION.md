@@ -63,7 +63,7 @@ GitHub Actions runs these gates on pushes and pull requests to `main` via `.gith
 | Payout request construction | `paypal.client.test.ts` | Unit-level request targets `/v1/payments/payouts` with a `PayPal-Request-Id` header. |
 | Payload log | `paypal.client.test.ts` | Response includes a formatted HTTP log. |
 | Error handling | `paypal.client.test.ts` | Non-success responses throw with useful context. |
-| Live Sandbox | Manual | Not verified. The client is not imported by the runtime UI, and no server payout route exists. |
+| Live Sandbox | Manual | Not verified end to end. The `/settle` payout flow is covered against a mocked PayPal endpoint; a live verified Sandbox payout is pending. |
 
 Live Sandbox verification requires credentials and should not run in the default unit test suite.
 
@@ -79,7 +79,7 @@ Live Sandbox verification requires credentials and should not run in the default
 | Budget rejection | HTTP 422 with `allowed: false`. |
 | Valid prompt | Streamed response from the configured provider. |
 | Provider failure | Fallback attempted only when the primary call throws before streaming starts. |
-| Unauthenticated request | Accepted; no authentication is enforced. |
+| Unauthenticated request | Rejected with HTTP 401; an authenticated session is required. |
 
 ### `/api/agent/audit`
 
@@ -128,7 +128,7 @@ Use [E2E_DUAL_ROLE_GRID_TEST_PLAN.md](E2E_DUAL_ROLE_GRID_TEST_PLAN.md) for the f
 | Render blueprint | `render.yaml` resolves to a Docker web service with health check `/`. |
 | Environment | Required secrets are configured in the hosting dashboard. |
 | Secret exposure | No secret appears in client bundles or logs. |
-| Sandbox payout | Not verified. The deployed system has no server-side payout route. |
+| Sandbox payout | The server-side payout route is implemented and tested against a mocked PayPal endpoint; a live verified Sandbox payout is pending. |
 
 ---
 
@@ -151,7 +151,6 @@ Recommended additions:
 
 1. Component tests for portfolio, workspace, and agent chat.
 2. Playwright coverage of the settlement workflow.
-3. CI pipeline with type, test, and build gates.
-4. Sandbox integration test isolated from the default suite.
-5. Accessibility checks.
-6. Load testing for the audit and stream routes.
+3. Expand CI with a dedicated, isolated Sandbox integration test.
+4. Accessibility checks.
+5. Load testing for the audit and stream routes.

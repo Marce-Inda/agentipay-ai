@@ -2,7 +2,7 @@
 
 ## Status
 
-- **Version:** 0.6.1
+- **Version:** 0.7.0
 - **Automated tests:** 12 suites, 126 passing checks
 - **Build:** production build configured with webpack
 - **Deployment:** Docker and Render blueprint included; live verified Sandbox payout pending
@@ -59,14 +59,14 @@ npm run build
 
 ### Identity and access
 
-- [ ] Add authentication.
+- [x] Add authentication.
 - [ ] Add role-based authorization for account and contract operations.
-- [ ] Add tenant isolation.
-- [ ] Add session expiration and secure cookie handling.
+- [x] Add tenant isolation.
+- [x] Add session expiration and secure cookie handling.
 
 ### Persistence and audit
 
-- [ ] Move profile, contracts, milestones, envelope, and logs to server-side storage.
+- [x] Move profile, contracts, milestones, envelope, and logs to server-side storage. (contracts, milestones, envelope, and ledger are server-side; profile remains a browser cache)
 - [ ] Add an append-only audit event model.
 - [ ] Add integrity verification for ledger events.
 - [ ] Add export for finance and compliance review.
@@ -74,16 +74,16 @@ npm run build
 
 ### API protections
 
-- [ ] Add rate limiting to `/api/agent/audit` and `/api/agent/stream`.
-- [ ] Add request size limits at the platform boundary.
-- [ ] Add CSRF protection for state-changing routes.
-- [ ] Add structured error responses without internal detail leakage.
+- [x] Add rate limiting to `/api/agent/audit` and `/api/agent/stream`.
+- [x] Add request size limits at the platform boundary. (audit/deliverable size limits and `MAX_REQUEST_BYTES` are implemented)
+- [x] Add CSRF protection for state-changing routes. (same-origin validation via `assertTrustedOrigin`)
+- [x] Add structured error responses without internal detail leakage.
 - [ ] Add PII redaction before AI provider calls.
 
 ### PayPal
 
-- [ ] Add a server-side payout route that reads `PAYPAL_CLIENT_SECRET`.
-- [ ] Replace per-call request identifiers with stable, deduplicated idempotency keys.
+- [x] Add a server-side payout route that reads `PAYPAL_CLIENT_SECRET`.
+- [x] Replace per-call request identifiers with stable, deduplicated idempotency keys.
 - [ ] Verify Sandbox payout behavior with real Sandbox credentials.
 - [ ] Add webhook signature verification.
 - [ ] Add payout reconciliation and failure recovery.

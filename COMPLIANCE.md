@@ -41,7 +41,7 @@ The application does not claim to be a licensed escrow agent, money transmitter,
 | Non-AI financial limits | Per-transaction, daily, and remaining-project-budget checks in TypeScript. |
 | Autonomous settlement cap | $1,000 USD; higher amounts require human authorization. |
 | Audit threshold | 85% confidence; lower scores are rejected. |
-| Kill-switch | Blocks milestone release in the client; the audit route also reads a flag from its request body. |
+| Kill-switch | Blocks milestone release server-side (audit and settlement routes reject while active); the audit route reads the flag from its request body and the server envelope. |
 | Contract freeze | Blocks releases for a specific outbound contract. |
 | Idempotency | A deterministic settlement fingerprint (project ID + milestone ID + amount) derives the `PayPal-Request-Id` and `sender_batch_id`, so retries reuse the same payout request. |
 | Prompt-injection sanitization | Pattern replacement and isolated deliverable framing. |

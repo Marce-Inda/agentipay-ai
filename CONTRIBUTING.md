@@ -57,9 +57,9 @@ There is no `lint` or `format` script. Match the existing TypeScript style, keep
 
 - Financial decisions must remain deterministic TypeScript. Do not move budget, threshold, freeze, kill-switch, or payout eligibility decisions into an LLM prompt.
 - Keep `AUTONOMOUS_SETTLEMENT_CAP_USD` and `MAX_DELIVERABLE_PAYLOAD_LENGTH` centralized in `src/lib/guardrails/enforcer.ts`.
-- Route all settled-amount updates through `applyTransactionLogToProjects`. Only `PAYOUT_EXECUTED` may increment `spentUSD`, and the helper currently does not deduplicate repeated log IDs.
+- Route all settled-amount updates through `applyTransactionLogToProjects`. Only `PAYOUT_EXECUTED` may increment `spentUSD`, and the client helper does not deduplicate repeated log IDs (the server ledger deduplicates by event ID).
 - Check both the envelope limits and the project's remaining budget before recording a settlement.
-- Do not add a client-side PayPal call and describe it as live. The secret must remain server-side; add a server route before claiming payout execution.
+- The PayPal payout rail runs server-side through `/settle`; keep the secret server-side and never add a client-side PayPal call described as live.
 - Do not log secrets, OAuth tokens, or full credential payloads.
 
 ### Client state
