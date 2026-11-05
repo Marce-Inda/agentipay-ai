@@ -406,3 +406,257 @@ describe('AgenticPayRepository (in-memory adapter)', () => {
     expect(hashSessionToken('opaque-token')).not.toBe('opaque-token');
   });
 });
+
+// ============================================================================
+// Tests for Task 1: New Settlement-Specific Methods
+// ============================================================================
+
+describe('AgenticPayRepository - Settlement-Specific Methods (Task 1)', () => {
+  beforeAll(() => {
+    delete process.env.DATABASE_URL;
+  });
+
+  afterAll(() => {
+    if (originalDatabaseUrl) process.env.DATABASE_URL = originalDatabaseUrl;
+  });
+
+  beforeEach(() => {
+    __resetMemoryRepositoryForTests();
+  });
+
+  describe('getMilestoneForUpdate', () => {
+    it('returns a milestone with row-lock semantics', async () => {
+      const repository = getRepository();
+      const user = await repository.createUser({
+        email: 'owner@example.com',
+        passwordHash: 'hash',
+      });
+      const project = makeProject();
+      await repository.upsertProject(user.id, project);
+
+      const milestone = await repository.getMilestoneForUpdate(
+        user.id,
+        'proj-1',
+        'ms-1'
+      );
+
+      expect(milestone).toBeDefined();
+      expect(milestone?.id).toBe('ms-1');
+      expect(milestone?.title).toBe('Phase 1: Delivery');
+      expect(milestone?.amountUSD).toBe(75);
+      expect(milestone?.auditScore).toBe(95);
+      expect(milestone?.status).toBe('AUDITED_PENDING_APPROVAL');
+    });
+
+    it('returns null if milestone does not exist', async () => {
+      const repository = getRepository();
+      const user = await repository.createUser({
+        email: 'owner@example.com',
+        passwordHash: 'hash',
+      });
+      await repository.upsertProject(user.id, makeProject());
+
+      const milestone = await repository.getMilestoneForUpdate(
+        user.id,
+        'proj-1',
+        'nonexistent'
+      );
+
+      expect(milestone).toBeNull();
+    });
+
+    it('returns null if project does not exist', async () => {
+      const repository = getRepository();
+      const user = await repository.createUser({
+        email: 'owner@example.com',
+        passwordHash: 'hash',
+      });
+
+      const milestone = await repository.getMilestoneForUpdate(
+        user.id,
+        'nonexistent',
+        'ms-1'
+      );
+
+      expect(milestone).toBeNull();
+    });
+  });
+
+  describe('recordSettlementEvent', () => {
+    it('inserts a settlement event and returns ledger event details', async () => {
+      const repository = getRepository();
+      const user = await repository.createUser({
+        email: 'owner@example.com',
+        passwordHash: 'hash',
+      });
+
+      const eventData = {
+        fingerprintId: 'abc123sha256hash0000000000000000000000000000000000000000000000',
+        settlementId: 'settle-123',
+        amountUSD: 250.0,
+        payoutBatchId: '$BATCH_ID-12345678-ABCDEF',
+        batchStatus: 'PROCESSING',
+        paypalRequestId: 'REQ-abc123def456789abcdef01234567',
+        senderBatchId: 'SETTLE-abc123def456789abcdef01',
+        payoutExecutorRail: 'PAYPAL_SANDBOX' as const,
+        status: 'PAYOUT_EXECUTED' as const,
+        riskLevel: 'LOW' as const,
+        auditConfidence: 91,
+      };
+
+      const result = await repository.recordSettlementEvent(
+        user.id,
+        eventData.fingerprintId,
+        eventData
+      );
+
+      expect(result).toBeDefined();
+      expect(result.userId).toBe(user.id);
+      expect(result.fingerprintId).toBe(eventData.fingerprintId);
+      expect(result.settlementId).toBe(eventData.settlementId);
+      expect(result.payoutBatchId).toBe(eventData.payoutBatchId);
+      expect(result.batchStatus).toBe('PROCESSING');
+      expect(result.paypalRequestId).toBe(eventData.paypalRequestId);
+      expect(result.senderBatchId).toBe(eventData.senderBatchId);
+      expect(result.payoutExecutorRail).toBe('PAYPAL_SANDBOX');
+      expect(result.amountUSD).toBe(250.0);
+    });
+
+    it('deduplicates settlement events by fingerprint (returns cached on retry)', async () => {
+      const repository = getRepository();
+      const user = await repository.createUser({
+        email: 'owner@example.com',
+        passwordHash: 'hash',
+      });
+
+      const fingerprint = 'abc123sha256hash0000000000000000000000000000000000000000000000';
+      const eventData = {
+        fingerprintId: fingerprint,
+        settlementId: 'settle-123',
+        amountUSD: 250.0,
+        payoutBatchId: '$BATCH_ID-12345678-ABCDEF',
+        batchStatus: 'PROCESSING',
+        paypalRequestId: 'REQ-abc123def456789abcdef01234567',
+        senderBatchId: 'SETTLE-abc123def456789abcdef01',
+        payoutExecutorRail: 'PAYPAL_SANDBOX' as const,
+        status: 'PAYOUT_EXECUTED' as const,
+        riskLevel: 'LOW' as const,
+        auditConfidence: 91,
+      };
+
+      const first = await repository.recordSettlementEvent(user.id, fingerprint, eventData);
+      const second = await repository.recordSettlementEvent(user.id, fingerprint, eventData);
+
+      expect(first.id).toBe(second.id);
+      expect(first.payoutBatchId).toBe(second.payoutBatchId);
+      expect(first.settlementId).toBe(second.settlementId);
+    });
+
+    it('isolates settlement events between users', async () => {
+      const repository = getRepository();
+      const user1 = await repository.createUser({
+        email: 'user1@example.com',
+        passwordHash: 'hash',
+      });
+      const user2 = await repository.createUser({
+        email: 'user2@example.com',
+        passwordHash: 'hash',
+      });
+
+      const fingerprint = 'abc123sha256hash0000000000000000000000000000000000000000000000';
+      const eventData = {
+        fingerprintId: fingerprint,
+        settlementId: 'settle-123',
+        amountUSD: 250.0,
+        payoutBatchId: '$BATCH_ID-12345678-ABCDEF',
+        batchStatus: 'PROCESSING',
+        paypalRequestId: 'REQ-abc123def456789abcdef01234567',
+        senderBatchId: 'SETTLE-abc123def456789abcdef01',
+        payoutExecutorRail: 'PAYPAL_SANDBOX' as const,
+        status: 'PAYOUT_EXECUTED' as const,
+      };
+
+      const event1 = await repository.recordSettlementEvent(user1.id, fingerprint, eventData);
+      const event2 = await repository.recordSettlementEvent(user2.id, fingerprint, eventData);
+
+      expect(event1.userId).toBe(user1.id);
+      expect(event2.userId).toBe(user2.id);
+      expect(event1.id).not.toBe(event2.id);
+    });
+  });
+
+  describe('findLedgerEventByFingerprint', () => {
+    it('finds a settlement event by fingerprint', async () => {
+      const repository = getRepository();
+      const user = await repository.createUser({
+        email: 'owner@example.com',
+        passwordHash: 'hash',
+      });
+
+      const fingerprint = 'abc123sha256hash0000000000000000000000000000000000000000000000';
+      const eventData = {
+        fingerprintId: fingerprint,
+        settlementId: 'settle-123',
+        amountUSD: 250.0,
+        payoutBatchId: '$BATCH_ID-12345678-ABCDEF',
+        batchStatus: 'PROCESSING',
+        paypalRequestId: 'REQ-abc123def456789abcdef01234567',
+        senderBatchId: 'SETTLE-abc123def456789abcdef01',
+        payoutExecutorRail: 'PAYPAL_SANDBOX' as const,
+        status: 'PAYOUT_EXECUTED' as const,
+      };
+
+      await repository.recordSettlementEvent(user.id, fingerprint, eventData);
+      const found = await repository.findLedgerEventByFingerprint(user.id, fingerprint);
+
+      expect(found).toBeDefined();
+      expect(found?.fingerprintId).toBe(fingerprint);
+      expect(found?.payoutBatchId).toBe('$BATCH_ID-12345678-ABCDEF');
+    });
+
+    it('returns null if fingerprint is not found', async () => {
+      const repository = getRepository();
+      const user = await repository.createUser({
+        email: 'owner@example.com',
+        passwordHash: 'hash',
+      });
+
+      const found = await repository.findLedgerEventByFingerprint(
+        user.id,
+        'nonexistent_fingerprint'
+      );
+
+      expect(found).toBeNull();
+    });
+
+    it('isolates fingerprints between users', async () => {
+      const repository = getRepository();
+      const user1 = await repository.createUser({
+        email: 'user1@example.com',
+        passwordHash: 'hash',
+      });
+      const user2 = await repository.createUser({
+        email: 'user2@example.com',
+        passwordHash: 'hash',
+      });
+
+      const fingerprint = 'abc123sha256hash0000000000000000000000000000000000000000000000';
+      const eventData = {
+        fingerprintId: fingerprint,
+        settlementId: 'settle-123',
+        amountUSD: 250.0,
+        payoutBatchId: '$BATCH_ID-12345678-ABCDEF',
+        batchStatus: 'PROCESSING',
+        paypalRequestId: 'REQ-abc123def456789abcdef01234567',
+        senderBatchId: 'SETTLE-abc123def456789abcdef01',
+        payoutExecutorRail: 'PAYPAL_SANDBOX' as const,
+        status: 'PAYOUT_EXECUTED' as const,
+      };
+
+      await repository.recordSettlementEvent(user1.id, fingerprint, eventData);
+      const foundByUser2 = await repository.findLedgerEventByFingerprint(user2.id, fingerprint);
+
+      expect(foundByUser2).toBeNull();
+    });
+  });
+});

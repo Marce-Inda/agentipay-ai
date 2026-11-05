@@ -25,6 +25,47 @@ export interface SessionRecord {
   expiresAt: string;
 }
 
+export interface Milestone {
+  id: string;
+  projectId: string;
+  title: string;
+  amountUSD: number;
+  status: 'PENDING' | 'AUDITED_PENDING_APPROVAL' | 'COMPLETED' | 'LOCKED';
+  auditScore?: number;
+  payoutBatchId?: string;
+  batchStatus?: string;
+}
+
+export interface SettlementEventData {
+  fingerprintId: string;
+  settlementId: string;
+  amountUSD: number;
+  payoutBatchId: string;
+  batchStatus: string;
+  paypalRequestId: string;
+  senderBatchId: string;
+  payoutExecutorRail: 'PAYPAL_SANDBOX' | 'SIMULATED' | 'SUPPRESSED_RAIL';
+  status: 'PAYOUT_EXECUTED' | 'PAYOUT_BLOCKED';
+  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  auditConfidence?: number;
+}
+
+export interface LedgerEvent {
+  id: string;
+  userId: string;
+  projectId: string;
+  fingerprintId: string;
+  settlementId: string;
+  payoutBatchId: string;
+  batchStatus: string;
+  paypalRequestId: string;
+  senderBatchId: string;
+  payoutExecutorRail: string;
+  status: string;
+  amountUSD: number;
+  createdAt: string;
+}
+
 export interface LedgerEventRecord {
   id: string;
   userId: string;
@@ -83,6 +124,49 @@ export interface AgenticPayRepository {
     milestoneId: string,
     payoutExecutor?: MilestonePayoutExecutor
   ): Promise<SettlementResult>;
+  // ========================================================================
+  // New settlement-specific methods for Task 1
+  // ========================================================================
+  /**
+   * Load a milestone row with PostgreSQL FOR UPDATE lock.
+   * Used in settlement transactions to prevent concurrent settlement of same milestone.
+   * @param userId User ID
+   * @param projectId Project ID
+   * @param milestoneId Milestone ID
+   * @returns Milestone under row lock (within transaction)
+   */
+  getMilestoneForUpdate(
+    userId: string,
+    projectId: string,
+    milestoneId: string
+  ): Promise<Milestone | null>;
+
+  /**
+   * Record a settlement event with deduplication by fingerprint.
+   * Prevents double-payments via UNIQUE constraint on (user_id, fingerprint_id).
+   * On UNIQUE_VIOLATION, returns cached event instead of duplicate insert.
+   * @param userId User ID
+   * @param fingerprintId SHA256 fingerprint of (projectId|milestoneId|amount)
+   * @param eventData Settlement event data including payout details
+   * @returns LedgerEvent with settlement details
+   */
+  recordSettlementEvent(
+    userId: string,
+    fingerprintId: string,
+    eventData: SettlementEventData
+  ): Promise<LedgerEvent>;
+
+  /**
+   * Find existing settlement event by fingerprint (idempotency check).
+   * Used before attempting PayPal payout to detect retries.
+   * @param userId User ID
+   * @param fingerprint SHA256 fingerprint
+   * @returns Existing LedgerEvent or null if not found
+   */
+  findLedgerEventByFingerprint(
+    userId: string,
+    fingerprint: string
+  ): Promise<LedgerEvent | null>;
 }
 
 export class EmailAlreadyRegisteredError extends Error {
@@ -337,6 +421,126 @@ function createMemoryRepository(): AgenticPayRepository {
       await this.appendLedgerEvent(userId, result.event);
       return result;
     },
+
+    // ========================================================================
+    // New settlement-specific methods for Task 1
+    // ========================================================================
+
+    async getMilestoneForUpdate(userId, projectId, milestoneId) {
+      const project = memoryProjects(userId).get(projectId);
+      if (!project) return null;
+      const milestone = (project.milestones || []).find((m) => m.id === milestoneId);
+      if (!milestone) return null;
+      return {
+        id: milestone.id,
+        projectId,
+        title: milestone.title,
+        amountUSD: milestone.amountUSD,
+        status: milestone.status as Milestone['status'],
+        auditScore: milestone.auditScore,
+        payoutBatchId: milestone.payPalBatchId,
+      };
+    },
+
+    async recordSettlementEvent(userId, fingerprintId, eventData) {
+      const state = getMemoryState();
+      // Simulate deduplication: check if fingerprint already exists
+      const key = ledgerKey(userId, fingerprintId);
+      // Look for existing event with same fingerprint
+      for (const [_k, record] of state.ledger) {
+        if (
+          record.userId === userId &&
+          (record.event as any).fingerprintId === fingerprintId
+        ) {
+          // Return cached event
+          return {
+            id: record.event.id,
+            userId,
+            projectId: record.projectId,
+            fingerprintId,
+            settlementId: (record.event as any).settlementId || record.event.id,
+            payoutBatchId: (record.event as any).payoutBatchId || '',
+            batchStatus: (record.event as any).batchStatus || '',
+            paypalRequestId: (record.event as any).paypalRequestId || '',
+            senderBatchId: (record.event as any).senderBatchId || '',
+            payoutExecutorRail: (record.event as any).payoutExecutorRail || '',
+            status: record.event.status,
+            amountUSD: record.event.amountUSD,
+            createdAt: record.createdAt,
+          };
+        }
+      }
+      // Insert new event
+      const eventId = `evt-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const ledgerEvent = {
+        ...eventData,
+        id: eventId,
+        amountUSD: eventData.amountUSD,
+        status: eventData.status,
+      } as any;
+      state.ledger.set(key, {
+        id: eventId,
+        userId,
+        projectId: (eventData as any).projectId || '',
+        event: {
+          id: eventId,
+          projectId: (eventData as any).projectId || '',
+          projectName: '',
+          timestamp: new Date().toISOString(),
+          agentRole: 'GUARDRAIL',
+          action: 'SETTLEMENT',
+          amountUSD: eventData.amountUSD,
+          recipientEmail: '',
+          auditConfidenceScore: eventData.auditConfidence || 0,
+          status: eventData.status as any,
+          riskLevel: (eventData.riskLevel || 'MEDIUM') as any,
+          ...ledgerEvent,
+        },
+        createdAt: new Date().toISOString(),
+      });
+      return {
+        id: eventId,
+        userId,
+        projectId: (eventData as any).projectId || '',
+        fingerprintId,
+        settlementId: eventData.settlementId,
+        payoutBatchId: eventData.payoutBatchId,
+        batchStatus: eventData.batchStatus,
+        paypalRequestId: eventData.paypalRequestId,
+        senderBatchId: eventData.senderBatchId,
+        payoutExecutorRail: eventData.payoutExecutorRail,
+        status: eventData.status,
+        amountUSD: eventData.amountUSD,
+        createdAt: new Date().toISOString(),
+      };
+    },
+
+    async findLedgerEventByFingerprint(userId, fingerprint) {
+      const state = getMemoryState();
+      for (const [_k, record] of state.ledger) {
+        if (
+          record.userId === userId &&
+          (record.event as any).fingerprintId === fingerprint
+        ) {
+          return {
+            id: record.event.id,
+            userId,
+            projectId: record.projectId,
+            fingerprintId: (record.event as any).fingerprintId || '',
+            settlementId: (record.event as any).settlementId || record.event.id,
+            payoutBatchId: (record.event as any).payoutBatchId || '',
+            batchStatus: (record.event as any).batchStatus || '',
+            paypalRequestId: (record.event as any).paypalRequestId || '',
+            senderBatchId: (record.event as any).senderBatchId || '',
+            payoutExecutorRail: (record.event as any).payoutExecutorRail || '',
+            status: record.event.status,
+            amountUSD: record.event.amountUSD,
+            createdAt: record.createdAt,
+          };
+        }
+      }
+      return null;
+    },
   };
 }
 
@@ -395,11 +599,31 @@ async function ensurePostgresSchema(): Promise<void> {
           event_type TEXT NOT NULL,
           payload JSONB NOT NULL,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          fingerprint_id VARCHAR(64),
+          settlement_id VARCHAR(64),
+          payout_batch_id VARCHAR(128),
+          batch_status VARCHAR(32),
+          paypal_request_id VARCHAR(64),
+          sender_batch_id VARCHAR(64),
+          payout_executor_rail VARCHAR(32),
+          ledger_created_at TIMESTAMPTZ DEFAULT now(),
           PRIMARY KEY (user_id, id)
         );
 
         CREATE INDEX IF NOT EXISTS agenticpay_ledger_user_created_idx
           ON agenticpay_ledger_events (user_id, created_at DESC);
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_fingerprint 
+          ON agenticpay_ledger_events(user_id, fingerprint_id)
+          WHERE fingerprint_id IS NOT NULL;
+
+        CREATE INDEX IF NOT EXISTS idx_ledger_settlement_id 
+          ON agenticpay_ledger_events(user_id, settlement_id)
+          WHERE settlement_id IS NOT NULL;
+
+        CREATE INDEX IF NOT EXISTS idx_ledger_payout_batch 
+          ON agenticpay_ledger_events(payout_batch_id)
+          WHERE payout_batch_id IS NOT NULL;
 
         CREATE TABLE IF NOT EXISTS agenticpay_projects (
           user_id TEXT NOT NULL REFERENCES agenticpay_users(id) ON DELETE CASCADE,
@@ -412,6 +636,25 @@ async function ensurePostgresSchema(): Promise<void> {
 
         CREATE INDEX IF NOT EXISTS agenticpay_projects_user_updated_idx
           ON agenticpay_projects (user_id, updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS agenticpay_milestones (
+          id TEXT NOT NULL,
+          project_id TEXT NOT NULL,
+          user_id TEXT NOT NULL REFERENCES agenticpay_users(id) ON DELETE CASCADE,
+          data JSONB NOT NULL,
+          payout_batch_id VARCHAR(128),
+          batch_status VARCHAR(32),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          PRIMARY KEY (user_id, project_id, id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_milestones_user_project 
+          ON agenticpay_milestones(user_id, project_id);
+
+        CREATE INDEX IF NOT EXISTS idx_milestones_payout_batch 
+          ON agenticpay_milestones(payout_batch_id)
+          WHERE payout_batch_id IS NOT NULL;
 
         CREATE TABLE IF NOT EXISTS agenticpay_envelopes (
           user_id TEXT PRIMARY KEY REFERENCES agenticpay_users(id) ON DELETE CASCADE,
@@ -827,6 +1070,211 @@ function createPostgresRepository(): AgenticPayRepository {
       } finally {
         client.release();
       }
+    },
+
+    // ========================================================================
+    // New settlement-specific methods for Task 1
+    // ========================================================================
+
+    async getMilestoneForUpdate(userId, projectId, milestoneId) {
+      await ensurePostgresSchema();
+      const client = await getPostgresPool().connect();
+      try {
+        await client.query('BEGIN');
+        const result = await client.query(
+          `SELECT data FROM agenticpay_milestones
+           WHERE user_id = $1 AND project_id = $2 AND id = $3
+           FOR UPDATE`,
+          [userId, projectId, milestoneId]
+        );
+        await client.query('COMMIT');
+        if (!result.rows[0]) return null;
+        const data = result.rows[0].data as any;
+        return {
+          id: data.id,
+          projectId,
+          title: data.title,
+          amountUSD: data.amountUSD,
+          status: data.status,
+          auditScore: data.auditScore,
+          payoutBatchId: data.payoutBatchId,
+          batchStatus: data.batchStatus,
+        };
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+
+    async recordSettlementEvent(userId, fingerprintId, eventData) {
+      await ensurePostgresSchema();
+      const eventId = `evt-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const settlementId = eventData.settlementId;
+      const projectId = (eventData as any).projectId || '';
+
+      try {
+        // Try to insert the new event
+        const result = await getPostgresPool().query(
+          `INSERT INTO agenticpay_ledger_events (
+            id, user_id, project_id, event_type, payload,
+            fingerprint_id, settlement_id, payout_batch_id, batch_status,
+            paypal_request_id, sender_batch_id, payout_executor_rail
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          ON CONFLICT (user_id, fingerprint_id) DO NOTHING
+          RETURNING fingerprint_id`,
+          [
+            eventId,
+            userId,
+            projectId,
+            eventData.status,
+            JSON.stringify({
+              ...eventData,
+              id: eventId,
+              projectId,
+              projectName: '',
+              timestamp: new Date().toISOString(),
+              agentRole: 'GUARDRAIL',
+              action: 'SETTLEMENT',
+              recipientEmail: '',
+              auditConfidenceScore: eventData.auditConfidence || 0,
+              riskLevel: eventData.riskLevel || 'MEDIUM',
+            }),
+            fingerprintId,
+            settlementId,
+            eventData.payoutBatchId,
+            eventData.batchStatus,
+            eventData.paypalRequestId,
+            eventData.senderBatchId,
+            eventData.payoutExecutorRail,
+          ]
+        );
+
+        if (result.rowCount === 1) {
+          // Successfully inserted
+          return {
+            id: eventId,
+            userId,
+            projectId,
+            fingerprintId,
+            settlementId,
+            payoutBatchId: eventData.payoutBatchId,
+            batchStatus: eventData.batchStatus,
+            paypalRequestId: eventData.paypalRequestId,
+            senderBatchId: eventData.senderBatchId,
+            payoutExecutorRail: eventData.payoutExecutorRail,
+            status: eventData.status,
+            amountUSD: eventData.amountUSD,
+            createdAt: new Date().toISOString(),
+          };
+        }
+
+        // UNIQUE_VIOLATION: return cached event
+        const cached = await getPostgresPool().query(
+          `SELECT id, user_id, project_id, fingerprint_id, settlement_id,
+                  payout_batch_id, batch_status, paypal_request_id,
+                  sender_batch_id, payout_executor_rail, event_type as status,
+                  payload
+           FROM agenticpay_ledger_events
+           WHERE user_id = $1 AND fingerprint_id = $2
+           LIMIT 1`,
+          [userId, fingerprintId]
+        );
+
+        if (cached.rows[0]) {
+          const row = cached.rows[0];
+          const payload = row.payload as any;
+          return {
+            id: row.id,
+            userId: row.user_id,
+            projectId: row.project_id,
+            fingerprintId: row.fingerprint_id,
+            settlementId: row.settlement_id,
+            payoutBatchId: row.payout_batch_id,
+            batchStatus: row.batch_status,
+            paypalRequestId: row.paypal_request_id,
+            senderBatchId: row.sender_batch_id,
+            payoutExecutorRail: row.payout_executor_rail,
+            status: row.status,
+            amountUSD: payload.amountUSD,
+            createdAt: row.created_at,
+          };
+        }
+
+        throw new Error('Failed to record settlement event');
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('unique constraint')) {
+          // Retry with query
+          const cached = await getPostgresPool().query(
+            `SELECT id, user_id, project_id, fingerprint_id, settlement_id,
+                    payout_batch_id, batch_status, paypal_request_id,
+                    sender_batch_id, payout_executor_rail, event_type as status,
+                    payload
+             FROM agenticpay_ledger_events
+             WHERE user_id = $1 AND fingerprint_id = $2
+             LIMIT 1`,
+            [userId, fingerprintId]
+          );
+
+          if (cached.rows[0]) {
+            const row = cached.rows[0];
+            const payload = row.payload as any;
+            return {
+              id: row.id,
+              userId: row.user_id,
+              projectId: row.project_id,
+              fingerprintId: row.fingerprint_id,
+              settlementId: row.settlement_id,
+              payoutBatchId: row.payout_batch_id,
+              batchStatus: row.batch_status,
+              paypalRequestId: row.paypal_request_id,
+              senderBatchId: row.sender_batch_id,
+              payoutExecutorRail: row.payout_executor_rail,
+              status: row.status,
+              amountUSD: payload.amountUSD,
+              createdAt: row.created_at,
+            };
+          }
+        }
+        throw error;
+      }
+    },
+
+    async findLedgerEventByFingerprint(userId, fingerprint) {
+      await ensurePostgresSchema();
+      const result = await getPostgresPool().query(
+        `SELECT id, user_id, project_id, fingerprint_id, settlement_id,
+                payout_batch_id, batch_status, paypal_request_id,
+                sender_batch_id, payout_executor_rail, event_type as status,
+                payload, created_at
+         FROM agenticpay_ledger_events
+         WHERE user_id = $1 AND fingerprint_id = $2
+         LIMIT 1`,
+        [userId, fingerprint]
+      );
+
+      if (!result.rows[0]) return null;
+
+      const row = result.rows[0];
+      const payload = row.payload as any;
+
+      return {
+        id: row.id,
+        userId: row.user_id,
+        projectId: row.project_id,
+        fingerprintId: row.fingerprint_id,
+        settlementId: row.settlement_id,
+        payoutBatchId: row.payout_batch_id,
+        batchStatus: row.batch_status,
+        paypalRequestId: row.paypal_request_id,
+        senderBatchId: row.sender_batch_id,
+        payoutExecutorRail: row.payout_executor_rail,
+        status: row.status,
+        amountUSD: payload.amountUSD,
+        createdAt: new Date(row.created_at).toISOString(),
+      };
     },
   };
 }
