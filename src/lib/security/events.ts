@@ -4,7 +4,9 @@ export type SecurityEventType =
   | 'BUDGET_REJECTED'
   | 'INVALID_REQUEST'
   | 'PAYOUT_BLOCKED'
-  | 'RATE_LIMITED';
+  | 'RATE_LIMITED'
+  | 'CSRF_REJECTED'
+  | 'INPUT_VALIDATION_FAILED';
 
 export interface SecurityEventDetails {
   route: string;

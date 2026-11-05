@@ -120,7 +120,8 @@ export function buildMilestoneSettlement(
   project: ProjectContract,
   envelope: BudgetEnvelope,
   milestoneId: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  requiresHumanApproval?: boolean
 ): SettlementResult {
   if (envelope.killSwitchActive) {
     return {
@@ -193,6 +194,15 @@ export function buildMilestoneSettlement(
       ok: false,
       status: 422,
       error: 'Milestone amount exceeds the remaining project budget.',
+    };
+  }
+
+  // Check human approval requirement: if amount > 1000 or perspective is INCOMING
+  if ((amountUSD > 1000 || project.perspective === 'INCOMING') && !requiresHumanApproval) {
+    return {
+      ok: false,
+      status: 422,
+      error: `Human approval required for settlements over $1,000 USD or INCOMING contracts. Set requiresHumanApproval: true to confirm.`,
     };
   }
 

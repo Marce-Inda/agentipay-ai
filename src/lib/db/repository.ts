@@ -122,7 +122,8 @@ export interface AgenticPayRepository {
     userId: string,
     projectId: string,
     milestoneId: string,
-    payoutExecutor?: MilestonePayoutExecutor
+    payoutExecutor?: MilestonePayoutExecutor,
+    requiresHumanApproval?: boolean
   ): Promise<SettlementResult>;
   // ========================================================================
   // New settlement-specific methods for Task 1
@@ -400,7 +401,7 @@ function createMemoryRepository(): AgenticPayRepository {
       return envelope;
     },
 
-    async settleMilestone(userId, projectId, milestoneId, payoutExecutor) {
+    async settleMilestone(userId, projectId, milestoneId, payoutExecutor, requiresHumanApproval) {
       const projects = memoryProjects(userId);
       const project = projects.get(projectId);
       if (!project) {
@@ -410,7 +411,7 @@ function createMemoryRepository(): AgenticPayRepository {
       if (!envelope) {
         return { ok: false, status: 409, error: 'Budget envelope is not configured.' };
       }
-      let result = buildMilestoneSettlement(project, envelope, milestoneId);
+      let result = buildMilestoneSettlement(project, envelope, milestoneId, undefined, requiresHumanApproval);
       if (!result.ok) return result;
       if (payoutExecutor) {
         result = await runMilestonePayout(result, milestoneId, payoutExecutor);
@@ -996,7 +997,7 @@ function createPostgresRepository(): AgenticPayRepository {
       return envelope;
     },
 
-    async settleMilestone(userId, projectId, milestoneId, payoutExecutor) {
+    async settleMilestone(userId, projectId, milestoneId, payoutExecutor, requiresHumanApproval) {
       await ensurePostgresSchema();
       const client = await getPostgresPool().connect();
       try {
@@ -1023,7 +1024,7 @@ function createPostgresRepository(): AgenticPayRepository {
         }
         const project = projectResult.rows[0].data as ProjectContract;
         const envelope = envelopeResult.rows[0].data as BudgetEnvelope;
-        let result = buildMilestoneSettlement(project, envelope, milestoneId);
+        let result = buildMilestoneSettlement(project, envelope, milestoneId, undefined, requiresHumanApproval);
         if (!result.ok) {
           await client.query('ROLLBACK');
           return result;
