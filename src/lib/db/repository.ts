@@ -168,6 +168,26 @@ export interface AgenticPayRepository {
     userId: string,
     fingerprint: string
   ): Promise<LedgerEvent | null>;
+
+  /**
+   * Execute milestone settlement within a PostgreSQL transaction with row locks.
+   * Acquires exclusive locks on milestone, project, and envelope to ensure atomicity.
+   * Prevents concurrent settlement via row-level locking.
+   * 
+   * @param userId User ID
+   * @param projectId Project ID
+   * @param milestoneId Milestone ID
+   * @param payoutExecutor Optional PayPal payout executor
+   * @param requiresHumanApproval Whether human approval was confirmed
+   * @returns Settlement result with locks held until COMMIT/ROLLBACK
+   */
+  settleWithTransaction(
+    userId: string,
+    projectId: string,
+    milestoneId: string,
+    payoutExecutor?: MilestonePayoutExecutor,
+    requiresHumanApproval?: boolean
+  ): Promise<SettlementResult>;
 }
 
 export class EmailAlreadyRegisteredError extends Error {
@@ -232,22 +252,49 @@ async function runMilestonePayout(
   const milestone = (success.project.milestones || []).find((item) => item.id === milestoneId);
   let payout: MilestonePayoutExecution;
   try {
-    payout = await executor({
-      projectId: success.project.id,
-      milestoneId,
-      milestoneTitle: milestone?.title || 'Milestone',
-      receiverEmail: success.event.recipientEmail,
-      amountUSD: success.event.amountUSD,
-      settlementBatchId: success.event.payPalTransactionId || '',
+    // Set 30-second timeout for PayPal call
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject(new Error('PayPal payout call timed out after 30 seconds')),
+        30000
+      );
     });
+
+    payout = await Promise.race([
+      executor({
+        projectId: success.project.id,
+        milestoneId,
+        milestoneTitle: milestone?.title || 'Milestone',
+        receiverEmail: success.event.recipientEmail,
+        amountUSD: success.event.amountUSD,
+        settlementBatchId: success.event.payPalTransactionId || '',
+      }),
+      timeoutPromise,
+    ]);
   } catch (error) {
     if (error instanceof PayPalPayoutError) {
+      const paypalErrorCode =
+        error.message.match(/\[([A-Z_]+)\]/)?.[1] || 'UNKNOWN_ERROR';
+
       return {
         ok: false,
         status: 502,
-        error: `PayPal payout failed: ${error.message}`,
+        error: 'PayPal payout executor failed',
+        paypalErrorCode,
+        paypalErrorMessage: error.message,
       };
     }
+
+    if (error instanceof Error && error.message.includes('timed out')) {
+      return {
+        ok: false,
+        status: 502,
+        error: 'PayPal payout executor failed',
+        paypalErrorCode: 'TIMEOUT',
+        paypalErrorMessage: error.message,
+      };
+    }
+
     throw error;
   }
   return applyMilestonePayoutExecution(success, milestoneId, payout);
@@ -541,6 +588,29 @@ function createMemoryRepository(): AgenticPayRepository {
         }
       }
       return null;
+    },
+
+    async settleWithTransaction(userId, projectId, milestoneId, payoutExecutor, requiresHumanApproval) {
+      // Memory implementation (no actual row locking, but simulates the behavior)
+      const projects = memoryProjects(userId);
+      const project = projects.get(projectId);
+      if (!project) {
+        return { ok: false, status: 404, error: 'Project not found.' };
+      }
+      const envelope = getMemoryState().envelopes.get(userId);
+      if (!envelope) {
+        return { ok: false, status: 409, error: 'Budget envelope is not configured.' };
+      }
+      let result = buildMilestoneSettlement(project, envelope, milestoneId, undefined, requiresHumanApproval);
+      if (!result.ok) return result;
+      if (payoutExecutor) {
+        result = await runMilestonePayout(result, milestoneId, payoutExecutor);
+        if (!result.ok) return result;
+      }
+      projects.set(projectId, result.project);
+      getMemoryState().envelopes.set(userId, result.envelope);
+      await this.appendLedgerEvent(userId, result.event);
+      return result;
     },
   };
 }
@@ -1079,34 +1149,28 @@ function createPostgresRepository(): AgenticPayRepository {
 
     async getMilestoneForUpdate(userId, projectId, milestoneId) {
       await ensurePostgresSchema();
-      const client = await getPostgresPool().connect();
-      try {
-        await client.query('BEGIN');
-        const result = await client.query(
-          `SELECT data FROM agenticpay_milestones
-           WHERE user_id = $1 AND project_id = $2 AND id = $3
-           FOR UPDATE`,
-          [userId, projectId, milestoneId]
-        );
-        await client.query('COMMIT');
-        if (!result.rows[0]) return null;
-        const data = result.rows[0].data as any;
-        return {
-          id: data.id,
-          projectId,
-          title: data.title,
-          amountUSD: data.amountUSD,
-          status: data.status,
-          auditScore: data.auditScore,
-          payoutBatchId: data.payoutBatchId,
-          batchStatus: data.batchStatus,
-        };
-      } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        client.release();
-      }
+      // This method is NOT meant to be called directly in production.
+      // Instead, use withTransaction() with acquireMilestoneRowLock().
+      // This implementation is for backwards compatibility only.
+      const result = await getPostgresPool().query(
+        `SELECT data FROM agenticpay_projects
+         WHERE user_id = $1 AND id = $2
+         LIMIT 1`,
+        [userId, projectId]
+      );
+      if (!result.rows[0]) return null;
+      const project = result.rows[0].data as ProjectContract;
+      const milestone = (project.milestones || []).find((m) => m.id === milestoneId);
+      if (!milestone) return null;
+      return {
+        id: milestone.id,
+        projectId,
+        title: milestone.title,
+        amountUSD: milestone.amountUSD,
+        status: milestone.status as Milestone['status'],
+        auditScore: milestone.auditScore,
+        payoutBatchId: milestone.payPalBatchId,
+      };
     },
 
     async recordSettlementEvent(userId, fingerprintId, eventData) {
@@ -1276,6 +1340,24 @@ function createPostgresRepository(): AgenticPayRepository {
         amountUSD: payload.amountUSD,
         createdAt: new Date(row.created_at).toISOString(),
       };
+    },
+
+    async settleWithTransaction(userId, projectId, milestoneId, payoutExecutor, requiresHumanApproval) {
+      await ensurePostgresSchema();
+      const { settleWithinTransaction } = await import('@/lib/settlement/settlement-transaction');
+      const { withTransaction } = await import('@/lib/db/transactions');
+      
+      return withTransaction(getPostgresPool(), async (tx) => {
+        const result = await settleWithinTransaction(
+          tx.client,
+          userId,
+          projectId,
+          milestoneId,
+          payoutExecutor,
+          requiresHumanApproval
+        );
+        return result;
+      });
     },
   };
 }

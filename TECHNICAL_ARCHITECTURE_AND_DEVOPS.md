@@ -90,6 +90,102 @@ The audit is deterministic. It does not call an LLM, inspect images, or move fun
 
 The `idempotencyKey` is generated per request. `simulatedBatchId` is not a PayPal batch ID. The route does not create a payout.
 
+### `POST /api/projects/[projectId]/milestones/[milestoneId]/settle`
+
+**Purpose:** Server-authoritative milestone settlement with real PayPal Payouts API integration.
+
+**Authentication:** Required (session token via HttpOnly cookie).
+
+**Request body:**
+
+```json
+{
+  "requiresHumanApproval": false
+}
+```
+
+**Responses:**
+
+| Status | Condition | Key fields |
+| :--- | :--- | :--- |
+| `200` | Settlement executed | `event` (PAYOUT_EXECUTED), `project` (updated spend), `envelope` (updated), `payoutBatchId` (real PayPal batch ID) |
+| `401` | No session | `error: "Authentication required."` |
+| `403` | CSRF validation failed | `error: "Untrusted request origin."` |
+| `409` | Milestone already completed or guardrail mismatch | `error: "Milestone has already been settled."` |
+| `422` | Audit score < 85%, budget exceeded, human approval required | `error: "..."`, `status: 422` |
+| `423` | Kill-switch active or contract frozen | `error: "..."`, `status: 423` |
+| `429` | Rate limit exceeded (15 requests/60 seconds per user) | `error: "..."`, `Retry-After` header |
+| `502` | PayPal Payouts API rejected the request | `error: "PayPal payout executor failed"`, `paypalErrorCode`, `paypalErrorMessage` |
+| `503` | Unexpected server error | `error: "Unable to settle the milestone."` |
+
+**Behavior:**
+
+1. **Authentication & CSRF:** Validates session and same-origin request origin.
+2. **Rate Limiting:** Per-user fixed-window bucket (15 req/60s). Returns `429` on exceed with `Retry-After` header.
+3. **Database Row Locks:** Acquires PostgreSQL `FOR UPDATE` locks on project and envelope to prevent concurrent settlements.
+4. **Guardrail Revalidation (Server-Side):**
+   - Kill-switch must be inactive
+   - Contract status must be `ACTIVE`
+   - Milestone status must be `AUDITED_PENDING_APPROVAL`
+   - Audit score must be >= 85%
+   - Amount must be <= remaining project budget
+   - Amount must be <= per-transaction ceiling (`envelope.maxPerTransactionUSD`)
+   - Daily spend + amount must be <= daily ceiling (`envelope.dailyCeilingUSD`)
+   - If amount > $1,000 USD or contract perspective is `INCOMING`, `requiresHumanApproval` must be `true`
+5. **Deterministic Fingerprint:** Computes `SHA256(projectId|milestoneId|amountUSD.toFixed(2))` to derive:
+   - `PayPal-Request-Id`: `REQ-{fingerprint.slice(0, 32)}` (idempotency key)
+   - `sender_batch_id`: `SETTLE-{fingerprint.slice(0, 28)}`
+6. **Idempotency Check:** Queries ledger for existing event with same fingerprint. If found, returns cached result (HTTP 200).
+7. **PayPal Payout Execution:**
+   - Calls `POST /v1/oauth2/token` with `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` (server-side only)
+   - Calls `POST /v1/payments/payouts` with idempotency key and deterministic batch ID
+   - **Three Rails:**
+     - **PAYPAL_SANDBOX**: Real Payouts API call (when credentials present)
+     - **SIMULATED**: Deterministic simulation (when `PAYPAL_SIMULATION_MODE=true`, non-production only)
+     - **SUPPRESSED**: Fail-closed (when credentials absent and simulation disabled)
+8. **Atomic Transaction:**
+   - On PayPal success: atomically marks milestone `COMPLETED`, increments project `spentUSD` and envelope `spentTodayUSD`, inserts `PAYOUT_EXECUTED` ledger event, COMMIT
+   - On PayPal failure: ROLLBACK transaction (all state unchanged), log `PAYOUT_BLOCKED` security event, return HTTP 502
+9. **Ledger Deduplication:** `UNIQUE(user_id, fingerprint_id)` constraint on ledger ensures retries with same fingerprint return cached result without double-counting spend.
+
+**Example Success Response:**
+
+```json
+{
+  "event": {
+    "id": "srv-settle-0efdd3197e87...",
+    "projectId": "proj-abc123",
+    "status": "PAYOUT_EXECUTED",
+    "amountUSD": 250,
+    "timestamp": "2026-11-06T02:37:22Z",
+    "payPalTransactionId": "$BATCH_ID-1234567-ABC",
+    "auditConfidenceScore": 92
+  },
+  "project": {
+    "id": "proj-abc123",
+    "spentUSD": 250,
+    "milestones": [
+      { "id": "m1", "status": "COMPLETED", "payPalBatchId": "$BATCH_ID-1234567-ABC" }
+    ]
+  },
+  "envelope": {
+    "spentTodayUSD": 250,
+    "dailyCeilingUSD": 5000
+  }
+}
+```
+
+**Example PayPal Failure Response (HTTP 502):**
+
+```json
+{
+  "error": "PayPal payout executor failed",
+  "paypalErrorCode": "INSUFFICIENT_FUNDS",
+  "paypalErrorMessage": "Wallet balance insufficient for this payout request",
+  "status": 502
+}
+```
+
 ---
 
 ## 3. AI provider behavior

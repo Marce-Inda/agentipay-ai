@@ -8,6 +8,32 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- **Task 12 - Documentation & Demo Completeness:**
+  - `DEMO_SCRIPT.md`: 3-minute English narration script with detailed timing (0:00–3:00), speaker notes, and editing instructions for the PayPal settlement feature demo.
+  - `DEMO_READINESS.md`: Comprehensive pre-demo verification checklist covering PayPal Sandbox configuration, database schema, test data, settlement execution, idempotency, ledger recording, and PayPal Dashboard verification.
+  - `VIDEO_RECORDING_GUIDE.md`: Step-by-step guide for recording the demo video, including equipment setup (QuickTime, OBS, Handbrake), pre-recording checklist, post-recording export and editing instructions (CapCut, iMovie, DaVinci Resolve), quality checks, and common troubleshooting.
+  - `SETTLEMENT_VERIFICATION.md`: Executive summary and comprehensive verification report confirming all settlement requirements are met: real PayPal Sandbox payouts, deterministic idempotency, atomic transactions, ledger deduplication, guardrail enforcement, fail-closed rails, and complete audit trail.
+  - `docs/DEMO_ASSETS.md`: Guide for capturing and organizing demo screenshots: portfolio view, audit result, settlement modal, ledger entry, and PayPal Dashboard batch verification.
+  - Updated `README.md`: Emphasized real PayPal Sandbox Payouts integration and added settlement route description.
+  - Updated `ARCHITECTURE.md` (via README): Added reference to the new settlement endpoint with deterministic idempotency and fail-closed payout rails.
+
+### Changed
+
+- README emphasizes "Real PayPal Sandbox Payouts are executed server-side" and "deterministic fingerprint-based idempotency prevents double-payments."
+- Settlement route now fully documented: revalidates guardrails, invokes PayPal Payouts API, and records real batch ID with atomic transaction guarantees.
+
+### Task 12 Deliverables
+
+✅ `DEMO_SCRIPT.md` — 3-minute English script with timing and narration  
+✅ `DEMO_READINESS.md` — Verification checklist and pre-demo commands  
+✅ `VIDEO_RECORDING_GUIDE.md` — Recording, editing, and export instructions  
+✅ `SETTLEMENT_VERIFICATION.md` — Comprehensive verification and success metrics  
+✅ `docs/DEMO_ASSETS.md` — Screenshot capture guide  
+✅ `docs/assets/demo/` — Directory for screenshots (ready for capture)  
+✅ README & ARCHITECTURE updated — Settlement integration highlighted  
+
+**Note:** Demo video recording (`demo.mp4`) and screenshots are manual tasks to be completed during demo recording session, guided by the scripts and checklists created above.
+
 - Server-side PayPal Sandbox payout rail integrated with `/settle`: settlement dispatches `POST /v1/payments/payouts` through a new `MilestonePayoutExecutor` (`src/lib/paypal/executor.ts`) inside the settlement transaction.
 - Deterministic idempotency: the settlement fingerprint (project ID + milestone ID + amount) derives the ledger event ID, PayPal `sender_batch_id`, and `PayPal-Request-Id`, so retries reuse the same payout request.
 - Three fail-closed payout rails: `PAYPAL_SANDBOX` (credentials present), `SIMULATED` (no credentials + `PAYPAL_SIMULATION_MODE=true`, non-production only), and `SUPPRESSED_RAIL` (no credentials in non-production) with honest record-only ledger entries. Production without credentials rejects settlement.

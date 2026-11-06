@@ -21,8 +21,10 @@ export interface SettlementSuccess {
 
 export interface SettlementFailure {
   ok: false;
-  status: 404 | 409 | 422 | 423 | 502;
+  status: 404 | 409 | 422 | 423 | 502 | 503;
   error: string;
+  paypalErrorCode?: string;
+  paypalErrorMessage?: string;
 }
 
 export type SettlementResult = SettlementSuccess | SettlementFailure;
@@ -53,6 +55,34 @@ export function buildMilestonePayoutIdempotencyKey(
   amountUSD: number
 ): string {
   return `REQ_${buildMilestoneSettlementFingerprint(projectId, milestoneId, amountUSD).slice(0, 32)}`;
+}
+
+/**
+ * Derive PayPal idempotency key from fingerprint.
+ * Format: REQ-{first32chars_of_fingerprint}
+ * 
+ * @param fingerprint - 64-char SHA256 hex string
+ * @returns 36-char PayPal-Request-Id (REQ- + 32 chars)
+ */
+export function buildPayPalRequestId(fingerprint: string): string {
+  if (fingerprint.length !== 64) {
+    throw new Error('Invalid fingerprint length (must be 64 chars)');
+  }
+  return `REQ-${fingerprint.slice(0, 32)}`;
+}
+
+/**
+ * Derive PayPal sender_batch_id from fingerprint.
+ * Format: SETTLE-{first28chars_of_fingerprint}
+ * 
+ * @param fingerprint - 64-char SHA256 hex string
+ * @returns 34-char sender_batch_id (SETTLE- + 28 chars)
+ */
+export function buildSenderBatchId(fingerprint: string): string {
+  if (fingerprint.length !== 64) {
+    throw new Error('Invalid fingerprint length (must be 64 chars)');
+  }
+  return `SETTLE-${fingerprint.slice(0, 28)}`;
 }
 
 export interface MilestonePayoutExecution {

@@ -151,7 +151,7 @@ export async function POST(
 
     // The executor runs inside the repository transaction, after row locks
     // confirm the envelope has remaining funds.
-    const result = await getRepository().settleMilestone(
+    const result = await getRepository().settleWithTransaction(
       session.user.id,
       projectId,
       milestoneId,
@@ -160,16 +160,36 @@ export async function POST(
     );
 
     if (!result.ok) {
+      // Log guardrail rejections (not PayPal errors, which are already logged in executor)
       if (result.status !== 502) {
-        logSecurityEvent('BUDGET_REJECTED', {
+        // Determine event type based on HTTP status
+        let eventType: 'BUDGET_REJECTED' | 'APPROVAL_REQUIRED' | 'AUDIT_FAILED' = 'BUDGET_REJECTED';
+        if (result.error.includes('Human approval')) {
+          eventType = 'APPROVAL_REQUIRED';
+        } else if (result.error.includes('audit')) {
+          eventType = 'AUDIT_FAILED';
+        }
+
+        logSecurityEvent(eventType, {
           route: SETTLE_ROUTE,
           reason: result.error,
           status: result.status,
         });
       }
-      // PayPal payout failures are already booked via PAYOUT_BLOCKED inside
-      // the executor and surface as one structured, non-retryable response.
-      return json({ error: result.error }, result.status);
+
+      // Return structured error response
+      const errorResponse: Record<string, unknown> = {
+        error: result.error,
+      };
+
+      if (result.paypalErrorCode) {
+        errorResponse.paypalErrorCode = result.paypalErrorCode;
+      }
+      if (result.paypalErrorMessage) {
+        errorResponse.paypalErrorMessage = result.paypalErrorMessage;
+      }
+
+      return json(errorResponse, result.status);
     }
 
     return json(
@@ -182,6 +202,12 @@ export async function POST(
     );
   } catch (error) {
     console.error('[AgenticPay AI Settlement Error]:', error);
+    logSecurityEvent('TRANSACTION_ERROR', {
+      route: SETTLE_ROUTE,
+      reason: 'Unexpected settlement transaction failure',
+      riskLevel: 'HIGH',
+      status: 503,
+    });
     return json({ error: 'Unable to settle the milestone.' }, 503);
   }
 }
