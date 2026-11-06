@@ -20,6 +20,27 @@ AgenticPay AI is a dual-perspective escrow workspace for organizations that both
 
 ---
 
+## 🏆 Judge Access for Hackathon Evaluation
+
+**For hackathon judges:** Quick access to a live demo without setup friction.
+
+| Item | Details |
+|------|---------|
+| **Live URL** | https://agenticpay-ai.onrender.com |
+| **Demo Email** | `judge@agenticpay.demo` |
+| **Demo Password** | `JudgeDemo2026!@#Demo` |
+| **Full Guide** | See [JUDGE_ACCESS.md](./JUDGE_ACCESS.md) |
+
+**What you'll see:**
+- Dual portfolio swimlanes (Outgoing & Incoming contracts)
+- Real-time milestone management and audit workflows
+- Live PayPal Sandbox payout execution with deterministic idempotency
+- Immutable audit ledger with actual batch IDs and timestamps
+
+**Post-Evaluation:** Demo credentials and account will be deleted after the hackathon period. See [JUDGE_ACCESS.md](./JUDGE_ACCESS.md#-post-evaluation-cleanup) for cleanup details.
+
+---
+
 ## Overview
 
 Service contracts often involve two operational roles:

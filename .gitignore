@@ -45,6 +45,14 @@ AGENTS.md
 docs/internal/
 *.log
 
+# Temporary Demo/Judge Access Files (Never commit credentials)
+JUDGE_CREDENTIALS_TEMPORARY.md
+*_CREDENTIALS_*.md
+*_demo_*.env
+.env.judge
+.env.demo
+.judge-setup/
+
 # Operating System & IDE
 .DS_Store
 Thumbs.db

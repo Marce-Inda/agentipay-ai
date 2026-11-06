@@ -9,7 +9,9 @@
     "start": "next start",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "seed:demo": "npx ts-node scripts/seed-demo-account.ts",
+    "seed:cleanup": "npx ts-node scripts/cleanup-demo-account.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.130",
