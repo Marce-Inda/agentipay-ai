@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
-  Building2,
+  User2,
   KeyRound,
   Loader2,
   Lock,
@@ -132,17 +132,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
             {isRegister && (
               <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Organization or operator name
+                  Account Name
                 </span>
                 <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-slate-700 bg-[#0f1115] px-3 py-2.5 focus-within:border-amber-500/60">
-                  <Building2 className="w-4 h-4 text-slate-500 shrink-0" />
+                  <User2 className="w-4 h-4 text-slate-500 shrink-0" />
                   <input
                     type="text"
                     value={displayName}
                     onChange={(event) => setDisplayName(event.target.value)}
                     maxLength={120}
                     autoComplete="organization"
-                    placeholder="Acme Treasury Operations"
+                    placeholder="Acme Treasury / Martinez Inc"
                     className="w-full bg-transparent text-sm outline-none placeholder:text-slate-600"
                   />
                 </div>
@@ -151,7 +151,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
 
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Enterprise email
+                Professional Email
               </span>
               <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-slate-700 bg-[#0f1115] px-3 py-2.5 focus-within:border-amber-500/60">
                 <Mail className="w-4 h-4 text-slate-500 shrink-0" />
@@ -162,7 +162,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
                   onChange={(event) => setEmail(event.target.value)}
                   autoComplete="email"
                   maxLength={254}
-                  placeholder="owner@company.com"
+                  placeholder="owner@company.com / alex@consulting.io"
                   className="w-full bg-transparent text-sm outline-none placeholder:text-slate-600"
                 />
               </div>
