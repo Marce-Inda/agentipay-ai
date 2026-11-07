@@ -46,6 +46,13 @@ export interface ProjectContract {
   isSubcontracted?: boolean;
   parentProjectId?: string;
   milestones?: ProjectMilestone[];
+  // Escrow Funding Fields (Stage 1)
+  fundingStatus?: 'UNFUNDED' | 'PARTIALLY_FUNDED' | 'FUNDED' | 'PARTIALLY_REFUNDED' | 'FULLY_REFUNDED' | 'VOIDED';
+  fundedUSD?: number;
+  releasedUSD?: number;
+  refundableUSD?: number;
+  captureId?: string;
+  orderId?: string;
 }
 
 export interface TransactionLog {
