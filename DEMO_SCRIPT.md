@@ -28,11 +28,18 @@
 
 ---
 
-### **SEGMENT 2: Solution Overview (0:20–0:45, 25 sec)**
+### **SEGMENT 2: Account Type Selection & Solution Overview (0:15–0:45, 30 sec)**
 
 **Narrator:**
 
-> "**AgenticPay AI** is a server-authoritative escrow platform for autonomous service contracts.
+> "First, let's show account setup. AgenticPay AI supports two user personas:
+>
+> **Enterprise Accounts:** Organizations managing vendor payables and receivables
+> **Independent Operators:** Freelancers, consultants, and contractors
+>
+> You select your account type at signup—this shapes your portfolio views, milestone structures, and payout routing.
+>
+> **AgenticPay AI** is a server-authoritative escrow platform designed for both.
 >
 > Here's what makes it different:
 >
@@ -44,7 +51,11 @@
 >
 > And finally: We use PostgreSQL row-level locks and atomic transactions to guarantee that **if PayPal rejects the payout, the entire settlement rolls back**—no partial mutations, no orphaned state."
 
-**Visual:** Show portfolio dashboard with OUTGOING and INCOMING swimlanes. Highlight guardrail thresholds table.
+**Visual:** 
+- Show **AuthScreen registration** with Account Name field
+- Show examples: "Acme Treasury" (Enterprise) and "alex@consulting.io" (Independent)
+- Fade to portfolio dashboard with OUTGOING and INCOMING swimlanes, labeled for both account types
+- Highlight guardrail thresholds table
 
 ---
 
@@ -71,19 +82,26 @@
 
 ---
 
-### **SEGMENT 4: Live Demo - Real PayPal Settlement (1:15–1:50, 35 sec)**
+### **SEGMENT 4: Live Demo - Real PayPal Settlement (1:20–2:00, 40 sec)**
 
 **Narrator:**
 
 > "Now with audit passed, the settlement button becomes active. Let's execute the settlement and watch what happens server-side.
 >
-> Behind the scenes, the system is about to:
+> **IMPORTANT:** Before we continue, I want to be fully transparent about the payment rail. Here's what happens:
+>
+> **[IF PAYPAL SANDBOX CREDENTIALS ARE CONFIGURED]:**
+> *"The server has valid PayPal Sandbox credentials configured in the environment. When we click 'Release Milestone', the system will execute a real OAuth call to PayPal's `/v1/oauth2/token` endpoint, obtain an access token, then execute the actual Payouts API at `/v1/payments/payouts`. The real `payout_batch_id` will be recorded in the ledger."*
+>
+> **[IF PAYPAL SANDBOX CREDENTIALS ARE NOT CONFIGURED]:**
+> *"The server does not have PayPal credentials configured for this demo. When we click 'Release Milestone', the system will fail closed—the settlement will not execute. Instead, the system will record an honest, deterministic ledger entry that shows the payment rail as SIMULATED (in non-production for testing) or SUPPRESSED (no network call made). This is our fail-closed design: we never fake a payout, and we never hide the payment method from you."*
+>
+> Behind the scenes, whether using real credentials or fail-closed mode, the system performs the same operations:
 > 1. Acquire a PostgreSQL row lock on this milestone
 > 2. Revalidate all guardrails (kill-switch, budget, audit score)
 > 3. Generate a deterministic fingerprint from the project ID, milestone ID, and amount
-> 4. Call PayPal OAuth to get an access token
-> 5. Execute the real Payouts API with an idempotency key (so retries never double-pay)
-> 6. Atomically commit all changes if PayPal succeeds, or rollback if it fails
+> 4. Execute the payment rail (real PayPal, simulation, or suppression—always visible)
+> 5. Atomically commit all changes if successful, or rollback if it fails
 
 **Live Demo:**
 1. Click **"Release Milestone"** button
@@ -97,75 +115,109 @@
        "amountUSD": 250,
        "payoutBatchId": "$BATCH_ID-1234567-ABC",
        "batchStatus": "PROCESSING",
-       "paypalRequestId": "REQ-a1b2c3d4e5f6..."
-     },
-     "payRail": "PAYPAL_SANDBOX"
+       "paypalRequestId": "REQ-a1b2c3d4e5f6...",
+       "payRail": "PAYPAL_SANDBOX" or "SIMULATED" or "SUPPRESSED_RAIL"
+     }
    }
    ```
 4. **Show UI update:** Milestone status changes to "COMPLETED" ✅
 5. **Show project balance:** spentUSD incremented by $250
+6. **Show payment rail indicator:** Green badge showing which rail was used (PAYPAL_SANDBOX / SIMULATED / LOCAL LEDGER)
 
-**Visual:** Highlight the real `payout_batch_id` returned from PayPal. Show checkbox marking milestone complete.
+**Visual:** 
+- Highlight the payment rail indicator prominently
+- If using real credentials, show the real `payout_batch_id`; overlay text: "Real PayPal Sandbox payout"
+- If fail-closed, show the honest simulation/suppressed entry; overlay text: "Fail-closed: No payment executed; settlement recorded in ledger"
+- Show checkbox marking milestone complete
 
 ---
 
-### **SEGMENT 5: Ledger Verification (1:50–2:10, 20 sec)**
+### **SEGMENT 5: Ledger Verification (2:00–2:20, 20 sec)**
 
 **Narrator:**
 
-> "Every settlement creates an immutable ledger entry. Let me query the database to verify that the real PayPal batch ID is recorded."
+> "Every settlement creates an immutable ledger entry. The **Payment Rail indicator** shows exactly which method was used. 
+>
+> If we used real PayPal credentials, the real batch ID is recorded. If the credentials were not available, you see SIMULATED or SUPPRESSED—always honest, never hidden.
+>
+> This transparency is our commitment: judges and auditors can inspect exactly what happened at settlement time."
 
 **Live Demo:**
 1. **Open database query tool or show server logs**
 2. **Query or paste result:**
    ```sql
-   SELECT id, project_id, status, payout_batch_id, batch_status, created_at
+   SELECT id, project_id, status, payout_batch_id, batch_status, payout_executor_rail, created_at
    FROM agenticpay_ledger_events
    WHERE project_id = 'proj-demo-...'
+   ORDER BY created_at DESC
    LIMIT 1;
    ```
-   **Result:**
+   **Result (Real Credentials):**
    ```
    id: srv-settle-0efdd3197e87...
    project_id: proj-demo-settlement
    status: PAYOUT_EXECUTED
    payout_batch_id: $BATCH_ID-1234567-ABC
    batch_status: PROCESSING
+   payout_executor_rail: PAYPAL_SANDBOX
    created_at: 2026-11-06 02:37:22 UTC
    ```
-3. **Show PayPal Sandbox Dashboard** (second browser tab):
+   OR
+   
+   **Result (No Credentials / Fail-Closed):**
+   ```
+   id: srv-settle-0efdd3197e87...
+   project_id: proj-demo-settlement
+   status: PAYOUT_EXECUTED
+   payout_batch_id: SIM_PAYOUT_a1b2c3d4e5f6
+   batch_status: SIMULATED
+   payout_executor_rail: SIMULATED
+   created_at: 2026-11-06 02:37:22 UTC
+   ```
+
+3. **If using real PayPal credentials:** Show **PayPal Sandbox Dashboard** (second browser tab):
    - Login to sandbox.paypal.com
    - Navigate to Activity → Transactions
-   - Search for batch ID `$BATCH_ID-1234567-ABC`
+   - Search for batch ID matching the ledger entry
    - **Verify:** Batch visible, amount $250, status PROCESSING/SUCCESS
+   
+4. **Show Payment Rail chip** prominently in the ledger row UI
 
-**Visual:** Show split-screen: database query + PayPal Dashboard both confirming real batch ID.
+**Visual:** Show split-screen comparison: ledger entry (showing payment rail) matches the UI indicator. If real credentials, also show PayPal Dashboard verification.
 
 ---
 
-### **SEGMENT 6: Close & Competitive Edge (2:10–3:00, 50 sec)**
+### **SEGMENT 6: Close & Competitive Edge (2:20–3:00, 40 sec)**
 
 **Narrator:**
 
 > "What you just saw is **production-grade enterprise escrow, not a prototype.**
 >
-> Here's our competitive advantage:
+> Notice how we treated the payment rail with complete transparency:
+> - We told you upfront whether PayPal credentials are configured
+> - We showed you the real (or honestly simulated) batch ID in the response
+> - We recorded it immutably in the ledger—no hiding, no black boxes
 >
-> **1. Real Financial Integration:** We're calling PayPal's actual Payouts API, not simulating transfers. This is **live money in Sandbox**—your judges can verify it in real time.
+> This is our design philosophy: **fail-closed and transparent**. When credentials are missing, we don't fake a payout. We record it honestly and show it to you.
+>
+> **Here's our competitive advantage:**
+>
+> **1. Real Financial Integration:** If credentials are available, we're calling PayPal's actual Payouts API, not simulating transfers. If not, we fail closed—never fake. Your judges can verify real batch IDs in your PayPal Dashboard.
 >
 > **2. Deterministic Guardrails:** All payment logic is transparent TypeScript code. No hidden ML model deciding whether you get paid. No surprise rejections. You know exactly why a settlement passed or failed.
 >
 > **3. Atomic Transactions:** Thanks to PostgreSQL row-level locks, a PayPal rejection atomically rolls back the settlement. You never have a situation where the milestone is marked complete but the payment failed.
 >
-> **4. Idempotent Retries:** The deterministic fingerprint means retrying the same settlement reuses the exact same PayPal request ID. If the browser crashes, if the network flakes, the second attempt returns the exact same batch ID. Zero double-payments. This is **truly idempotent**—something that's rare in payments.
+> **4. Idempotent Retries:** The deterministic fingerprint means retrying the same settlement reuses the exact same PayPal request ID. If the browser crashes, if the network flakes, the second attempt returns the exact same batch ID. Zero double-payments. This is **truly idempotent**.
 >
-> **5. Dual-Perspective Workflow:** Outbound (you're paying a contractor) and Inbound (you're getting paid by a client) in one portfolio. One source of truth for all escrow operations.
+> **5. Dual-Persona Support:** Whether you're an Enterprise Account managing vendor payables or an Independent Operator getting paid by clients, AgenticPay supports both perspectives in one seamless workflow.
 >
 > **Questions?**"
 
 **Visual:** 
-- Show competitive positioning slide (if available) or highlight the key differentiators on-screen
-- End with AgenticPay logo + call-to-action (e.g., "Try it at agenticpay.ai" or "Ask us questions!")
+- Show competitive positioning with all five points highlighted
+- End with AgenticPay logo + call-to-action
+- Optional: Show payment rail comparison chart (PAYPAL_SANDBOX vs SIMULATED vs SUPPRESSED_RAIL)
 
 ---
 
@@ -184,19 +236,52 @@
 - **Frame rate:** 30fps (smooth for demo pacing)
 - **Audio:** English narration, clear microphone (no background noise)
 - **Speed:** Normal playback (no time-lapse for API calls; show the actual latency)
+- **Payment Rail Visibility:** Ensure the Payment Rail indicator (PAYPAL_SANDBOX / SIMULATED / SUPPRESSED_RAIL) is visible in all ledger entries and settlement responses
+
+### Recording Preparation
+**BEFORE recording, verify your setup:**
+```bash
+# Check if PayPal credentials are configured
+echo "PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-(not configured)}"
+echo "PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-(not configured)}"
+```
+
+**If credentials ARE configured:**
+- You will show **real PayPal Sandbox payouts** with actual batch IDs
+- Test one settlement before recording to confirm batch ID appears in ledger
+- Have PayPal Sandbox Dashboard tab ready for verification
+
+**If credentials are NOT configured:**
+- You will show **fail-closed settlement** with SIMULATED or SUPPRESSED_RAIL indicator
+- This is equally valid and demonstrates the fail-closed design
+- Be explicit in narration: "Credentials are not configured; the system is demonstrating fail-closed behavior"
 
 ### Editing Checklist
 - [ ] Remove pauses > 2 seconds between segments
-- [ ] Add timestamps/chapter markers: 0:20, 0:45, 1:15, 1:50, 2:10
-- [ ] Add lower-third graphics (optional): "AgenticPay AI - Real PayPal Settlement"
+- [ ] Add timestamps/chapter markers: 0:15, 0:45, 1:20, 2:00, 2:20
+- [ ] Add lower-third graphics (optional): "AgenticPay AI - Real PayPal Settlement" or "AgenticPay AI - Fail-Closed Payment Rail"
+- [ ] Ensure Payment Rail indicator is clearly visible in settlement response and ledger
+- [ ] If showing real PayPal payouts, add overlay: "Real PayPal Sandbox payout - Batch ID verified"
+- [ ] If showing fail-closed, add overlay: "Fail-Closed Design - No credentials configured"
 - [ ] Export: MP4, H.264 codec, < 100 MB file size
 - [ ] Test playback on mobile and desktop browsers
 
 ### Backup Plan
 If live PayPal API call fails during demo recording:
-- Pre-record the settlement call separately and splice it in (show batch ID in overlay)
-- Have screenshot of ledger + PayPal Dashboard as fallback
-- **Do NOT fake the PayPal response**—judges will verify the batch ID exists
+
+**Option 1 (Recommended):** Demonstrate fail-closed behavior
+- Show how the system handles missing/invalid credentials
+- Record settlement with honest SIMULATED or SUPPRESSED_RAIL indicator
+- Narrate: "Here's our fail-closed design in action. No fake payouts, no hidden behavior."
+- This is equally credible with judges—it shows defensive design
+
+**Option 2:** Pre-record the settlement call separately
+- Execute settlement on a clean environment with real credentials
+- Save the response (batch ID, HTTP log)
+- Splice it into demo with clear overlay: "Real PayPal Sandbox settlement (pre-recorded)"
+- Show batch ID verified in PayPal Dashboard
+
+**CRITICAL:** Do NOT fake the PayPal response—judges will verify batch IDs exist in PayPal Sandbox
 
 ---
 
@@ -232,27 +317,33 @@ If live PayPal API call fails during demo recording:
 
 | Segment | Time | Content |
 |---------|------|---------|
-| Problem | 0:00–0:20 | Escrow challenges |
-| Solution | 0:20–0:45 | Key differentiators |
-| Audit Demo | 0:45–1:15 | Live deliverable submission + 92% score |
-| Settlement Demo | 1:15–1:50 | Live PayPal call + batch ID + ledger update |
-| Verification | 1:50–2:10 | Database + PayPal Dashboard confirmation |
-| Close | 2:10–3:00 | Competitive edge + questions |
+| Problem | 0:00–0:15 | Escrow challenges |
+| Account Types & Solution | 0:15–0:45 | Dual-persona support (Enterprise + Independent Operator) + key differentiators |
+| Audit Demo | 0:45–1:20 | Live deliverable submission + 92% score |
+| Settlement Demo | 1:20–2:00 | Payment rail transparency + real/fail-closed explanation + settlement execution |
+| Verification | 2:00–2:20 | Database + Payment Rail indicator + PayPal Dashboard confirmation (if real credentials) |
+| Close | 2:20–3:00 | Competitive edge + dual-persona support emphasis + questions |
 | **TOTAL** | **< 3:00** | **Hard limit for hackathon submission** |
 
 ---
 
 ## ✅ Submission Checklist
 
-- [ ] Video recorded in English (no Spanish)
+- [ ] Video recorded in English
 - [ ] Video < 100 MB
 - [ ] Video < 3 minutes
 - [ ] Audio clear and professional
-- [ ] Real PayPal Sandbox batch IDs visible in demo
-- [ ] Database ledger entry matches batch ID
+- [ ] Account type selection explained (Enterprise vs Independent Operator)
+- [ ] Payment rail transparency disclaimer included (credentials status disclosed upfront)
+- [ ] Real or fail-closed PayPal settlement shown (NOT faked)
+- [ ] Payment Rail indicator (PAYPAL_SANDBOX / SIMULATED / SUPPRESSED_RAIL) visible in demo
+- [ ] If real credentials: PayPal Sandbox batch ID matches ledger entry
+- [ ] If fail-closed: Honest SIMULATED or SUPPRESSED_RAIL entry shown with narration
+- [ ] Database ledger entry visible and matches settlement response
 - [ ] All segment timings hit (within ±5 sec)
 - [ ] Export format: MP4 (H.264)
 - [ ] Test playback on judges' typical setup (laptop + browser)
+- [ ] Judges can independently verify batch IDs in PayPal Sandbox (if using real credentials)
 
 ---
 
