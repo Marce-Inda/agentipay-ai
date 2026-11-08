@@ -106,8 +106,8 @@ async function runE2ETestSuite() {
   if (!vendorProject) throw new Error('Vendor project not found');
   logPass('Paso 2.2', `Freelancer verifica contrato activo "${vendorProject.name}" con $${vendorProject.budgetCapUSD.toFixed(2)} retenidos en Vault.`);
 
-  // STEP 3: Multimodal Deliverable Proof Submission & Vision Audit Evaluation
-  console.log('\n--- PASO 3: Envío de Entregable y Evaluación de Auditoría Multimodal ---');
+  // STEP 3: Deterministic Deliverable Proof Submission & Heuristic Audit Evaluation
+  console.log('\n--- PASO 3: Envío de Entregable y Evaluación de Auditoría Determinista ---');
   const deliverableText = 'https://github.com/agency/e2e-integration/pull/42 - Added OAuth2 & PayPal Sandbox Webhooks';
   
   // Test OWASP LLM01 Prompt Injection Sanitization
@@ -125,7 +125,7 @@ async function runE2ETestSuite() {
     projectId: vendorProject.id,
     projectName: vendorProject.name,
     agentRole: 'BUYER_AI',
-    action: `Multimodal Deliverable Audit Evaluated (Score: ${auditScore}%)`,
+    action: `Deterministic Audit Evaluated (Score: ${auditScore}%)`,
     amountUSD: 0,
     recipientEmail: vendorProject.vendorEmail,
     auditConfidenceScore: auditScore,
@@ -135,7 +135,7 @@ async function runE2ETestSuite() {
   agGridLedgerLogs.unshift(auditLog);
 
   logPass('Paso 3.1', `Entregable sanitizado contra inyecciones OWASP LLM01.`);
-  logPass('Paso 3.2', `Auditoría Multimodal completada con Score: ${auditScore}% (Supera el umbral de 85%).`);
+  logPass('Paso 3.2', `Auditoría Determinista completada con Score: ${auditScore}% (Supera el umbral de 85%).`);
   logPass('Paso 3.3', `AG Grid actualizado [Actor: BUYER_AI | Status: AUDITING_DELIVERABLE | Risk: ${auditEvaluation.riskLevel}].`);
 
   // STEP 4: Payout Request & PayPal Sandbox REST API Execution

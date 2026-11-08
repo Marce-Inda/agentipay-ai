@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
-import type { BudgetEnvelope, ProjectContract, TransactionLog } from '@/lib/types';
+import type { BudgetEnvelope, ProjectContract, TransactionLog, AuditReport } from '@/lib/types';
 import {
   buildMilestoneSettlement,
   applyMilestonePayoutExecution,
@@ -188,6 +188,43 @@ export interface AgenticPayRepository {
     payoutExecutor?: MilestonePayoutExecutor,
     requiresHumanApproval?: boolean
   ): Promise<SettlementResult>;
+
+  // ========================================================================
+  // Audit Report Methods (Stage 2)
+  // ========================================================================
+  
+  /**
+   * Create a new audit report record in the database.
+   * @param userId User ID
+   * @param auditData Audit report data
+   * @returns Created audit report with id
+   */
+  createAuditReport(userId: string, auditData: Omit<AuditReport, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<AuditReport>;
+  
+  /**
+   * Get an audit report by ID.
+   * @param userId User ID
+   * @param auditId Audit report UUID
+   * @returns Audit report or null if not found
+   */
+  getAuditReport(userId: string, auditId: string): Promise<AuditReport | null>;
+  
+  /**
+   * Get latest audit report for a given PR URL.
+   * @param userId User ID
+   * @param prUrl GitHub PR URL
+   * @returns Latest audit report for PR or null
+   */
+  getAuditReportByPRUrl(userId: string, prUrl: string): Promise<AuditReport | null>;
+  
+  /**
+   * List audit reports for a milestone.
+   * @param userId User ID
+   * @param milestoneId Milestone ID
+   * @param limit Number of records to return
+   * @returns Array of audit reports, newest first
+   */
+  listAuditReportsByMilestone(userId: string, milestoneId: string, limit?: number): Promise<AuditReport[]>;
 }
 
 export class EmailAlreadyRegisteredError extends Error {
@@ -732,6 +769,33 @@ async function ensurePostgresSchema(): Promise<void> {
           data JSONB NOT NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
+
+        -- Stage 2: AI Auditor - Audit Reports Table
+        CREATE TABLE IF NOT EXISTS agenticpay_audit_reports (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          project_id TEXT NOT NULL,
+          milestone_id TEXT NOT NULL,
+          user_id TEXT NOT NULL REFERENCES agenticpay_users(id) ON DELETE CASCADE,
+          pr_url VARCHAR NOT NULL,
+          audit_mode VARCHAR NOT NULL DEFAULT 'LLM' CHECK (audit_mode IN ('LLM', 'HEURISTIC')),
+          score SMALLINT NOT NULL CHECK (score >= 0 AND score <= 100),
+          score_details JSONB NOT NULL,
+          verdicts JSONB NOT NULL,
+          summary TEXT NOT NULL,
+          risks JSONB NOT NULL,
+          recommended_action VARCHAR NOT NULL CHECK (recommended_action IN ('SETTLE', 'PARTIAL_SETTLE', 'BLOCK', 'MANUAL_REVIEW')),
+          guardrail_status VARCHAR NOT NULL CHECK (guardrail_status IN ('APPROVED_AUTOMATIC', 'BLOCKED_LOW_SCORE', 'BLOCKED_REQUIRES_APPROVAL')),
+          partial_release_info JSONB,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_audit_reports_project_id ON agenticpay_audit_reports(project_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_reports_milestone_id ON agenticpay_audit_reports(milestone_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_reports_user_id ON agenticpay_audit_reports(user_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_reports_pr_url ON agenticpay_audit_reports(pr_url);
+        CREATE INDEX IF NOT EXISTS idx_audit_reports_created_at ON agenticpay_audit_reports(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_audit_reports_guardrail ON agenticpay_audit_reports(guardrail_status);
       `);
     })().catch((error) => {
       globalForPostgres.__agenticPayPostgresSchemaReady = undefined;

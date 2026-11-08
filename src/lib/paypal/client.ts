@@ -226,7 +226,7 @@ export class PayPalSandboxClient {
       sender_batch_header: {
         sender_batch_id: senderBatchId,
         email_subject: `AgenticPay AI: Milestone Escrow Released (${payout.milestoneName})`,
-        note: 'Funds released automatically upon multimodal audit verification.',
+        note: 'Funds released automatically upon deterministic audit verification.',
       },
       items: [
         {

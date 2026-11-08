@@ -116,3 +116,67 @@ export interface UserProfile {
   complianceStatus?: 'VERIFIED' | 'PENDING';
 }
 
+
+
+// ============================================================================
+// Stage 2: AI Auditor Types
+// ============================================================================
+
+export type AuditVerdict = 'MET' | 'PARTIAL' | 'NOT_MET';
+export type GuardrailStatus = 'APPROVED_AUTOMATIC' | 'BLOCKED_LOW_SCORE' | 'BLOCKED_REQUIRES_APPROVAL';
+export type RecommendedAction = 'SETTLE' | 'PARTIAL_SETTLE' | 'BLOCK' | 'MANUAL_REVIEW';
+export type AuditMode = 'LLM' | 'HEURISTIC';
+export type CIStatus = 'success' | 'failure' | 'pending' | 'unknown';
+
+export interface GitHubEvidence {
+  title: string;
+  description: string;
+  files: Array<{ name: string; path: string; status: 'added' | 'modified' | 'deleted' }>;
+  diff: string;
+  ciStatus: CIStatus;
+  merged: boolean;
+  url: string;
+}
+
+export interface AuditCriterionResult {
+  criterion: string;
+  verdict: AuditVerdict;
+  evidence: string;
+  confidence: number; // 0-100
+  reasoning: string;
+}
+
+export interface ScoreDetails {
+  baseScore: number;
+  metCount: number;
+  partialCount: number;
+  notMetCount: number;
+  ciPenalty: number;
+  mergedPenalty: number;
+  breakdown: string;
+}
+
+export interface PartialReleaseInfo {
+  partialReleasePct: number;
+  proportionalAmountUsd: number;
+  acknowledgedCriteria: string[];
+}
+
+export interface AuditReport {
+  id: string;
+  projectId: string;
+  milestoneId: string;
+  userId: string;
+  prUrl: string;
+  auditMode: AuditMode;
+  score: number; // 0-100
+  scoreDetails: ScoreDetails;
+  criteria: AuditCriterionResult[];
+  summary: string;
+  risks: string[];
+  recommendedAction: RecommendedAction;
+  guardrailStatus: GuardrailStatus;
+  partialReleaseInfo?: PartialReleaseInfo;
+  createdAt: Date;
+  updatedAt: Date;
+}

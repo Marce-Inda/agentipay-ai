@@ -7,9 +7,9 @@
 
 ## Executive Summary
 
-**VERDICT: Code is production-ready** with **zero critical vulnerabilities** and **all controls properly implemented**.
+**VERDICT: The architecture and controls are production-ready in design. The current implementation is Sandbox-scoped. Production deployment requires real PayPal credentials, webhook reconciliation, and independent payout monitoring.** Zero critical vulnerabilities exist in the current architecture, and all designed controls are properly implemented.
 
-AgenticPay AI demonstrates enterprise-grade security architecture. The implementation correctly enforces:
+AgenticPay AI demonstrates enterprise-grade security architecture in its design. The implementation correctly enforces:
 - ✅ **Fail-closed settlement** (HTTP 502 without credentials)
 - ✅ **Deterministic idempotency** (SHA-256 fingerprints prevent double-payments)
 - ✅ **Atomic transactions** (PostgreSQL row locks via `SELECT...FOR UPDATE`)
@@ -858,7 +858,7 @@ environment. The following clarifications apply:
 
 ## Final Verdict
 
-✅ **PRODUCTION-READY** — Zero critical vulnerabilities. All 12 security controls are correctly implemented, tested, and aligned with the regulatory compliance framework.
+✅ **PRODUCTION-READY (DESIGN)** — Zero critical vulnerabilities in the architecture. All 12 security controls are correctly designed, implemented, and tested. The current implementation is Sandbox-scoped (non-production PayPal environment). Production deployment requires real PayPal credentials, webhook reconciliation, and independent payout monitoring.
 
-**Ready to demo.** Highlight sections 1–7 above to show judges you understand enterprise-grade financial security.
+**Ready for Sandbox demo and hackathon evaluation.** Highlight sections 1–7 above to show judges you understand enterprise-grade financial security architecture.
 

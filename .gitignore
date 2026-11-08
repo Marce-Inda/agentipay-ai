@@ -61,3 +61,11 @@ Thumbs.db
 
 # Vercel / Deployment cache
 .vercel
+
+# Kiro specs (local only)
+.kiro/
+
+
+# Stage 0 Cleanup & Verification
+.cleanup/
+.stage-0-accounts.local.json

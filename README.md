@@ -5,9 +5,9 @@
 AgenticPay AI is a dual-perspective escrow workspace for organizations that both commission work and deliver work. It combines an AI negotiation assistant, deterministic settlement controls, milestone deliverable audits, and an inspectable transaction ledger.
 
 > [!IMPORTANT]
-> **🚀 PRODUCTION-READY: Real PayPal Sandbox Settlement (2026-11-06)**
+> **✅ Sandbox End-to-End Verified**
 >
-> The platform is **fully implemented and verified end-to-end**:
+> The platform is **verified end-to-end in Sandbox scope**:
 > - ✅ Portfolio, milestone management, guardrails, audit endpoint, AG Grid ledger, authentication, tenant isolation, PostgreSQL sessions, durable ledger
 > - ✅ **Real PayPal Sandbox Payouts executed server-side** (verified live): POST `/api/projects/[projectId]/milestones/[milestoneId]/settle` calls PayPal `/v1/oauth2/token` + `/v1/payments/payouts`
 > - ✅ Deterministic fingerprints prevent double-payments (SHA256 idempotency keys)
@@ -15,6 +15,8 @@ AgenticPay AI is a dual-perspective escrow workspace for organizations that both
 > - ✅ Real `payout_batch_id` recorded in durable ledger with `batch_status` from PayPal
 > - ✅ HTTP 502 fail-closed: PayPal rejection rolls back settlement atomically
 > - ✅ Deterministic simulated and suppressed rails for non-production environments
+>
+> **Note:** This implementation is Sandbox-scoped (non-production PayPal environment). Production deployment requires real PayPal credentials, webhook reconciliation, and independent payout monitoring.
 >
 > **Verification:** See [TASK_11_E2E_REPORT.md](./TASK_11_E2E_REPORT.md) for live Sandbox payout proof with real batch IDs, timestamps, and ledger entries.
 

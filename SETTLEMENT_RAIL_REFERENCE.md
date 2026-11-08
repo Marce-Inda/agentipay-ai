@@ -295,11 +295,12 @@ A: We have three options:
 We will never fake a PayPal response.
 
 **Q: Is this production-ready?**  
-A: The architecture is production-ready. The demo uses Sandbox (non-production). For real production, you'd need:
-- Real PayPal merchant account
-- Production credentials
+A: The architecture and settlement logic are production-ready in design. The current demo uses Sandbox (non-production PayPal environment). For real production deployment, you'd additionally need:
+- Real PayPal merchant account and production credentials
 - State money transmitter licenses (depending on jurisdiction)
 - FinCEN/AML compliance audit
+- Webhook reconciliation for payout status updates
+- Independent payout monitoring and dispute handling
 
 **Q: How does idempotency work?**  
 A: The deterministic fingerprint (SHA-256 of projectId + milestoneId + amount) generates the PayPal-Request-Id and sender_batch_id. If you retry the same settlement:
