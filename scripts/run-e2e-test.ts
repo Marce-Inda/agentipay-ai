@@ -106,7 +106,7 @@ async function runE2ETestSuite() {
   if (!vendorProject) throw new Error('Vendor project not found');
   logPass('Paso 2.2', `Freelancer verifica contrato activo "${vendorProject.name}" con $${vendorProject.budgetCapUSD.toFixed(2)} retenidos en Vault.`);
 
-  // STEP 3: Deterministic Deliverable Proof Submission & Heuristic Audit Evaluation
+  // STEP 3: Deterministic Deliverable Audit Submission & Heuristic Evaluation
   console.log('\n--- PASO 3: Envío de Entregable y Evaluación de Auditoría Determinista ---');
   const deliverableText = 'https://github.com/agency/e2e-integration/pull/42 - Added OAuth2 & PayPal Sandbox Webhooks';
   

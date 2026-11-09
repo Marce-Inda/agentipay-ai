@@ -10,6 +10,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "validate:paypal": "npx ts-node scripts/test-paypal-credentials.ts",
     "seed:demo": "npx ts-node scripts/seed-demo-account.ts",
     "seed:cleanup": "npx ts-node scripts/cleanup-demo-account.ts"
   },

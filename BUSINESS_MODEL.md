@@ -61,7 +61,7 @@ Not implemented today:
 - Production PayPal onboarding.
 - A server-side PayPal payout route or verified live Sandbox payout.
 - KYC/KYB or sanctions screening.
-- Multimodal vision audit (planned future enhancement; current audit is deterministic heuristic-based).
+- Multimodal vision audit (planned future enhancement; current audit is deterministic heuristic-based). See [ARCHITECTURE.md § 8 Known architectural limitations](ARCHITECTURE.md#8-known-architectural-limitations) for audit boundary details: current scoring is keyword-based, not semantic, and GitHub/PR URLs bypass content evaluation.
 - Server-side persistence or immutable audit storage.
 
 Commercial packaging below is therefore a strategy, not a description of shipped billing.
