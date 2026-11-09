@@ -1,711 +1,438 @@
+/**
+ * Tests for Automatic Audit Engine
+ * Tests deterministic scoring and precondition validation
+ * Stage 3 Task 2.1.A
+ */
+
+import { describe, it, expect, beforeEach } from '@jest/globals';
 import {
-  invokeAutomaticAudit,
-  isGitHubPRUrlDeterministic,
-  getExpectedAuditScore,
-  type AutomaticAuditResult,
+  AutomaticAuditEngine,
+  AutomaticAuditResult,
+  AuditPreconditions
 } from '../automatic-audit';
-import { __resetMemoryRepositoryForTests, getRepository } from '@/lib/db/repository';
-import type { BudgetEnvelope, ProjectContract } from '@/lib/types';
 
-jest.mock('@/lib/db/repository', () => {
-  const actual = jest.requireActual('@/lib/db/repository');
-  return {
-    ...actual,
-  };
-});
-
-const originalDatabaseUrl = process.env.DATABASE_URL;
-
-function makeProject(overrides: Partial<ProjectContract> = {}): ProjectContract {
-  return {
-    id: 'proj-1',
-    name: 'Platform Engineering',
-    vendorName: 'Dev Agency LLC',
-    vendorEmail: 'vendor@example.com',
-    budgetCapUSD: 5000,
-    spentUSD: 0,
-    status: 'ACTIVE',
-    perspective: 'OUTGOING',
-    milestones: [
-      {
-        id: 'ms-1',
-        phaseNumber: 1,
-        title: 'Phase 1: Delivery',
-        description: 'Initial delivery',
-        amountUSD: 750,
-        status: 'PENDING',
-        acceptanceCriteria: 'Passing tests and verified deployment artifact.',
-      },
-    ],
-    ...overrides,
-  };
-}
-
-function makeEnvelope(overrides: Partial<BudgetEnvelope> = {}): BudgetEnvelope {
-  return {
-    maxPerTransactionUSD: 1250,
-    dailyCeilingUSD: 5000,
-    spentTodayUSD: 0,
-    activeEscrowUSD: 0,
-    killSwitchActive: false,
-    ...overrides,
-  };
-}
-
-describe('Automatic Audit (GitHub PR)', () => {
-  beforeAll(() => {
-    delete process.env.DATABASE_URL;
-  });
-
-  afterAll(() => {
-    if (originalDatabaseUrl) process.env.DATABASE_URL = originalDatabaseUrl;
-  });
-
-  beforeEach(() => {
-    __resetMemoryRepositoryForTests();
-  });
-
-  describe('Basic Precondition Checks', () => {
-    it('returns score 0 when project not found', async () => {
-      const result = await invokeAutomaticAudit(
-        'user-missing',
-        'proj-missing',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123',
-        'Test criteria'
-      );
-
-      expect(result.score).toBe(0);
-      expect(result.rationale).toContain('Project not found');
-      expect(result.eligible_for_auto_settlement).toBe(false);
+describe('Automatic Audit Engine - Deterministic Scoring', () => {
+  describe('Score Computation', () => {
+    it('should return 0 for missing PR URL', () => {
+      const score = AutomaticAuditEngine.computeScore(undefined, true);
+      expect(score).toBe(0);
     });
 
-    it('returns score 0 when milestone not found', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
+    it('should return 0 for invalid PR URL format', () => {
+      const invalidUrls = [
+        'https://github.com/owner/repo',
+        'https://github.com/owner/repo/issues/123',
+        'https://gitlab.com/owner/repo/merge_requests/123',
+        'not-a-url',
+        'https://github.com/owner/repo/pull/abc' // Non-numeric PR
+      ];
+
+      invalidUrls.forEach((url) => {
+        const score = AutomaticAuditEngine.computeScore(url, true);
+        expect(score).toBe(0);
       });
-      await repository.upsertProject(user.id, makeProject());
+    });
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-missing',
-        'https://github.com/owner/repo/pull/123',
-        'Test criteria'
-      );
+    it('should score valid PR with criteria in range [91-99]', () => {
+      const urls = [
+        'https://github.com/owner/repo/pull/1',
+        'https://github.com/owner/repo/pull/42',
+        'https://github.com/org/project/pull/999',
+        'https://github.com/user/code/pull/12345'
+      ];
 
-      expect(result.score).toBe(0);
-      expect(result.rationale).toContain('Milestone not found');
-      expect(result.eligible_for_auto_settlement).toBe(false);
+      urls.forEach((url) => {
+        const score = AutomaticAuditEngine.computeScore(url, true);
+        expect(score).toBeGreaterThanOrEqual(91);
+        expect(score).toBeLessThanOrEqual(99);
+      });
+    });
+
+    it('should score valid PR without criteria in range [85-90]', () => {
+      const urls = [
+        'https://github.com/owner/repo/pull/1',
+        'https://github.com/owner/repo/pull/42',
+        'https://github.com/org/project/pull/999'
+      ];
+
+      urls.forEach((url) => {
+        const score = AutomaticAuditEngine.computeScore(url, false);
+        expect(score).toBeGreaterThanOrEqual(85);
+        expect(score).toBeLessThanOrEqual(90);
+      });
+    });
+
+    it('should be deterministic: same URL produces same score', () => {
+      const url = 'https://github.com/owner/repo/pull/42';
+
+      const score1 = AutomaticAuditEngine.computeScore(url, true);
+      const score2 = AutomaticAuditEngine.computeScore(url, true);
+      const score3 = AutomaticAuditEngine.computeScore(url, true);
+
+      expect(score1).toBe(score2);
+      expect(score2).toBe(score3);
+    });
+
+    it('should produce different scores for different criteria presence', () => {
+      const url = 'https://github.com/owner/repo/pull/50';
+
+      const scoreWithCriteria = AutomaticAuditEngine.computeScore(url, true);
+      const scoreWithoutCriteria = AutomaticAuditEngine.computeScore(url, false);
+
+      // Should be in different ranges (or at boundaries)
+      expect(scoreWithCriteria).toBeGreaterThanOrEqual(91);
+      expect(scoreWithoutCriteria).toBeLessThanOrEqual(90);
+    });
+
+    it('should vary score based on PR number for deterministic distribution', () => {
+      const urls = [
+        'https://github.com/owner/repo/pull/1',
+        'https://github.com/owner/repo/pull/10',
+        'https://github.com/owner/repo/pull/100',
+        'https://github.com/owner/repo/pull/1000'
+      ];
+
+      const scoresWithCriteria = urls.map((url) => AutomaticAuditEngine.computeScore(url, true));
+      const scoresWithoutCriteria = urls.map((url) => AutomaticAuditEngine.computeScore(url, false));
+
+      // Scores should vary within their ranges
+      const uniqueWithCriteria = new Set(scoresWithCriteria).size;
+      const uniqueWithoutCriteria = new Set(scoresWithoutCriteria).size;
+
+      expect(uniqueWithCriteria).toBeGreaterThan(1); // Should have variation
+      expect(uniqueWithoutCriteria).toBeGreaterThan(1);
     });
   });
 
-  describe('Milestone Status Precondition', () => {
-    it('returns score 0 if milestone status is not PENDING or AUDITED_PENDING_APPROVAL', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(
-        user.id,
-        makeProject({
-          milestones: [
-            {
-              id: 'ms-1',
-              phaseNumber: 1,
-              title: 'Phase 1',
-              description: 'Test',
-              amountUSD: 750,
-              status: 'COMPLETED', // Not PENDING
-            },
-          ],
-        })
-      );
+  describe('Precondition Validation', () => {
+    it('should pass when all preconditions are met', () => {
+      const conditions: AuditPreconditions = {
+        contractActive: true,
+        killSwitchActive: false,
+        milestoneStatus: 'PENDING',
+        amountUsd: 500,
+        perspectiveOutgoing: true
+      };
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123'
-      );
-
-      expect(result.score).toBe(0);
-      expect(result.rationale).toContain('Milestone is not pending');
+      const result = AutomaticAuditEngine.checkPreconditions(conditions);
+      expect(result.passed).toBe(true);
+      expect(result.blockedBy).toBeUndefined();
     });
 
-    it('succeeds if milestone status is PENDING', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
+    it('should fail if contract is not active', () => {
+      const conditions: AuditPreconditions = {
+        contractActive: false,
+        killSwitchActive: false,
+        milestoneStatus: 'PENDING'
+      };
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123',
-        'Test criteria'
+      const result = AutomaticAuditEngine.checkPreconditions(conditions);
+      expect(result.passed).toBe(false);
+      expect(result.blockedBy).toContain('ACTIVE');
+    });
+
+    it('should fail if kill-switch is active', () => {
+      const conditions: AuditPreconditions = {
+        contractActive: true,
+        killSwitchActive: true,
+        milestoneStatus: 'PENDING'
+      };
+
+      const result = AutomaticAuditEngine.checkPreconditions(conditions);
+      expect(result.passed).toBe(false);
+      expect(result.blockedBy).toContain('Kill-switch');
+    });
+
+    it('should fail if milestone status is not PENDING or AUDITED_PENDING_APPROVAL', () => {
+      const invalidStatuses = ['COMPLETED', 'BLOCKED', 'DRAFT', 'UNKNOWN'];
+
+      invalidStatuses.forEach((status) => {
+        const conditions: AuditPreconditions = {
+          contractActive: true,
+          killSwitchActive: false,
+          milestoneStatus: status
+        };
+
+        const result = AutomaticAuditEngine.checkPreconditions(conditions);
+        expect(result.passed).toBe(false);
+        expect(result.blockedBy).toBeDefined();
+      });
+    });
+
+    it('should pass if milestone status is AUDITED_PENDING_APPROVAL', () => {
+      const conditions: AuditPreconditions = {
+        contractActive: true,
+        killSwitchActive: false,
+        milestoneStatus: 'AUDITED_PENDING_APPROVAL'
+      };
+
+      const result = AutomaticAuditEngine.checkPreconditions(conditions);
+      expect(result.passed).toBe(true);
+    });
+  });
+
+  describe('Settlement Eligibility', () => {
+    it('should require score ≥ 85%', () => {
+      const eligible85 = AutomaticAuditEngine.isEligibleForAutoSettlement(85, 500, true);
+      const eligible84 = AutomaticAuditEngine.isEligibleForAutoSettlement(84, 500, true);
+      const eligible100 = AutomaticAuditEngine.isEligibleForAutoSettlement(100, 500, true);
+
+      expect(eligible85).toBe(true);
+      expect(eligible84).toBe(false);
+      expect(eligible100).toBe(true);
+    });
+
+    it('should require amount ≤ $1,000 USD', () => {
+      const eligibleAt1000 = AutomaticAuditEngine.isEligibleForAutoSettlement(90, 1000, true);
+      const eligibleAt999 = AutomaticAuditEngine.isEligibleForAutoSettlement(90, 999, true);
+      const ineligibleAt1001 = AutomaticAuditEngine.isEligibleForAutoSettlement(90, 1001, true);
+      const ineligibleUndefined = AutomaticAuditEngine.isEligibleForAutoSettlement(90, undefined, true);
+
+      expect(eligibleAt1000).toBe(true);
+      expect(eligibleAt999).toBe(true);
+      expect(ineligibleAt1001).toBe(false);
+      expect(ineligibleUndefined).toBe(false);
+    });
+
+    it('should require perspective to be OUTGOING', () => {
+      const eligibleOutgoing = AutomaticAuditEngine.isEligibleForAutoSettlement(90, 500, true);
+      const ineligibleIncoming = AutomaticAuditEngine.isEligibleForAutoSettlement(90, 500, false);
+      const ineligibleUndefined = AutomaticAuditEngine.isEligibleForAutoSettlement(90, 500, undefined);
+
+      expect(eligibleOutgoing).toBe(true);
+      expect(ineligibleIncoming).toBe(false);
+      expect(ineligibleUndefined).toBe(false);
+    });
+
+    it('should require all three conditions: score, amount, perspective', () => {
+      const allMet = AutomaticAuditEngine.isEligibleForAutoSettlement(90, 500, true);
+      const lowScore = AutomaticAuditEngine.isEligibleForAutoSettlement(84, 500, true);
+      const highAmount = AutomaticAuditEngine.isEligibleForAutoSettlement(90, 1001, true);
+      const incomingPerspective = AutomaticAuditEngine.isEligibleForAutoSettlement(90, 500, false);
+
+      expect(allMet).toBe(true);
+      expect(lowScore).toBe(false);
+      expect(highAmount).toBe(false);
+      expect(incomingPerspective).toBe(false);
+    });
+  });
+
+  describe('Full Audit Execution', () => {
+    it('should execute successful audit with valid PR and criteria', async () => {
+      const conditions: AuditPreconditions = {
+        contractActive: true,
+        killSwitchActive: false,
+        milestoneStatus: 'PENDING',
+        amountUsd: 500,
+        perspectiveOutgoing: true
+      };
+
+      const result = await AutomaticAuditEngine.executeAudit(
+        'https://github.com/owner/repo/pull/42',
+        conditions,
+        true
       );
 
+      expect(result.success).toBe(true);
       expect(result.score).toBeGreaterThanOrEqual(91);
+      expect(result.rationale).toContain('GitHub PR #42');
+      expect(result.proof).toContain('github.com');
+      expect(result.eligibleForAutoSettlement).toBe(true);
+      expect(result.blockingReason).toBeUndefined();
     });
 
-    it('succeeds if milestone status is AUDITED_PENDING_APPROVAL', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(
-        user.id,
-        makeProject({
-          milestones: [
-            {
-              id: 'ms-1',
-              phaseNumber: 1,
-              title: 'Phase 1',
-              description: 'Test',
-              amountUSD: 750,
-              status: 'AUDITED_PENDING_APPROVAL',
-            },
-          ],
-        })
-      );
-      await repository.upsertEnvelope(user.id, makeEnvelope());
+    it('should fail audit if contract not active', async () => {
+      const conditions: AuditPreconditions = {
+        contractActive: false,
+        killSwitchActive: false,
+        milestoneStatus: 'PENDING'
+      };
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123'
+      const result = await AutomaticAuditEngine.executeAudit(
+        'https://github.com/owner/repo/pull/42',
+        conditions,
+        true
       );
 
+      expect(result.success).toBe(false);
+      expect(result.score).toBe(0);
+      expect(result.eligibleForAutoSettlement).toBe(false);
+      expect(result.rationale).toContain('Precondition failed');
+      expect(result.blockingReason).toContain('ACTIVE');
+    });
+
+    it('should audit but mark ineligible if amount exceeds ceiling', async () => {
+      const conditions: AuditPreconditions = {
+        contractActive: true,
+        killSwitchActive: false,
+        milestoneStatus: 'PENDING',
+        amountUsd: 5000, // Above $1,000 ceiling
+        perspectiveOutgoing: true
+      };
+
+      const result = await AutomaticAuditEngine.executeAudit(
+        'https://github.com/owner/repo/pull/42',
+        conditions,
+        true
+      );
+
+      expect(result.success).toBe(true); // Score passed
       expect(result.score).toBeGreaterThanOrEqual(91);
-    });
-  });
-
-  describe('Contract Status Precondition', () => {
-    it('returns score 0 if contract status is not ACTIVE', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(
-        user.id,
-        makeProject({
-          status: 'PAUSED', // Not ACTIVE
-        })
-      );
-
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123'
-      );
-
-      expect(result.score).toBe(0);
-      expect(result.rationale).toContain('Contract is not active');
+      expect(result.eligibleForAutoSettlement).toBe(false); // But not eligible for auto-settle
+      expect(result.blockingReason).toContain('$5000');
+      expect(result.blockingReason).toContain('$1000');
     });
 
-    it('succeeds if contract status is ACTIVE', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject({ status: 'ACTIVE' }));
-      await repository.upsertEnvelope(user.id, makeEnvelope());
+    it('should audit but mark ineligible if perspective is not OUTGOING', async () => {
+      const conditions: AuditPreconditions = {
+        contractActive: true,
+        killSwitchActive: false,
+        milestoneStatus: 'PENDING',
+        amountUsd: 500,
+        perspectiveOutgoing: false // INCOMING (contract recipient is vendor)
+      };
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123'
+      const result = await AutomaticAuditEngine.executeAudit(
+        'https://github.com/owner/repo/pull/42',
+        conditions,
+        true
       );
 
+      expect(result.success).toBe(true);
       expect(result.score).toBeGreaterThanOrEqual(91);
+      expect(result.eligibleForAutoSettlement).toBe(false);
+      expect(result.blockingReason).toContain('OUTGOING');
     });
-  });
 
-  describe('Kill-Switch Precondition', () => {
-    it('returns score 0 if kill-switch is active', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope({ killSwitchActive: true }));
+    it('should include timestamp in result', async () => {
+      const conditions: AuditPreconditions = {
+        contractActive: true,
+        killSwitchActive: false,
+        milestoneStatus: 'PENDING'
+      };
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123'
+      const result = await AutomaticAuditEngine.executeAudit(
+        'https://github.com/owner/repo/pull/42',
+        conditions,
+        true
       );
 
-      expect(result.score).toBe(0);
-      expect(result.rationale).toContain('Kill-switch is active');
+      expect(result.timestamp).toBeDefined();
+      expect(result.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
 
-    it('succeeds if kill-switch is not active', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope({ killSwitchActive: false }));
+    it('should be deterministic: same inputs produce same score and result', async () => {
+      const conditions: AuditPreconditions = {
+        contractActive: true,
+        killSwitchActive: false,
+        milestoneStatus: 'PENDING',
+        amountUsd: 500,
+        perspectiveOutgoing: true
+      };
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123'
-      );
+      const prUrl = 'https://github.com/owner/repo/pull/99';
 
-      expect(result.score).toBeGreaterThanOrEqual(91);
-    });
-  });
-
-  describe('Deterministic GitHub PR Scoring', () => {
-    beforeEach(() => {
-      __resetMemoryRepositoryForTests();
-    });
-
-    it('returns same score for same PR URL (determinism test 1 of 5)', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
-
-      const prUrl = 'https://github.com/owner/repo/pull/123';
-      const criteria = 'Passing tests';
-
-      const result1 = await invokeAutomaticAudit(user.id, 'proj-1', 'ms-1', prUrl, criteria);
-      const result2 = await invokeAutomaticAudit(user.id, 'proj-1', 'ms-1', prUrl, criteria);
+      const result1 = await AutomaticAuditEngine.executeAudit(prUrl, conditions, true);
+      const result2 = await AutomaticAuditEngine.executeAudit(prUrl, conditions, true);
+      const result3 = await AutomaticAuditEngine.executeAudit(prUrl, conditions, true);
 
       expect(result1.score).toBe(result2.score);
-      expect(result1.score).toBeGreaterThanOrEqual(91);
-    });
-
-    it('returns same score for same PR URL (determinism test 2 of 5)', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
-
-      const prUrl = 'https://github.com/different/project/pull/456';
-      const criteria = 'Build must pass and coverage must exceed 80% threshold'; // 50+ chars
-
-      const result1 = await invokeAutomaticAudit(user.id, 'proj-1', 'ms-1', prUrl, criteria);
-      const result2 = await invokeAutomaticAudit(user.id, 'proj-1', 'ms-1', prUrl, criteria);
-
-      expect(result1.score).toBe(result2.score);
-      expect(result1.score).toBeGreaterThanOrEqual(98); // With criteria
-    });
-
-    it('returns same score for same PR URL (determinism test 3 of 5)', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
-
-      const prUrl = 'https://github.com/test/repo/pull/789';
-
-      const result1 = await invokeAutomaticAudit(user.id, 'proj-1', 'ms-1', prUrl);
-      const result2 = await invokeAutomaticAudit(user.id, 'proj-1', 'ms-1', prUrl);
-
-      expect(result1.score).toBe(result2.score);
-      expect(result1.score).toBe(91); // No criteria
-    });
-
-    it('returns same score for same PR URL (determinism test 4 of 5)', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
-
-      const prUrl = 'https://github.com/a/b/pull/999';
-      const criteria =
-        'Must have: 1) All tests passing 2) Code coverage above 85% 3) Two approvals 4) No breaking changes';
-
-      const result1 = await invokeAutomaticAudit(user.id, 'proj-1', 'ms-1', prUrl, criteria);
-      const result2 = await invokeAutomaticAudit(user.id, 'proj-1', 'ms-1', prUrl, criteria);
-
-      expect(result1.score).toBe(result2.score);
-      expect(result1.score).toBeGreaterThanOrEqual(98); // With detailed criteria
-    });
-
-    it('returns same score for same PR URL (determinism test 5 of 5)', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
-
-      const prUrl = 'https://github.com/org/project/pull/111';
-      const criteria = 'x'; // Very short criteria
-
-      const result1 = await invokeAutomaticAudit(user.id, 'proj-1', 'ms-1', prUrl, criteria);
-      const result2 = await invokeAutomaticAudit(user.id, 'proj-1', 'ms-1', prUrl, criteria);
-
-      expect(result1.score).toBe(result2.score);
-      expect(result1.score).toBe(91); // Short criteria doesn't qualify for bonus
+      expect(result2.score).toBe(result3.score);
+      expect(result1.success).toBe(result2.success);
+      expect(result2.success).toBe(result3.success);
+      expect(result1.eligibleForAutoSettlement).toBe(result2.eligibleForAutoSettlement);
     });
   });
 
-  describe('Scoring Rules', () => {
-    it('awards 91% base score for valid GitHub PR without criteria', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
+  describe('Edge Cases', () => {
+    it('should handle PR URL with special characters in repo name', () => {
+      const url = 'https://github.com/owner/my-repo-2024/pull/123';
+      const score = AutomaticAuditEngine.computeScore(url, true);
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123'
-      );
-
-      expect(result.score).toBe(91);
+      expect(score).toBeGreaterThanOrEqual(91);
+      expect(score).toBeLessThanOrEqual(99);
     });
 
-    it('awards 91% for valid PR with very short acceptance criteria', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
+    it('should handle very large PR numbers', () => {
+      const url = 'https://github.com/owner/repo/pull/999999';
+      const score = AutomaticAuditEngine.computeScore(url, true);
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123',
-        'tests pass' // < 50 chars
-      );
-
-      expect(result.score).toBe(91);
+      expect(score).toBeGreaterThanOrEqual(91);
+      expect(score).toBeLessThanOrEqual(99);
     });
 
-    it('awards 98-99% for valid PR with detailed acceptance criteria (50+ chars)', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
+    it('should handle missing milestone status gracefully', async () => {
+      const conditions: AuditPreconditions = {
+        contractActive: true,
+        killSwitchActive: false,
+        // milestoneStatus is undefined
+      };
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123',
-        'All tests must pass, code coverage > 80%, two approvals required' // > 50 chars
+      const result = await AutomaticAuditEngine.executeAudit(
+        'https://github.com/owner/repo/pull/42',
+        conditions as any,
+        true
       );
 
-      expect(result.score).toBeGreaterThanOrEqual(98);
-      expect(result.score).toBeLessThanOrEqual(99);
+      expect(result.success).toBe(false);
+      expect(result.blockingReason).toBeDefined();
     });
 
-    it('rejects invalid GitHub URL and returns score 0', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
+    it('should handle score exactly at threshold (85%)', () => {
+      const eligible = AutomaticAuditEngine.isEligibleForAutoSettlement(85, 500, true);
+      const ineligible = AutomaticAuditEngine.isEligibleForAutoSettlement(84.99, 500, true);
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://example.com/some/url',
-        'Test criteria'
-      );
-
-      expect(result.score).toBe(0);
-      expect(result.rationale).toContain('Invalid GitHub PR URL');
+      expect(eligible).toBe(true);
+      expect(ineligible).toBe(false);
     });
 
-    it('rejects empty PR URL', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
+    it('should handle amount exactly at ceiling ($1,000)', () => {
+      const eligible = AutomaticAuditEngine.isEligibleForAutoSettlement(90, 1000, true);
+      const ineligible = AutomaticAuditEngine.isEligibleForAutoSettlement(90, 1000.01, true);
 
-      const result = await invokeAutomaticAudit(user.id, 'proj-1', 'ms-1', '', 'Test criteria');
-
-      expect(result.score).toBe(0);
+      expect(eligible).toBe(true);
+      expect(ineligible).toBe(false);
     });
   });
 
-  describe('Auto-Settlement Eligibility', () => {
-    it('is eligible when score >= 85% AND amount <= $1,000 AND perspective is OUTGOING', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(
-        user.id,
-        makeProject({
-          perspective: 'OUTGOING',
-          milestones: [
-            {
-              id: 'ms-1',
-              phaseNumber: 1,
-              title: 'Phase 1',
-              description: 'Test',
-              amountUSD: 750, // <= $1,000
-              status: 'PENDING',
-            },
-          ],
-        })
-      );
-      await repository.upsertEnvelope(user.id, makeEnvelope());
+  describe('Rationale Generation', () => {
+    it('should generate meaningful rationale for successful audit', async () => {
+      const conditions: AuditPreconditions = {
+        contractActive: true,
+        killSwitchActive: false,
+        milestoneStatus: 'PENDING',
+        amountUsd: 500,
+        perspectiveOutgoing: true
+      };
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123',
-        'Comprehensive acceptance criteria with detailed requirements'
+      const result = await AutomaticAuditEngine.executeAudit(
+        'https://github.com/owner/repo/pull/42',
+        conditions,
+        true
       );
 
-      expect(result.score).toBeGreaterThanOrEqual(85);
-      expect(result.eligible_for_auto_settlement).toBe(true);
+      expect(result.rationale).toContain('GitHub PR #42');
+      expect(result.rationale).toContain('acceptance criteria');
+      expect(result.rationale).toContain(`${result.score}%`);
     });
 
-    it('is NOT eligible when amount exceeds $1,000', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(
-        user.id,
-        makeProject({
-          perspective: 'OUTGOING',
-          milestones: [
-            {
-              id: 'ms-1',
-              phaseNumber: 1,
-              title: 'Phase 1',
-              description: 'Test',
-              amountUSD: 1500, // > $1,000
-              status: 'PENDING',
-            },
-          ],
-        })
-      );
-      await repository.upsertEnvelope(user.id, makeEnvelope());
+    it('should generate rationale for audit without criteria', async () => {
+      const conditions: AuditPreconditions = {
+        contractActive: true,
+        killSwitchActive: false,
+        milestoneStatus: 'PENDING',
+        amountUsd: 500,
+        perspectiveOutgoing: true
+      };
 
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123',
-        'Comprehensive acceptance criteria'
+      const result = await AutomaticAuditEngine.executeAudit(
+        'https://github.com/owner/repo/pull/50',
+        conditions,
+        false // No acceptance criteria
       );
 
-      expect(result.eligible_for_auto_settlement).toBe(false);
-    });
-
-    it('is NOT eligible when perspective is INCOMING', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(
-        user.id,
-        makeProject({
-          perspective: 'INCOMING', // Not OUTGOING
-          milestones: [
-            {
-              id: 'ms-1',
-              phaseNumber: 1,
-              title: 'Phase 1',
-              description: 'Test',
-              amountUSD: 750,
-              status: 'PENDING',
-            },
-          ],
-        })
-      );
-      await repository.upsertEnvelope(user.id, makeEnvelope());
-
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://github.com/owner/repo/pull/123',
-        'Comprehensive acceptance criteria'
-      );
-
-      expect(result.eligible_for_auto_settlement).toBe(false);
-    });
-
-    it('is NOT eligible when score is below 85%', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(
-        user.id,
-        makeProject({
-          perspective: 'OUTGOING',
-          milestones: [
-            {
-              id: 'ms-1',
-              phaseNumber: 1,
-              title: 'Phase 1',
-              description: 'Test',
-              amountUSD: 750,
-              status: 'PENDING',
-            },
-          ],
-        })
-      );
-      await repository.upsertEnvelope(user.id, makeEnvelope());
-
-      // Invalid PR URL will result in score 0
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://invalid.com/pr/123',
-        'Test criteria'
-      );
-
-      expect(result.score).toBeLessThan(85);
-      expect(result.eligible_for_auto_settlement).toBe(false);
-    });
-  });
-
-  describe('Milestone State Persistence', () => {
-    it('persists AUDITED_PENDING_APPROVAL status when score >= 85%', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
-
-      const prUrl = 'https://github.com/owner/repo/pull/123';
-      const criteria = 'Comprehensive test coverage and deployment verification required';
-
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        prUrl,
-        criteria
-      );
-
-      expect(result.score).toBeGreaterThanOrEqual(85);
-
-      // Verify milestone was updated
-      const updatedProject = await repository.getProject(user.id, 'proj-1');
-      const updatedMilestone = updatedProject?.milestones?.[0];
-
-      expect(updatedMilestone?.status).toBe('AUDITED_PENDING_APPROVAL');
-      expect(updatedMilestone?.auditScore).toBe(result.score);
-      expect(updatedMilestone?.deliverableProof).toBe(prUrl);
-      expect(updatedMilestone?.submittedAt).toBeDefined();
-    });
-
-    it('does not persist state when score < 85%', async () => {
-      const repository = getRepository();
-      const user = await repository.createUser({
-        email: 'owner@example.com',
-        passwordHash: 'hash',
-      });
-      await repository.upsertProject(user.id, makeProject());
-      await repository.upsertEnvelope(user.id, makeEnvelope());
-
-      const result = await invokeAutomaticAudit(
-        user.id,
-        'proj-1',
-        'ms-1',
-        'https://invalid-url.com',
-        'Test criteria'
-      );
-
-      expect(result.score).toBeLessThan(85);
-
-      // Verify milestone was NOT updated
-      const unchangedProject = await repository.getProject(user.id, 'proj-1');
-      const milestone = unchangedProject?.milestones?.[0];
-
-      expect(milestone?.status).toBe('PENDING');
-      expect(milestone?.auditScore).toBeUndefined();
-    });
-  });
-
-  describe('Utility Functions', () => {
-    it('isGitHubPRUrlDeterministic returns true for valid GitHub PR URLs', () => {
-      expect(isGitHubPRUrlDeterministic('https://github.com/owner/repo/pull/123')).toBe(true);
-      expect(isGitHubPRUrlDeterministic('https://github.com/org/project/pull/999')).toBe(true);
-    });
-
-    it('isGitHubPRUrlDeterministic returns false for invalid URLs', () => {
-      expect(isGitHubPRUrlDeterministic('https://example.com/pull/123')).toBe(false);
-      expect(isGitHubPRUrlDeterministic('https://github.com/owner/repo/issues/123')).toBe(false);
-      expect(isGitHubPRUrlDeterministic('')).toBe(false);
-    });
-
-    it('getExpectedAuditScore returns correct score for known inputs', () => {
-      const prUrl = 'https://github.com/owner/repo/pull/123';
-
-      // No criteria
-      expect(getExpectedAuditScore(prUrl)).toBe(91);
-
-      // Short criteria
-      expect(getExpectedAuditScore(prUrl, 'test')).toBe(91);
-
-      // Long criteria (50+ chars)
-      expect(getExpectedAuditScore(prUrl, 'Must have comprehensive tests and code coverage verification and two approvals')).toBeGreaterThanOrEqual(98);
-
-      // Invalid URL
-      expect(getExpectedAuditScore('https://invalid.com')).toBe(0);
+      expect(result.rationale).toContain('GitHub PR #50');
+      expect(result.rationale).toContain('without acceptance criteria');
     });
   });
 });
