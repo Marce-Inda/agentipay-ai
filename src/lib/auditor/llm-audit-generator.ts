@@ -91,44 +91,51 @@ export class LLMAuditReportGenerator {
    */
   private async callOpenRouter(prompt: string): Promise<string | null> {
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-          'HTTP-Referer': process.env.HOSTNAME || 'http://localhost:3000',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          temperature: 0, // Deterministic
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          response_format: {
-            type: 'json_schema',
-            schema: this.getJsonSchema(),
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}`,
+            'HTTP-Referer': process.env.HOSTNAME || 'http://localhost:3000',
           },
-        }),
-        timeout: 30000,
-      });
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            temperature: 0, // Deterministic
+            messages: [
+              {
+                role: 'user',
+                content: prompt,
+              },
+            ],
+            response_format: {
+              type: 'json_schema',
+              schema: this.getJsonSchema(),
+            },
+          }),
+          signal: controller.signal,
+        });
 
-      if (!response.ok) {
-        console.error(`OPENROUTER API error: ${response.status} ${response.statusText}`);
-        return null;
+        if (!response.ok) {
+          console.error(`OPENROUTER API error: ${response.status} ${response.statusText}`);
+          return null;
+        }
+
+        const data = (await response.json()) as any;
+        const content = data.choices?.[0]?.message?.content;
+
+        if (!content) {
+          console.error('No content in OPENROUTER response');
+          return null;
+        }
+
+        return content;
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      const data = (await response.json()) as any;
-      const content = data.choices?.[0]?.message?.content;
-
-      if (!content) {
-        console.error('No content in OPENROUTER response');
-        return null;
-      }
-
-      return content;
     } catch (error) {
       console.error('OpenRouter API call failed:', error);
       return null;

@@ -649,6 +649,31 @@ function createMemoryRepository(): AgenticPayRepository {
       await this.appendLedgerEvent(userId, result.event);
       return result;
     },
+
+    // Audit report methods (stubs for now - would use database in production)
+    async createAuditReport(userId, auditData) {
+      const id = randomUUID();
+      const now = new Date();
+      return {
+        id,
+        userId,
+        ...auditData,
+        createdAt: now,
+        updatedAt: now,
+      };
+    },
+
+    async getAuditReport(userId, auditId) {
+      return null; // Not stored in memory
+    },
+
+    async getAuditReportByPRUrl(userId, prUrl) {
+      return null; // Not stored in memory
+    },
+
+    async listAuditReportsByMilestone(userId, milestoneId, limit = 10) {
+      return []; // Not stored in memory
+    },
   };
 }
 
@@ -1422,6 +1447,137 @@ function createPostgresRepository(): AgenticPayRepository {
         );
         return result;
       });
+    },
+
+    // Audit report methods
+    async createAuditReport(userId, auditData) {
+      await ensurePostgresSchema();
+      const id = randomUUID();
+      const now = new Date();
+      
+      const result = await getPostgresPool().query(
+        `INSERT INTO agenticpay_audit_reports 
+         (id, user_id, project_id, milestone_id, pr_url, audit_mode, score, score_details, verdicts, summary, risks, recommended_action, guardrail_status, partial_release_info, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+         RETURNING *`,
+        [
+          id,
+          userId,
+          auditData.projectId,
+          auditData.milestoneId,
+          auditData.prUrl,
+          auditData.auditMode,
+          auditData.score,
+          JSON.stringify(auditData.scoreDetails),
+          JSON.stringify(auditData.criteria),
+          auditData.summary,
+          JSON.stringify(auditData.risks),
+          auditData.recommendedAction,
+          auditData.guardrailStatus,
+          auditData.partialReleaseInfo ? JSON.stringify(auditData.partialReleaseInfo) : null,
+          now,
+          now,
+        ]
+      );
+
+      return {
+        id,
+        userId,
+        ...auditData,
+        createdAt: now,
+        updatedAt: now,
+      };
+    },
+
+    async getAuditReport(userId, auditId) {
+      await ensurePostgresSchema();
+      const result = await getPostgresPool().query(
+        `SELECT * FROM agenticpay_audit_reports WHERE id = $1 AND user_id = $2`,
+        [auditId, userId]
+      );
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        userId: row.user_id,
+        projectId: row.project_id,
+        milestoneId: row.milestone_id,
+        prUrl: row.pr_url,
+        auditMode: row.audit_mode,
+        score: row.score,
+        scoreDetails: row.score_details as any,
+        criteria: row.verdicts as any,
+        summary: row.summary,
+        risks: row.risks as string[],
+        recommendedAction: row.recommended_action,
+        guardrailStatus: row.guardrail_status,
+        partialReleaseInfo: row.partial_release_info as any,
+        createdAt: new Date(row.created_at),
+        updatedAt: new Date(row.updated_at),
+      };
+    },
+
+    async getAuditReportByPRUrl(userId, prUrl) {
+      await ensurePostgresSchema();
+      const result = await getPostgresPool().query(
+        `SELECT * FROM agenticpay_audit_reports WHERE user_id = $1 AND pr_url = $2 ORDER BY created_at DESC LIMIT 1`,
+        [userId, prUrl]
+      );
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        userId: row.user_id,
+        projectId: row.project_id,
+        milestoneId: row.milestone_id,
+        prUrl: row.pr_url,
+        auditMode: row.audit_mode,
+        score: row.score,
+        scoreDetails: row.score_details as any,
+        criteria: row.verdicts as any,
+        summary: row.summary,
+        risks: row.risks as string[],
+        recommendedAction: row.recommended_action,
+        guardrailStatus: row.guardrail_status,
+        partialReleaseInfo: row.partial_release_info as any,
+        createdAt: new Date(row.created_at),
+        updatedAt: new Date(row.updated_at),
+      };
+    },
+
+    async listAuditReportsByMilestone(userId, milestoneId, limit = 10) {
+      await ensurePostgresSchema();
+      const result = await getPostgresPool().query(
+        `SELECT * FROM agenticpay_audit_reports WHERE user_id = $1 AND milestone_id = $2 ORDER BY created_at DESC LIMIT $3`,
+        [userId, milestoneId, limit]
+      );
+
+      return result.rows.map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        projectId: row.project_id,
+        milestoneId: row.milestone_id,
+        prUrl: row.pr_url,
+        auditMode: row.audit_mode,
+        score: row.score,
+        scoreDetails: row.score_details as any,
+        criteria: row.verdicts as any,
+        summary: row.summary,
+        risks: row.risks as string[],
+        recommendedAction: row.recommended_action,
+        guardrailStatus: row.guardrail_status,
+        partialReleaseInfo: row.partial_release_info as any,
+        createdAt: new Date(row.created_at),
+        updatedAt: new Date(row.updated_at),
+      }));
     },
   };
 }
