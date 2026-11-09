@@ -25,6 +25,8 @@ export interface ProjectMilestone {
   submittedAt?: string;
   payPalBatchId?: string;
   requiresHumanApproval?: boolean;
+  linkedPRNumber?: number;       // Optional: GitHub PR number
+  linkedPRUrl?: string;          // Optional: Full GitHub PR URL
 }
 
 export type ProjectPerspective = 'OUTGOING' | 'INCOMING';

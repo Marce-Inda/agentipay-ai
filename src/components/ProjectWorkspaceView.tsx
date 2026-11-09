@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { BudgetEnvelope, ProjectContract, ProjectMilestone, TransactionLog } from '../lib/types';
 import { AUTONOMOUS_SETTLEMENT_CAP_USD } from '../lib/guardrails/enforcer';
+import { validateMilestonePRLinkage } from '../lib/validation/project';
 import { AgentChat } from './AgentChat';
 import { CommandCenter } from './CommandCenter';
 
@@ -152,6 +153,143 @@ const EditCriteriaModal: React.FC<EditCriteriaModalProps> = ({ milestone, onClos
           >
             <Check className="w-4 h-4" />
             <span>Save Specifications</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// -------------------------------------------------------------
+// Modal: Edit GitHub PR Linkage (Principal / Buyer)
+// -------------------------------------------------------------
+interface EditPRLinkageModalProps {
+  milestone: ProjectMilestone;
+  onClose: () => void;
+  onSave: (milestoneId: string, linkedPRNumber?: number, linkedPRUrl?: string) => void;
+}
+
+const EditPRLinkageModal: React.FC<EditPRLinkageModalProps> = ({ milestone, onClose, onSave }) => {
+  const [linkedPRNumber, setLinkedPRNumber] = useState(milestone.linkedPRNumber?.toString() || '');
+  const [linkedPRUrl, setLinkedPRUrl] = useState(milestone.linkedPRUrl || '');
+  const [validationError, setValidationError] = useState('');
+
+  const handleSave = () => {
+    const validation = validateMilestonePRLinkage({
+      linkedPRNumber: linkedPRNumber ? Number(linkedPRNumber) : undefined,
+      linkedPRUrl: linkedPRUrl,
+    });
+
+    if (!validation.valid) {
+      setValidationError(validation.error || 'Invalid PR linkage');
+      return;
+    }
+
+    onSave(
+      milestone.id,
+      linkedPRNumber ? Number(linkedPRNumber) : undefined,
+      linkedPRUrl || undefined
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-[#16181D] border border-cyan-500/30 rounded-2xl w-full max-w-xl shadow-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#252830]">
+          <div className="flex items-center gap-2">
+            <ExternalLink className="w-5 h-5 text-cyan-400" />
+            <h3 className="text-base font-bold text-white">Link GitHub PR</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span className="font-semibold text-white">{milestone.title}</span>
+            <span className="font-mono text-emerald-400 font-bold">${milestone.amountUSD.toFixed(2)} USD</span>
+          </div>
+          <p className="text-xs text-slate-400">{milestone.description}</p>
+        </div>
+
+        <div className="bg-[#0F1115] border border-cyan-500/20 rounded-xl p-3 space-y-3">
+          <p className="text-xs text-slate-300">
+            Link this milestone to its corresponding GitHub pull request for automatic tracking and auditing.
+          </p>
+
+          {/* PR Number */}
+          <div>
+            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+              PR Number
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={linkedPRNumber}
+              onChange={(e) => {
+                setLinkedPRNumber(e.target.value);
+                setValidationError('');
+              }}
+              placeholder="e.g. 42"
+              className="w-full bg-[#0F1115] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            />
+            <p className="text-[10px] text-slate-500 mt-1">
+              The PR number from GitHub (e.g., https://github.com/owner/repo/pull/42 → PR 42)
+            </p>
+          </div>
+
+          {/* PR URL */}
+          <div>
+            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+              PR URL
+            </label>
+            <input
+              type="url"
+              value={linkedPRUrl}
+              onChange={(e) => {
+                setLinkedPRUrl(e.target.value);
+                setValidationError('');
+              }}
+              placeholder="https://github.com/owner/repo/pull/42"
+              className={`w-full bg-[#0F1115] border rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none ${
+                validationError
+                  ? 'border-rose-500/50 focus:border-rose-500'
+                  : 'border-slate-700 focus:border-cyan-500'
+              }`}
+            />
+            <p className="text-[10px] text-slate-500 mt-1">
+              Full GitHub PR URL for direct linking and CI/CD integration
+            </p>
+          </div>
+
+          {/* Validation Error */}
+          {validationError && (
+            <div className="flex items-center gap-2 bg-rose-950/40 border border-rose-500/40 rounded-lg px-3 py-2 text-xs text-rose-300">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{validationError}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#252830]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-slate-950 font-bold text-xs rounded-lg transition active:scale-95 flex items-center gap-1.5"
+          >
+            <Check className="w-4 h-4" />
+            <span>Save PR Link</span>
           </button>
         </div>
       </div>
@@ -524,6 +662,7 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
 
   // Modal states
   const [editingMilestone, setEditingMilestone] = useState<ProjectMilestone | null>(null);
+  const [editingPRMilestone, setEditingPRMilestone] = useState<ProjectMilestone | null>(null);
   const [submittingMilestone, setSubmittingMilestone] = useState<ProjectMilestone | null>(null);
   const [settlementError, setSettlementError] = useState('');
 
@@ -605,6 +744,38 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
     };
 
     onUpdateProject(updatedProject);
+  };
+
+  // Handle saving PR linkage
+  const handleSavePRLinkage = (milestoneId: string, linkedPRNumber?: number, linkedPRUrl?: string) => {
+    if (!onUpdateProject) return;
+
+    const updatedMilestones = (project.milestones || []).map((m) =>
+      m.id === milestoneId
+        ? {
+            ...m,
+            linkedPRNumber,
+            linkedPRUrl,
+          }
+        : m
+    );
+
+    const updatedProject = {
+      ...project,
+      milestones: updatedMilestones,
+    };
+
+    onUpdateProject(updatedProject);
+    setEditingPRMilestone(null);
+
+    void fetch(`/api/projects/${encodeURIComponent(project.id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ milestoneId, linkedPRNumber, linkedPRUrl }),
+    }).catch((error) => {
+      console.warn('[Projects] PR linkage update failed:', error);
+    });
   };
 
   // Client Authorization Handler (Hiring Client / Accounts Payable side)
@@ -918,6 +1089,31 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
                       </div>
                     )}
 
+                    {ms.linkedPRUrl && (
+                      <div className="flex items-center justify-between text-[10px] text-cyan-300 bg-black/30 p-1.5 rounded border border-cyan-500/20 group">
+                        <div className="flex items-center gap-1 truncate">
+                          <ExternalLink className="w-3 h-3 text-cyan-400 shrink-0" />
+                          <a
+                            href={ms.linkedPRUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate hover:text-cyan-200 underline"
+                          >
+                            GitHub PR #{ms.linkedPRNumber || 'N/A'}
+                          </a>
+                        </div>
+                        {!isIncoming && (
+                          <button
+                            onClick={() => setEditingPRMilestone(ms)}
+                            className="text-cyan-400 hover:text-cyan-300 ml-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                            title="Edit PR linkage"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {ms.payPalBatchId && (
                       <div className="text-[10px] font-mono text-emerald-400/90 truncate bg-black/40 px-2 py-1 rounded border border-emerald-500/20">
                         Settlement Ref: {ms.payPalBatchId}
@@ -1015,6 +1211,14 @@ export const ProjectWorkspaceView: React.FC<ProjectWorkspaceViewProps> = ({
           milestone={editingMilestone}
           onClose={() => setEditingMilestone(null)}
           onSave={handleSaveCriteria}
+        />
+      )}
+
+      {editingPRMilestone && (
+        <EditPRLinkageModal
+          milestone={editingPRMilestone}
+          onClose={() => setEditingPRMilestone(null)}
+          onSave={handleSavePRLinkage}
         />
       )}
 

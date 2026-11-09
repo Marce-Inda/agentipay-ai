@@ -41,6 +41,8 @@ export const projectMilestoneSchema = z.object({
     .optional(),
   payPalBatchId: z.string().max(256).optional(),
   requiresHumanApproval: z.boolean().optional(),
+  linkedPRNumber: z.number().int().min(1).max(1_000_000).optional(),
+  linkedPRUrl: z.string().url().max(512).optional(),
 });
 
 export const storedProjectSchema = z.object({
@@ -103,3 +105,136 @@ export const projectPatchSchema = z
   );
 
 export type StoredProjectInput = z.infer<typeof storedProjectSchema>;
+
+// ============================================================================
+// GitHub PR Linkage Validation
+// ============================================================================
+
+/**
+ * Validates a GitHub PR URL and extracts the PR number.
+ * Pattern: https://github.com/owner/repo/pull/123
+ *
+ * @param url The URL to validate
+ * @returns Object with validation result, extracted PR number, and error (if any)
+ */
+export function validateGitHubPRUrl(url: string): {
+  valid: boolean;
+  prNumber?: number;
+  error?: string;
+} {
+  if (!url) {
+    return { valid: false, error: 'PR URL is required' };
+  }
+
+  try {
+    const urlObj = new URL(url);
+
+    // Verify it's a GitHub URL
+    if (!urlObj.hostname.includes('github.com')) {
+      return {
+        valid: false,
+        error: 'PR URL must be from github.com',
+      };
+    }
+
+    // Match pattern: /pull/{number}
+    const pullMatch = urlObj.pathname.match(/\/pull\/(\d+)(?:\/|$)/);
+    if (!pullMatch || !pullMatch[1]) {
+      return {
+        valid: false,
+        error:
+          'PR URL must contain /pull/{number} (e.g., https://github.com/owner/repo/pull/42)',
+      };
+    }
+
+    const prNumber = parseInt(pullMatch[1], 10);
+    if (isNaN(prNumber) || prNumber < 1 || prNumber > 1_000_000) {
+      return {
+        valid: false,
+        error: 'PR number must be a positive integer between 1 and 1,000,000',
+      };
+    }
+
+    return { valid: true, prNumber };
+  } catch {
+    return {
+      valid: false,
+      error: 'Invalid URL format',
+    };
+  }
+}
+
+/**
+ * Validates milestone PR linkage (both URL and number if provided).
+ * Checks for consistency between URL and explicitly provided PR number.
+ *
+ * @param milestone The milestone to validate
+ * @returns Object with validation result and error (if any)
+ */
+export function validateMilestonePRLinkage(milestone: {
+  linkedPRNumber?: number;
+  linkedPRUrl?: string;
+}): {
+  valid: boolean;
+  error?: string;
+} {
+  const hasNumber = milestone.linkedPRNumber !== undefined && milestone.linkedPRNumber !== null;
+  const hasUrl = Boolean(milestone.linkedPRUrl);
+
+  // If neither field is provided, that's valid (optional fields)
+  if (!hasNumber && !hasUrl) {
+    return { valid: true };
+  }
+
+  // If only URL is provided, validate it
+  if (hasUrl && !hasNumber) {
+    const urlValidation = validateGitHubPRUrl(milestone.linkedPRUrl!);
+    if (!urlValidation.valid) {
+      return { valid: false, error: urlValidation.error };
+    }
+    return { valid: true };
+  }
+
+  // If only number is provided, validate it
+  if (hasNumber && !hasUrl) {
+    if (
+      !Number.isInteger(milestone.linkedPRNumber) ||
+      milestone.linkedPRNumber! < 1 ||
+      milestone.linkedPRNumber! > 1_000_000
+    ) {
+      return {
+        valid: false,
+        error: 'PR number must be a positive integer between 1 and 1,000,000',
+      };
+    }
+    return { valid: true };
+  }
+
+  // Both are provided - validate URL and check for conflicts
+  const urlValidation = validateGitHubPRUrl(milestone.linkedPRUrl!);
+  if (!urlValidation.valid) {
+    return { valid: false, error: urlValidation.error };
+  }
+
+  // Validate the provided number independently
+  if (
+    !Number.isInteger(milestone.linkedPRNumber) ||
+    milestone.linkedPRNumber! < 1 ||
+    milestone.linkedPRNumber! > 1_000_000
+  ) {
+    return {
+      valid: false,
+      error: 'PR number must be a positive integer between 1 and 1,000,000',
+    };
+  }
+
+  // Compare extracted PR number from URL with provided number
+  if (urlValidation.prNumber !== milestone.linkedPRNumber) {
+    return {
+      valid: false,
+      error: `PR numbers conflict: URL contains pull/${urlValidation.prNumber} but field specifies #${milestone.linkedPRNumber}`,
+    };
+  }
+
+  return { valid: true };
+}
