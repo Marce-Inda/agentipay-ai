@@ -62,10 +62,73 @@ Thumbs.db
 # Vercel / Deployment cache
 .vercel
 
-# Kiro specs (local only)
+# Kiro specs (local only) - Development task management
 .kiro/
-
+.kiro/specs/
 
 # Stage 0 Cleanup & Verification
 .cleanup/
 .stage-0-accounts.local.json
+
+# Hackathon Development Notes & Strategy
+.hackathon/
+.development-notes/
+*-draft.md
+*-wip.md
+*-brainstorm.md
+STRATEGY_*.md
+ROADMAP_*.md
+PLAN_*.md
+OUTLINE_*.md
+
+# Internal Pitch & Business Strategy
+PITCH_DECK_*.md
+PITCH_NOTES_*.md
+BUSINESS_STRATEGY_*.md
+MARKET_ANALYSIS_*.md
+COMPETITOR_*.md
+
+# Process Videos & Live Recording Scripts
+VIDEO_SCRIPT_*.md
+RECORDING_*.md
+DEMO_SCRIPT_*.md
+SCREEN_RECORDING_*.sh
+
+# Internal Performance Tuning & Optimization Notes
+PERFORMANCE_*.md
+OPTIMIZATION_*.md
+TUNING_*.md
+
+# Temporary Test Data & Integration Scripts
+test_data_*.json
+test_seed_*.sql
+integration_test_*.sh
+mock_paypal_*.json
+sandbox_setup_*.sh
+
+# Judge/Evaluator Credentials (Never commit temporary access)
+JUDGE_*.md
+EVALUATOR_*.md
+*_TEMP_ACCESS*.md
+*_TEMPORARY_*.txt
+judge_credentials*
+evaluator_credentials*
+
+# Internal Build Artifacts & Debug Logs
+debug.log
+trace.log
+*.perf
+*.profile
+.build-cache/
+
+# OS and IDE Temporary Files
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+.vscode/settings.local.json
+.idea/misc.xml
+
+# Vercel / Deployment cache
+.vercel

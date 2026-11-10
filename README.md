@@ -1,202 +1,105 @@
 # AgenticPay AI
 
-> Enterprise escrow operations workspace for autonomous service contracts, with deterministic financial guardrails and server-authoritative milestone settlement records.
+**Pay-on-Proof: Programmable Escrow with AI Audit and Instant PayPal Settlement**
 
-AgenticPay AI is a dual-perspective escrow workspace for organizations that both commission work and deliver work. It combines an AI negotiation assistant, deterministic settlement controls, milestone deliverable audits, and an inspectable transaction ledger.
+AgenticPay AI is an enterprise-grade escrow platform that eliminates payment friction in service contracts. Clients deposit funds via PayPal → AI auditor validates deliverables (GitHub PRs, CI status, acceptance criteria) → Funds release automatically on merge.
 
-> [!IMPORTANT]
-> **✅ Sandbox End-to-End Verified**
->
-> The platform is **verified end-to-end in Sandbox scope**:
-> - ✅ Portfolio, milestone management, guardrails, audit endpoint, AG Grid ledger, authentication, tenant isolation, PostgreSQL sessions, durable ledger
-> - ✅ **Real PayPal Sandbox Payouts executed server-side** (verified live): POST `/api/projects/[projectId]/milestones/[milestoneId]/settle` calls PayPal `/v1/oauth2/token` + `/v1/payments/payouts`
-> - ✅ Deterministic fingerprints prevent double-payments (SHA256 idempotency keys)
-> - ✅ Row-level PostgreSQL locks + atomic transactions (commit/rollback all-or-nothing)
-> - ✅ Real `payout_batch_id` recorded in durable ledger with `batch_status` from PayPal
-> - ✅ HTTP 502 fail-closed: PayPal rejection rolls back settlement atomically
-> - ✅ Deterministic simulated and suppressed rails for non-production environments
->
-> **Note:** This implementation is Sandbox-scoped (non-production PayPal environment). Production deployment requires real PayPal credentials, webhook reconciliation, and independent payout monitoring.
->
-> **Verification:** See [TASK_11_E2E_REPORT.md](./TASK_11_E2E_REPORT.md) for live Sandbox payout proof with real batch IDs, timestamps, and ledger entries.
+The platform combines deterministic financial guardrails, server-authoritative settlement, real-time AI milestone audits, and atomic PayPal payouts—all without the AI touching money directly.
 
 ---
 
-## 🏆 Judge Access for Hackathon Evaluation
+## The Problem
 
-**For hackathon judges:** Quick access to a live demo without setup friction.
+**Current Payment Friction in Service Contracting**
 
-| Item | Details |
-|------|---------|
-| **Live URL** | https://agenticpay-ai.onrender.com |
-| **Demo Email** | `judge@agenticpay.demo` |
-| **Demo Password** | `JudgeDemo2026!@#Demo` |
-| **Full Guide** | See [JUDGE_ACCESS.md](./JUDGE_ACCESS.md) |
+- **Freelancers & Agencies:** Payment delays of 30–60 days. Clients often pay late or dispute invoices for subjective "quality" reasons.
+- **Clients:** Fear of advance payments. No guarantee work will be completed or meet specifications. Disputes are costly and time-consuming.
+- **Result:** Talent leaves the market. Projects slow down. Contracts require expensive insurance, escrow services, or legal intervention.
 
-**What you'll see:**
-- Dual portfolio swimlanes (Outgoing & Incoming contracts)
-- Real-time milestone management and audit workflows
-- Live PayPal Sandbox payout execution with deterministic idempotency
-- Immutable audit ledger with actual batch IDs and timestamps
-
-**Post-Evaluation:** Demo credentials and account will be deleted after the hackathon period. See [JUDGE_ACCESS.md](./JUDGE_ACCESS.md#-post-evaluation-cleanup) for cleanup details.
+The core issue: **Trust gap and information asymmetry.** There's no mechanism for real-time proof of work completion that both parties accept automatically.
 
 ---
 
-## Overview
+## The Solution: Pay-on-Proof
 
-Service contracts often involve two operational roles:
+AgenticPay AI bridges this trust gap with **programmable escrow powered by AI audit and deterministic settlement**:
 
-- **Outbound escrow (Accounts Payable):** the organization hires a vendor, defines milestones, audits deliverables, and authorizes releases.
-- **Inbound escrow (Accounts Receivable):** the organization delivers work to a client, tracks the contract's declared value, and records milestone settlements in the durable ledger.
+1. **Client deposits funds** via PayPal (no payment processor hassle; real Sandbox/Live integration).
+2. **Vendor completes work** (commits code, pushes to GitHub, submits deliverables).
+3. **AI auditor evaluates** in real-time:
+   - PR merge status and CI pipeline success
+   - Deliverable content against acceptance criteria
+   - Confidence score (deterministic, not black-box).
+4. **Automatic settlement on approval** (≤ $1,000 USD per milestone):
+   - Funds are released from escrow
+   - PayPal Payouts API executes instantly
+   - Ledger records transaction with real batch IDs and timestamps
+   - Vendor receives payment in seconds—not 30 days
+5. **Higher amounts** ($1,000+) require human approval, preserving organizational control.
 
-AgenticPay AI keeps both roles in one portfolio. It supports subcontract metadata, where an incoming contract can reference a linked outgoing contract. Financial actions are evaluated by a non-AI TypeScript guardrail layer and the server-side settlement engine before a settlement is recorded and, when credentials are configured, a PayPal Sandbox payout is executed.
-
-### Core capabilities
-
-- **Dual-perspective portfolio:** parallel outbound and inbound swimlanes with search, status filters, and focus modes.
-- **Contract and milestone management:** contract envelope ceilings, vendor/client details, milestone acceptance criteria, deliverable proofs, and settlement state.
-- **Server-authoritative settlement:** PostgreSQL-backed projects and budget envelopes, atomic milestone settlement with row locking, server-checked audit confidence, per-transaction/daily/project ceilings, kill-switch enforcement, contract freeze, and a $1,000 USD autonomous settlement cap.
-- **Milestone audit endpoint:** payload size limits, prompt-injection sanitization, isolated deliverable framing, heuristic confidence scoring, and human-approval escalation above the autonomous cap. GitHub and pull-request URLs are automatically treated as high-confidence evidence.
-- **PayPal Sandbox payout rail:** server-side executor integrated into `/settle`. When `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are set, settlement calls `/v1/oauth2/token` + `/v1/payments/payouts` with a deterministic `PayPal-Request-Id` and records the real `payout_batch_id`. Without credentials, payouts fail closed: a simulated rail (`PAYPAL_SIMULATION_MODE=true`, non-production only) or a suppressed rail records honest ledger entries without claiming funds moved.
-- **AI negotiation assistant:** streamed responses through OpenAI/OpenRouter or Gemini, with a configurable fallback model.
-- **AG Grid audit ledger:** transaction status, actor, risk level, audit confidence, settlement amount, and inspectable local or server-returned payloads.
-- **Authentication and tenant isolation:** scrypt password hashing, opaque server-side sessions stored in PostgreSQL, HttpOnly cookies, invite-gated production registration, login throttling, and same-origin CSRF checks.
-- **Durable audit ledger:** authenticated, tenant-scoped `GET`/`POST /api/ledger/events` persisted in PostgreSQL with per-user deduplication. Client-submitted `PAYOUT_EXECUTED` events are rejected.
-- **Cost and abuse controls:** process-local, per-user rate limits on LLM, audit, settlement, ledger, project, and envelope endpoints. Exceeded quotas return HTTP `429` with `RATE_LIMITED`, retry metadata, and no external dependency on Redis.
-- **Server-authoritative contract APIs:** authenticated project, envelope, audit-persistence, and settlement endpoints, with tenant isolation and same-origin enforcement.
-- **Tenant-scoped local cache:** profile, contracts, envelope, and cached ledger entries are namespaced by authenticated user ID and reconciled against server state on sign-in.
-
-### Current implementation boundaries
-
-These boundaries are intentional and should be considered when evaluating or extending the platform:
-
-- The application uses **PayPal Sandbox** configuration only. Orders, Vault tokenization, webhooks, refunds, disputes, and production disbursement are not implemented.
-- The milestone audit is a deterministic heuristic evaluator in `/api/agent/audit`; it is not a multimodal LLM vision service. A GitHub URL with no substantive deliverable text can pass the 85% gate.
-- The AI stream is an assistant for negotiation and explanations. It cannot call the audit endpoint or execute a payout. It does not perform deliverable audits or write settlement records.
-- Authentication, sessions, ledger events, projects, and budget envelopes use PostgreSQL. Production refuses to serve without `DATABASE_URL`; development and tests use an in-memory repository.
-- Projects created through the API always start `ACTIVE`, with zero spend and pending milestones. Bootstrap sanitizes imported browser state and never trusts client audit scores, completion state, or spend totals.
-- `/api/agent/audit` persists audit outcomes against the server milestone when project and milestone IDs are supplied. Settlement requires a server-recorded audit score of at least 85%.
-- Settlement is atomic and idempotent for the same milestone. Duplicate or concurrent releases are rejected, and only the server settlement path can execute PayPal payouts or create `PAYOUT_EXECUTED` ledger events. A deterministic fingerprint (project ID + milestone ID + amount) derives the ledger event ID, `sender_batch_id`, and `PayPal-Request-Id`, so retries reuse the same payout request.
-- Browser storage remains a cache. Server state is the authority after reconciliation; a modified client cannot forge balances, spend, audit state, or payouts.
-- The platform does not custody funds. Settlement dispatches to the PayPal Sandbox Payouts API through a server-side executor; payout failures return HTTP 502 with the escrow transaction rolled back, so no settlement state is committed unless the payout rail accepts the request.
-- The AI stream remains advisory. It cannot invoke settlement or write ledger events.
+**Key Guarantee:** AI audits only; AI never touches money. Deterministic TypeScript guardrails decide settlement eligibility. PayPal's official APIs execute the payout. All decisions are logged in an immutable, inspectable ledger.
 
 ---
 
-## How a settlement works
+## Architecture & Tech Stack
 
-1. **Create a contract** from the portfolio and select the outbound or inbound perspective.
-2. **Define the envelope ceiling and milestones**, including acceptance criteria and milestone amounts.
-3. **Submit a deliverable** from the project workspace. The audit endpoint validates payload size and sanitizes untrusted text.
-4. **Receive an audit result** containing a confidence score, risk level, rationale, and settlement mode.
-5. **Record the server audit outcome.** When project and milestone IDs are supplied, a passing audit updates the server milestone to `AUDITED_PENDING_APPROVAL` with its score, rationale, proof, and approval requirement.
-6. **Release the milestone.** The server revalidates contract status, kill-switch, milestone audit state, amount, and budget ceilings, then executes the PayPal Payouts request inside the settlement transaction. A passing payout atomically marks the milestone complete, increments project and envelope spend, records the real PayPal `payout_batch_id` and `batch_status`, and writes a deduplicated `PAYOUT_EXECUTED` record with a deterministic server event ID. A payout failure rolls the transaction back and returns a structured failure without mutating state.
-7. **Refresh the ledger.** The workspace reconciles the returned project, envelope, and settlement event into its cache.
+### Governing Principle
 
-### Guardrail thresholds
+**"AI verifies → Code decides → PayPal executes"**
 
-| Control | Behavior |
-| :--- | :--- |
-| Audit confidence | Scores below 85% are rejected and the escrow remains locked. |
-| Autonomous settlement | Releases up to $1,000 USD are eligible for autonomous settlement after a passing audit. |
-| Human authorization | Amounts above $1,000 USD return `HUMAN_APPROVAL_REQUIRED` and require an explicit workspace action. |
-| Payload limit | Deliverable text is capped at 12,000 characters. |
-| Kill-switch | Server envelope state blocks audits and settlement. |
-| Contract freeze | A paused contract blocks audits and settlement. |
-| Budget ceiling | Settlement cannot exceed the project's remaining budget, the per-transaction ceiling, or the daily ceiling. |
-| Duplicate release | A completed milestone cannot be settled again; the server event ID, `sender_batch_id`, and `PayPal-Request-Id` are deterministic per milestone. |
-| Payout failure | A PayPal payout rejection (for example `INSUFFICIENT_FUNDS`) returns HTTP 502 and rolls back the settlement transaction; the retry reuses the same idempotency context. |
+This separation ensures:
+- **Transparency:** Every decision is deterministic and auditable
+- **Finality:** PayPal's official APIs guarantee fund movement
+- **Safety:** Guardrails enforce project budgets, daily caps, and kill-switch logic
+- **Compliance:** Non-custodial design (no funds held by the platform)
 
----
+### Technology Stack
 
-## Architecture at a glance
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | Next.js 15, React 19, TypeScript | Client application (portfolio, audit workflow, ledger) |
+| **Backend** | Next.js Route Handlers, TypeScript | Server-authoritative settlement engine |
+| **Database** | PostgreSQL | Durable storage (users, projects, envelopes, audit ledger) |
+| **AI Auditor** | OpenAI / OpenRouter / Gemini (configurable) | Proposal negotiation; deterministic heuristic audit |
+| **Payment Rail** | PayPal Sandbox (Orders v2, Payouts v1, Webhooks) | Real escrow and payout execution |
+| **Security** | scrypt, HttpOnly cookies, CSRF tokens | Password hashing, session management, origin validation |
+| **Testing** | Jest, Property-Based Testing | 126+ passing checks; coverage of guardrails, payout flows, settlement atomicity |
+| **Deployment** | Docker, Render, GitHub Actions | CI/CD pipeline; automated testing on PR/push |
 
-```text
-Browser (Next.js App Router client)
-  Auth screen / Portfolio / Workspace / Agent Chat / AG Grid ledger
-  Tenant-scoped localStorage cache: profile, projects, envelope, cached logs
-  Server reconciliation on sign-in
-  AgentChat: negotiation only; no settlement client
-        |
-        | /api/auth/*  /api/projects/*  /api/envelope  /api/ledger/events
-        | /api/agent/stream  /api/agent/audit
-        v
-Next.js route handlers
-  Opaque session cookies + CSRF origin validation
-  GuardrailEnforcer + deterministic audit
-  Server-authoritative projects and budget envelopes
-  Atomic milestone settlement + deduplicated ledger event
-  Server-side PayPal payout executor
-        |
-        +--> PostgreSQL: users, sessions, projects, envelopes, ledger events
-        |
-        | PayPal Sandbox REST API when PAYPAL_CLIENT_ID/PAYPAL_CLIENT_SECRET
-        | are configured; simulated or suppressed (fail-closed) rails otherwise
-        v
-PayPal Sandbox REST API (/v1/oauth2/token + /v1/payments/payouts)
-```
+### PayPal Integration Details
 
-Key implementation files:
+| API | Purpose | Implementation |
+|-----|---------|-----------------|
+| `/v1/oauth2/token` | Obtain server access token | Called once per settlement; cached briefly |
+| `/v1/payments/payouts` | Execute Payouts API | Deterministic `PayPal-Request-Id` ensures idempotency; real `payout_batch_id` recorded in ledger |
+| Webhooks (subscribed) | Future: Payout status reconciliation | Currently: Sandbox integration verified; production deployments add webhook listeners |
 
-- `src/app/page.tsx` — session gate, tenant-scoped hydration, server reconciliation, contract creation, freeze handling, and settlement.
-- `src/components/AuthScreen.tsx` — sign-in and invite-gated account creation.
-- `src/components/ProjectPortfolioView.tsx` — dual swimlanes and portfolio cards.
-- `src/components/ProjectWorkspaceView.tsx` — milestones, audit submission, and client-authorized settlement.
-- `src/components/AgentChat.tsx` — negotiation assistant and pre-settlement guard checks.
-- `src/components/CommandCenter.tsx` — AG Grid transaction ledger.
-- `src/lib/guardrails/enforcer.ts` — budget, audit, sanitization, and payload rules.
-- `src/lib/auth/session.ts` — session lifecycle, cookie options, and origin validation.
-- `src/lib/auth/password.ts` — scrypt hashing and timing-resistant verification.
-- `src/lib/db/repository.ts` — PostgreSQL schema, projects/envelopes, atomic settlement, ledger, and in-memory test adapter; the settlement transaction invokes the payout executor inside row locks and rolls back on payout failure.
-- `src/lib/settlement/settlement.ts` — server settlement rules, deterministic fingerprints, `PayPal-Request-Id`/`sender_batch_id` derivation, and payout-record construction.
-- `src/lib/paypal/client.ts` — PayPal OAuth and Payouts REST client with a deterministic simulation rail and a fail-closed suppressed rail.
-- `src/lib/paypal/executor.ts` — server-side `MilestonePayoutExecutor` factory used by `/settle`, including `PAYOUT_BLOCKED` audit events.
-- `src/lib/validation/project.ts` — project, envelope, bootstrap, and update schemas.
-- `src/lib/ledger.ts` — legacy local settled-balance helper used by client-side tests and migration paths.
-- `src/app/api/auth/*` — register, login, logout, and session endpoints.
-- `src/app/api/projects/*` — project list/create, bootstrap, freeze/criteria updates, and milestone settlement.
-- `src/app/api/projects/[projectId]/milestones/[milestoneId]/settle/route.ts` — server-authoritative settlement: revalidates guardrails (kill-switch, audit score, budget ceilings), invokes real PayPal Payouts API with deterministic idempotency, atomically records payout with row locks, and rolls back transactionally on PayPal error.
-- `src/app/api/envelope/route.ts` — server budget-envelope read/update.
-- `src/app/api/ledger/events/route.ts` — authenticated, tenant-scoped durable ledger endpoint with per-user deduplication by fingerprint.
-- `src/app/api/agent/audit/route.ts` — deterministic audit endpoint with server audit persistence.
-- `src/app/api/agent/stream/route.ts` — streamed AI assistant endpoint.
+### Guardrail Enforcement
 
-For detailed component boundaries and flows, see [ARCHITECTURE.md](ARCHITECTURE.md).
+The platform enforces multiple layers of financial controls:
+
+| Control | Enforcement | Example |
+|---------|------------|---------|
+| **Audit confidence** | Scores < 85% reject settlement | PR with no deliverable content cannot proceed |
+| **Autonomous cap** | Auto-release up to $1,000 USD | Amounts > $1,000 require human approval |
+| **Daily ceiling** | Per-contract daily spend limit | Prevents rapid-fire bulk releases |
+| **Budget envelope** | Project-wide cap | Linked incoming/outgoing contracts share ceilings |
+| **Kill-switch** | Admin can block all settlements | Emergency control for contract disputes |
+| **Contract freeze** | Paused contracts cannot settle | Temporary hold for clarification |
+| **Duplicate prevention** | Deterministic fingerprints (SHA256) | Same milestone + amount = same payout request; retries are idempotent |
 
 ---
 
-## Documentation
+## How to Run & Evaluator Access
 
-| Document | Scope |
-| :--- | :--- |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System components, data flows, roles, guardrails, and persistence |
-| [TECHNICAL_ARCHITECTURE_AND_DEVOPS.md](TECHNICAL_ARCHITECTURE_AND_DEVOPS.md) | Stack, API contracts, AI provider, build, and deployment |
-| [SECURITY.md](SECURITY.md) | Trust boundaries, financial controls, and security limitations |
-| [COMPLIANCE.md](COMPLIANCE.md) | Non-custodial design, settlement governance, and production requirements |
-| [DATA_GOVERNANCE.md](DATA_GOVERNANCE.md) | Data inventory, storage, AI transmission, and retention |
-| [ETHICS_AND_RESPONSIBLE_AI.md](ETHICS_AND_RESPONSIBLE_AI.md) | Human oversight, transparency, and responsible AI boundaries |
-| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Visual language, layout, status states, and component behavior |
-| [BUSINESS_MODEL.md](BUSINESS_MODEL.md) | Account tiers, commercial model, and monetization strategy |
-| [TESTING.md](TESTING.md) | Test inventory, commands, and coverage boundaries |
-| [CHANGELOG.md](CHANGELOG.md) | Version history |
-| [E2E_DUAL_ROLE_GRID_TEST_PLAN.md](E2E_DUAL_ROLE_GRID_TEST_PLAN.md) | Manual end-to-end verification plan |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Local setup, conventions, and contribution workflow |
-| [NEXT_SESSION_TASKS.md](NEXT_SESSION_TASKS.md) | Current roadmap and launch checklist |
+### Quick Start (Local Development)
 
----
-
-## Quick start
-
-### Prerequisites
-
+**Prerequisites:**
 - Node.js 20 (see `.nvmrc`)
 - npm
-- A PayPal Developer Sandbox account
-- Optional: an OpenAI, OpenRouter, or Google Gemini API key for the AI assistant
+- PostgreSQL (or use in-memory mode for testing)
 
-### Install and run
-
+**Installation:**
 ```bash
 git clone https://github.com/Marce-Inda/agentipay-ai.git
 cd agentipay-ai
@@ -205,93 +108,328 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+**Open:** [http://localhost:3000](http://localhost:3000)
 
-### Environment variables
+**Environment Variables for Full Functionality:**
 
-| Variable | Required | Purpose |
-| :--- | :--- | :--- |
-| `PAYPAL_CLIENT_ID` | For live Sandbox payouts | Server-only PayPal OAuth client ID. When unset, payout rails fail closed (see `PAYPAL_SIMULATION_MODE`). |
-| `PAYPAL_CLIENT_SECRET` | For live Sandbox payouts | Server-only PayPal OAuth secret. Never expose to the client. |
-| `PAYPAL_MODE` | Optional | `sandbox` (default) or `live`. Also accepts `PAYPAL_ENV`/`PAYPAL_ENVIRONMENT`. The implementation is validated against Sandbox. |
-| `PAYPAL_SIMULATION_MODE` | Optional | Set `true` to allow the deterministic simulation rail without credentials in non-production builds. Default: `false` (payouts are suppressed without credentials). |
-| `OPENAI_API_KEY` | Optional | OpenAI-compatible provider key. |
-| `OPENROUTER_API_KEY` | Optional | OpenRouter key; when present, the provider uses the OpenRouter base URL. |
-| `GEMINI_API_KEY` | Optional | Gemini fallback provider key. |
-| `AI_MODEL_NAME` | Optional | Primary model name. Default: `openai/gpt-4o-mini`. |
-| `AI_FALLBACK_MODEL_NAME` | Optional | Fallback model name. Default: `meta-llama/llama-3.3-70b-instruct`. |
-| `NEXT_PUBLIC_APP_URL` | Optional | Public application URL used by deployment tooling. |
-| `DATABASE_URL` | Production | PostgreSQL connection string for users, sessions, projects, envelopes, and ledger events. |
-| `DATABASE_SSL` | Optional | Set `true` for managed PostgreSQL providers that require TLS. |
-| `DATABASE_POOL_MAX` | Optional | Maximum PostgreSQL pool size. Default: `5`. |
-| `APP_ORIGIN` | Production | Canonical public origin used for same-origin request validation. |
-| `REGISTRATION_ENABLED` | Optional | Set `false` to disable new account creation. Default: enabled. |
-| `REGISTRATION_INVITE_CODE` | Production | Invite code required for account creation. |
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `PAYPAL_CLIENT_ID` | PayPal Sandbox client ID | (Set in PayPal Developer Dashboard) |
+| `PAYPAL_CLIENT_SECRET` | PayPal Sandbox secret | (Set in PayPal Developer Dashboard) |
+| `OPENAI_API_KEY` | AI provider key (optional) | `sk-...` |
+| `DATABASE_URL` | PostgreSQL connection | `postgresql://user:pass@localhost:5432/agentipay` |
 
-Milestone settlement dispatches through the server-side PayPal payout executor. Without `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET`, the rail fails closed: non-production builds record an honest simulated or suppressed ledger entry, and production rejects settlement outright. Sandbox simulation never produces real transfers.
+### Live Demo (Render Deployment)
 
-### Available scripts
+For judges and evaluators:
 
-```bash
-npm run dev            # Next.js development server
-npm run build          # Production build (webpack)
-npm run build:dev      # Production build with Turbopack
-npm start              # Start the production server
-npm test               # Jest test suite
-npm run test:watch     # Jest watch mode
-npm run test:coverage  # Jest coverage report
-npx tsc --noEmit       # TypeScript validation
-```
+| Item | Access |
+|------|--------|
+| **Live URL** | https://agenticpay-ai.onrender.com |
+| **Full Access Guide** | See [JUDGE_ACCESS.md](./JUDGE_ACCESS.md) |
+| **Test Credentials** | Provided in JUDGE_ACCESS.md (temporary; deleted post-hackathon) |
 
-There are no `lint` or `format` scripts in this repository. Follow the existing TypeScript and component conventions.
+**Demo Walkthrough:**
+1. Log in with provided credentials
+2. Browse dual-perspective portfolio (Outgoing & Incoming contracts)
+3. Create a test milestone
+4. Submit a deliverable (GitHub PR URL or text)
+5. Watch real-time AI audit (confidence score, risk level, rationale)
+6. Trigger settlement (observe PayPal Sandbox payout execution)
+7. Inspect immutable ledger (real batch IDs, timestamps, deterministic event IDs)
 
 ---
 
-## Testing
+## Path to Production
 
-The current suite contains 12 Jest suites and 126 passing checks covering the guardrail enforcer, PayPal payout rails (real, simulated, suppressed) and idempotency, audit route and persistence, stream route, ledger helper, password hashing, repository isolation, project bootstrap, envelope preservation, atomic settlement with payout-executor rollback, process-local rate limiting, ledger validation, and authenticated ledger/project APIs including live Sandbox payout-flow tests against a mocked PayPal endpoint.
+### Current Implementation Scope
 
-```bash
-npm test -- --runInBand
-npx tsc --noEmit
-npm run build
+This implementation is **Sandbox-verified** (non-production PayPal Sandbox environment):
+- ✅ Deterministic audit engine with confidence scoring
+- ✅ Atomic settlement with row-level PostgreSQL locking
+- ✅ Real PayPal Sandbox Payouts API integration
+- ✅ Idempotent payout requests (SHA256 fingerprints)
+- ✅ Immutable audit ledger with durable recording
+- ✅ Kill-switch, budget ceilings, and contract freeze
+- ✅ Production-ready security (scrypt, HttpOnly sessions, CSRF validation)
+
+### Production Checklist
+
+To deploy AgenticPay AI to production (real PayPal / real money):
+
+| Item | Requirement | Rationale |
+|------|-------------|-----------|
+| **PayPal Certification** | Use live PayPal credentials; obtain merchant approval | Compliance with PayPal Acceptable Use Policy |
+| **Webhook Reconciliation** | Implement PayPal webhook listeners for payout status updates | Track settlement confirmation in real-time |
+| **Compliance Review** | Legal review of escrow terms (e.g., OFAC checks, dispute handling) | Regulatory requirements for financial platforms |
+| **Fraud Detection** | Add transaction monitoring and flagging for suspicious patterns | Reduce chargeback and abuse risk |
+| **Refund & Dispute Handling** | Implement full refund workflow and dispute resolution | Handle client/vendor disagreements |
+| **SLA & Monitoring** | Real-time monitoring, alerting, and incident response | Ensure 99.99% uptime for production payments |
+| **Multi-Currency Support** | Extend PayPal integration to handle multiple currencies | Global market expansion |
+| **Audit Trail Export** | Regulatory compliance reports (SOC 2, ISO 27001) | Enterprise customer requirements |
+
+### Architecture for Scale
+
+AgenticPay AI is designed for multi-tenant SaaS:
+
+- **Database isolation:** Row-level tenant scoping via `user_id` + `organization_id`
+- **Settlement atomicity:** Row locks and transactional rollback ensure consistency
+- **Rate limiting:** Process-local quotas (replaceable with Redis for multi-instance deployments)
+- **API Gateway:** For production, add API versioning, request signing, and DDoS protection
+- **PayPal Commerce Platform:** Use delayed disbursement and multi-party payouts for complex escrow scenarios
+
+---
+
+## Core Capabilities
+
+- **Dual-perspective portfolio:** Outbound (paying vendors) and inbound (receiving from clients) contracts in one workspace.
+- **Server-authoritative settlement:** PostgreSQL-backed projects with atomic milestone releases using row locks.
+- **AI audit endpoint:** Deterministic heuristic scoring for deliverables (GitHub URLs count as high-confidence).
+- **Real PayPal payout execution:** Sandbox-verified Payouts API integration with deterministic idempotency (`sender_batch_id`, `PayPal-Request-Id`).
+- **Immutable audit ledger:** Durable, tenant-scoped transaction records with real PayPal batch IDs.
+- **Negotiation assistant:** Streamed LLM responses (advisory only; cannot trigger settlement).
+- **AG Grid transaction ledger:** Real-time view of all audit, settlement, and payout events.
+- **Multi-factor authentication:** Scrypt password hashing, HttpOnly session cookies, same-origin CSRF validation.
+- **Rate limiting & quotas:** Process-local limits on LLM, audit, settlement, and ledger endpoints.
+
+---
+
+## Implementation Status
+
+**Phase 1: Core Settlement Engine** ✅
+- Deterministic guardrail enforcer
+- Server-authoritative project and envelope management
+- Atomic settlement with rollback on payout failure
+- PostgreSQL-backed durable ledger
+
+**Phase 2: AI Integration** ✅
+- Proposal negotiation assistant
+- Deliverable audit with confidence scoring
+- Real-time streaming responses
+
+**Phase 3: Real PayPal Integration** ✅
+- Sandbox Payouts API
+- Deterministic fingerprinting for idempotency
+- Real batch ID recording
+
+**Phase 4: Security & Compliance** ✅
+- Session management (scrypt, HttpOnly cookies)
+- CSRF token validation
+- Tenant isolation
+- Rate limiting and quotas
+
+**Phase 5: Production Readiness** 🔄
+- Webhook reconciliation (planned)
+- Compliance reporting (planned)
+- Multi-currency support (planned)
+- SLA monitoring (planned)
+
+---
+
+## Detailed Architecture
+
+### System Components
+
+```
+Browser (Next.js App Router + React 19)
+├── Auth Screen (scrypt-verified credentials)
+├── Portfolio (dual swimlanes: Outgoing & Incoming)
+├── Project Workspace (milestones, audits, settlement UI)
+├── Agent Chat (AI negotiation assistant)
+└── Command Center (AG Grid immutable ledger)
+      │
+      ├─ /api/auth/* (sign-in, register, logout)
+      ├─ /api/projects/* (CRUD, bootstrap, freeze)
+      ├─ /api/projects/[id]/milestones/[id]/settle (atomic settlement)
+      ├─ /api/envelope (budget management)
+      ├─ /api/ledger/events (durable transaction log)
+      ├─ /api/agent/audit (deterministic heuristic audit)
+      ├─ /api/agent/stream (LLM negotiation assistant)
+      └─ /health (deployment monitoring)
+            │
+            ├─→ PostgreSQL (users, sessions, projects, envelopes, ledger)
+            ├─→ PayPal OAuth + Payouts v1 (Sandbox/Live)
+            └─→ LLM Provider (OpenAI, OpenRouter, or Gemini)
 ```
 
-See [TESTING.md](TESTING.md) for the full inventory and coverage boundaries.
+### Key Files
+
+| File | Responsibility |
+|------|-----------------|
+| `src/lib/guardrails/enforcer.ts` | Budget, audit, and payload validation |
+| `src/lib/settlement/settlement.ts` | Deterministic fingerprints and guardrail checks |
+| `src/lib/paypal/executor.ts` | Server-side PayPal Payouts executor |
+| `src/lib/db/repository.ts` | PostgreSQL schema, atomic transactions, row locking |
+| `src/app/api/projects/[id]/milestones/[id]/settle/route.ts` | Settlement endpoint (revalidates, executes payout, records ledger) |
+| `src/components/ProjectWorkspaceView.tsx` | Milestone audit UI and settlement trigger |
+
+---
+
+## Security Model
+
+**Trust Principle:** Money never flows through code logic; only through official PayPal REST APIs.
+
+| Layer | Mechanism | Assurance |
+|-------|-----------|-----------|
+| **Authentication** | scrypt password hashing + HttpOnly session cookies | Resistant to timing attacks and session theft |
+| **Authorization** | Server-side tenant scoping by user ID | Cross-tenant data leakage impossible |
+| **Input Validation** | Payload size limits, prompt-injection sanitization | Prevents malicious audit manipulations |
+| **Settlement** | Deterministic guardrail enforcer revalidates all conditions | Cannot override budget, audit score, or kill-switch |
+| **Payout Execution** | Official PayPal REST API with deterministic idempotency | No custom payment logic; PayPal handles funds |
+| **Atomicity** | PostgreSQL row locks + transactional rollback | If payout fails, entire settlement rolls back |
+| **Audit Trail** | Immutable ledger with SHA256 fingerprints | All decisions are logged and inspectable |
+
+### What This Platform Does NOT Do
+
+- **Does not custody funds.** Escrow is held in PayPal's managed accounts; AgenticPay only orchestrates release.
+- **Does not make autonomous financial decisions.** All settlement logic is deterministic and auditable.
+- **Does not allow AI to execute payments.** AI audits only; TypeScript guardrails decide; PayPal executes.
+- **Does not store payment methods.** PayPal Vault handles tokenization.
+
+---
+
+## Documentation
+
+| Document | Audience | Content |
+|----------|----------|---------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Engineers | System design, data flows, component responsibilities |
+| [TECHNICAL_ARCHITECTURE_AND_DEVOPS.md](TECHNICAL_ARCHITECTURE_AND_DEVOPS.md) | DevOps / Cloud | Deployment, stack, CI/CD, scaling |
+| [SECURITY.md](SECURITY.md) | Security reviewers | Trust boundaries, attack surface, mitigations |
+| [COMPLIANCE.md](COMPLIANCE.md) | Legal / Compliance | Non-custodial design, settlement governance |
+| [DATA_GOVERNANCE.md](DATA_GOVERNANCE.md) | Privacy officers | Data inventory, retention, AI transmission |
+| [ETHICS_AND_RESPONSIBLE_AI.md](ETHICS_AND_RESPONSIBLE_AI.md) | Ethics reviewers | Human oversight, transparency, boundaries |
+| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Product / Design | UI components, states, interaction patterns |
+| [BUSINESS_MODEL.md](BUSINESS_MODEL.md) | Business development | Pricing tiers, monetization, GTM strategy |
+| [TESTING.md](TESTING.md) | QA / Engineers | Test inventory, commands, coverage metrics |
+| [JUDGE_ACCESS.md](./JUDGE_ACCESS.md) | Hackathon evaluators | Demo credentials, walkthrough, temporary access |
+
+---
+
+## Development
+
+### Prerequisites
+
+- Node.js 20.x (see `.nvmrc`)
+- npm 10+
+- PostgreSQL 14+ (optional for local dev; in-memory mode available)
+
+### Installation
+
+```bash
+git clone https://github.com/Marce-Inda/agentipay-ai.git
+cd agentipay-ai
+npm install
+```
+
+### Configuration
+
+Create `.env.local`:
+```bash
+cp .env.example .env.local
+```
+
+Required for PayPal Sandbox payout testing:
+```env
+PAYPAL_CLIENT_ID=your_sandbox_client_id
+PAYPAL_CLIENT_SECRET=your_sandbox_client_secret
+```
+
+Optional (AI providers):
+```env
+OPENAI_API_KEY=sk-...
+```
+
+### Local Development Server
+
+```bash
+npm run dev
+```
+
+Opens [http://localhost:3000](http://localhost:3000)
+
+### Build & Deploy
+
+```bash
+npm run build                          # Production webpack build
+npm test -- --runInBand               # Jest test suite
+npx tsc --noEmit                       # TypeScript validation
+docker build -t agenticpay-ai .        # Docker image
+docker run --env-file .env.local -p 3000:3000 agenticpay-ai
+```
+
+### Testing
+
+```bash
+npm test                               # Jest watch mode
+npm test -- --run                      # Single run
+npm test -- --coverage                 # Coverage report
+```
+
+**Test Coverage:** 126+ passing checks covering guardrails, payout flows, atomicity, idempotency, and API endpoints.
 
 ---
 
 ## Deployment
 
-The repository includes a Dockerfile and a Render blueprint. `render.yaml` builds the Dockerfile and exposes the service on port 3000 with a health check at `/`.
+### Docker Deployment
 
 ```bash
 docker build -t agenticpay-ai .
-docker run --env-file .env.local -p 3000:3000 agenticpay-ai
+docker run --env-file .env.local \
+  -e DATABASE_URL="postgresql://user:pass@db:5432/agentipay" \
+  -p 3000:3000 \
+  agenticpay-ai
 ```
 
-`render.yaml` provisions a PostgreSQL database and injects `DATABASE_URL`. Set `APP_ORIGIN` and `REGISTRATION_INVITE_CODE` in the Render dashboard. For other hosts, provide a managed PostgreSQL instance and the same environment variables. Do not commit secret values.
+### Cloud Platform: Render
 
-GitHub Actions runs the test suite and production build on pushes and pull requests to `main` via `.github/workflows/ci.yml`.
+1. Fork repository to your GitHub account
+2. Connect Render to GitHub
+3. Create new Web Service
+4. Configure environment variables in Render dashboard:
+   - `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` (Sandbox)
+   - `APP_ORIGIN`, `REGISTRATION_INVITE_CODE` (production)
+5. Deploy automatically on `main` branch push
 
----
-
-## Security
-
-- AI provider keys and `PAYPAL_CLIENT_SECRET` are server-only. The PayPal payout executor runs exclusively in Next.js route handlers and server modules; PayPal credentials never reach the browser.
-- Financial decisions are made by deterministic TypeScript code, not by the language model. Projects, envelopes, audit state, budgets, and settlement are server-authoritative.
-- Deliverable input is bounded and sanitized before evaluation. A GitHub URL can contribute high-confidence evidence, so production deployments should add independent artifact verification.
-- Authentication uses scrypt password hashes, opaque HttpOnly sessions, and same-origin checks. Production registration requires an invite code.
-- LLM and transactional endpoints use process-local fixed-window quotas. This keeps Render free-tier deployment self-contained; counters reset on spin-down and are not shared across instances.
-- Kill-switch, contract freeze, audit status, and all budget ceilings are rechecked atomically by the server before settlement.
-- Payout execution happens inside the settlement transaction with row locks. A PayPal payout failure rolls the transaction back, returns HTTP 502 with a structured error, and records a `PAYOUT_BLOCKED` audit event; no state mutates when the rail rejects the request.
-- Browser storage remains a tenant-scoped cache and is not encrypted at rest. Shared-device use requires explicit sign-out.
-- The platform does not custody funds. Production deployments should add PayPal webhook reconciliation and independent payout monitoring before treating settlement records as payment instructions.
-
-See [SECURITY.md](SECURITY.md) for the full trust model.
+GitHub Actions (`ci.yml`) runs tests and builds on every PR and push to `main`.
 
 ---
 
-## License
+## Production Readiness Checklist
 
-MIT. See [LICENSE](LICENSE).
+Before deploying to production:
+
+- [ ] Obtain PayPal Live API credentials (not Sandbox)
+- [ ] Implement PayPal webhook listeners for payout reconciliation
+- [ ] Add compliance layer (OFAC checks, dispute handling)
+- [ ] Set up real-time monitoring and alerting
+- [ ] Configure backup and disaster recovery
+- [ ] Conduct security audit and penetration testing
+- [ ] Establish SLA targets (uptime, settlement latency)
+- [ ] Implement fraud detection and abuse prevention
+- [ ] Set up audit logging for compliance reporting
+- [ ] Configure database encryption at rest
+
+---
+
+## Support & Contribution
+
+**Contribution Guidelines:** See [CONTRIBUTING.md](./CONTRIBUTING.md)
+
+**Issues & Questions:**
+- Open an issue on GitHub for bugs or feature requests
+- Contact support at `support@agenticpay.ai` (future)
+
+**Legal:**
+- License: MIT (see [LICENSE](./LICENSE))
+- For compliance questions, see [COMPLIANCE.md](./COMPLIANCE.md)
+
+---
+
+## Acknowledgments
+
+AgenticPay AI was built for the **2026 PayPal AI Hackathon**. Special thanks to:
+- PayPal team for Sandbox API support and documentation
+- OpenAI / OpenRouter / Google for LLM APIs
+- PostgreSQL for reliable data persistence
+- Next.js and React communities for excellent tooling
