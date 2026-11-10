@@ -18,6 +18,10 @@ COPY . .
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Accept build-time argument for evaluator mode
+ARG NEXT_PUBLIC_EVALUATOR_MODE=true
+ENV NEXT_PUBLIC_EVALUATOR_MODE=${NEXT_PUBLIC_EVALUATOR_MODE}
+
 # Build the Next.js application
 RUN npm run build
 

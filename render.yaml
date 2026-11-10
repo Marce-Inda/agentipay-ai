@@ -4,6 +4,7 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     plan: free
+    buildCommand: "docker build --build-arg NEXT_PUBLIC_EVALUATOR_MODE=true -t agentipay-ai ."
     envVars:
       - key: NODE_ENV
         value: production

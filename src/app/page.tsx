@@ -270,7 +270,7 @@ export default function Home() {
 
     const loadSession = async () => {
       try {
-        // EVALUATOR MODE: Skip server session check and auto-authenticate
+        // EVALUATOR MODE: Skip server session check and auto-authenticate immediately
         if (isEvaluatorMode) {
           if (!cancelled) {
             setSessionUser(evaluatorUser);
@@ -308,11 +308,12 @@ export default function Home() {
       }
     };
 
+    // Start session load immediately on mount
     void loadSession();
     return () => {
       cancelled = true;
     };
-  }, [isEvaluatorMode]);
+  }, [isEvaluatorMode, evaluatorUser]);
 
   // Hydrate tenant-scoped state only after authentication resolves.
   useEffect(() => {
