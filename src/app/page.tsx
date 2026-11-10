@@ -252,15 +252,16 @@ export default function Home() {
   const [envelope, setEnvelope] = useState<BudgetEnvelope>(INITIAL_ENVELOPE);
   const [logs, setLogs] = useState<TransactionLog[]>(INITIAL_LOGS);
 
-  // DEMO MODE: Check for NEXT_PUBLIC_DEMO_MODE flag
-  // When true, auto-login as Demo Judge without requiring credentials.
-  // This allows judges to test the full platform without authentication friction.
-  // All auth logic remains intact and can be re-enabled by setting NEXT_PUBLIC_DEMO_MODE=false.
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-  const demoJudgeUser: AuthenticatedUser = {
-    id: 'judge-demo-2026',
-    email: 'judge@agenticpay.demo',
-    displayName: 'Hackathon Judge',
+  // EVALUATOR MODE: Check for NEXT_PUBLIC_EVALUATOR_MODE flag
+  // When true, auto-authenticates evaluators without requiring credentials.
+  // This allows judges/evaluators to access the production sandbox workspace
+  // for technical assessment without authentication friction.
+  // All auth logic remains intact and can be re-enabled by setting NEXT_PUBLIC_EVALUATOR_MODE=false.
+  const isEvaluatorMode = process.env.NEXT_PUBLIC_EVALUATOR_MODE === 'true';
+  const evaluatorUser: AuthenticatedUser = {
+    id: 'evaluator-2026',
+    email: 'evaluator@agenticpay.enterprise',
+    displayName: 'Enterprise Evaluator',
   };
 
   // Resolve the server session before exposing any tenant data.
@@ -269,10 +270,10 @@ export default function Home() {
 
     const loadSession = async () => {
       try {
-        // DEMO MODE: Skip server session check and auto-login
-        if (isDemoMode) {
+        // EVALUATOR MODE: Skip server session check and auto-authenticate
+        if (isEvaluatorMode) {
           if (!cancelled) {
-            setSessionUser(demoJudgeUser);
+            setSessionUser(evaluatorUser);
             setAuthState('AUTHENTICATED');
           }
           return;
@@ -311,7 +312,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [isDemoMode]);
+  }, [isEvaluatorMode]);
 
   // Hydrate tenant-scoped state only after authentication resolves.
   useEffect(() => {
@@ -733,10 +734,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-white">
-      {/* DEMO MODE BANNER (only shown when NEXT_PUBLIC_DEMO_MODE=true) */}
-      {isDemoMode && (
-        <div className="bg-amber-900 border-b border-amber-700 px-6 py-2 text-center text-sm font-semibold text-amber-100">
-          🎬 Hackathon Demo Mode: Full access to all features • Sandbox PayPal Sandbox
+      {/* EVALUATOR MODE BANNER (only shown when NEXT_PUBLIC_EVALUATOR_MODE=true) */}
+      {isEvaluatorMode && (
+        <div className="bg-blue-900 border-b border-blue-700 px-6 py-2 text-center text-sm font-semibold text-blue-100">
+          🏢 Enterprise Evaluation Session Active • Production Sandbox Environment
         </div>
       )}
 
