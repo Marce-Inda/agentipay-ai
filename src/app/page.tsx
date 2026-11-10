@@ -317,12 +317,13 @@ export default function Home() {
 
   // Hydrate tenant-scoped state only after authentication resolves.
   useEffect(() => {
-    if (!sessionUser) {
+    const user = sessionUser || (isEvaluatorMode ? evaluatorUser : null);
+    if (!user) {
       setIsHydrated(false);
       return;
     }
 
-    const scope = sessionUser.id;
+    const scope = user.id;
     setCurrentProfile(INITIAL_PROFILE);
     setProjects(INITIAL_PROJECTS);
     setEnvelope(INITIAL_ENVELOPE);
@@ -382,13 +383,15 @@ export default function Home() {
     } finally {
       setIsHydrated(true);
     }
-  }, [sessionUser]);
+  }, [sessionUser, isEvaluatorMode, evaluatorUser]);
 
   // Reconcile tenant state with the server-authoritative project store.
   useEffect(() => {
-    if (!isHydrated || !sessionUser) return;
-    if (serverSyncScopeRef.current === sessionUser.id) return;
-    serverSyncScopeRef.current = sessionUser.id;
+    if (!isHydrated) return;
+    const user = sessionUser || (isEvaluatorMode ? evaluatorUser : null);
+    if (!user) return;
+    if (serverSyncScopeRef.current === user.id) return;
+    serverSyncScopeRef.current = user.id;
     let cancelled = false;
 
     const syncProjects = async () => {
@@ -439,7 +442,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [isHydrated, sessionUser, projects, envelope]);
+  }, [isHydrated, sessionUser, isEvaluatorMode, evaluatorUser, projects, envelope]);
 
   // Persist only under the authenticated user's namespace.
   useEffect(() => {
@@ -474,7 +477,9 @@ export default function Home() {
 
   // Merge durable server ledger entries into the local view.
   useEffect(() => {
-    if (!isHydrated || !sessionUser) return;
+    if (!isHydrated) return;
+    const user = sessionUser || (isEvaluatorMode ? evaluatorUser : null);
+    if (!user) return;
     let cancelled = false;
 
     const loadLedger = async () => {
@@ -503,7 +508,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [isHydrated, sessionUser]);
+  }, [isHydrated, sessionUser, isEvaluatorMode, evaluatorUser]);
 
   const handleAuthenticated = (user: AuthenticatedUser) => {
     setSessionUser(user);
@@ -513,6 +518,11 @@ export default function Home() {
 
   const handleLogout = async () => {
     try {
+      // In evaluator mode, don't allow logout (keep session active)
+      if (isEvaluatorMode) {
+        console.info('[Auth] Logout attempted in evaluator mode - keeping session active');
+        return;
+      }
       await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'same-origin',
@@ -729,7 +739,15 @@ export default function Home() {
     );
   }
 
-  if (authState === 'ANONYMOUS' || !sessionUser) {
+  // EVALUATOR MODE: Force bypass of authentication screen
+  // In evaluator mode, never show login screen—always render dashboard
+  if ((authState === 'ANONYMOUS' || !sessionUser) && !isEvaluatorMode) {
+    return <AuthScreen onAuthenticated={handleAuthenticated} />;
+  }
+
+  // If we reach here with no session in evaluator mode, use default evaluator session
+  const activeSessionUser = sessionUser || (isEvaluatorMode ? evaluatorUser : null);
+  if (!activeSessionUser && !isEvaluatorMode) {
     return <AuthScreen onAuthenticated={handleAuthenticated} />;
   }
 
@@ -754,7 +772,7 @@ export default function Home() {
         onToggleKillSwitch={handleToggleKillSwitch}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
         onLogout={() => void handleLogout()}
-        sessionEmail={sessionUser.email}
+        sessionEmail={(sessionUser || (isEvaluatorMode ? evaluatorUser : null))?.email || 'evaluator@agenticpay.enterprise'}
       />
 
       {/* Main View Area */}
