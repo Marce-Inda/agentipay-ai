@@ -119,24 +119,33 @@ npm run dev
 | `OPENAI_API_KEY` | AI provider key (optional) | `sk-...` |
 | `DATABASE_URL` | PostgreSQL connection | `postgresql://user:pass@localhost:5432/agentipay` |
 
-### Live Demo (Render Deployment)
+### Live Demo (Render Deployment - Zero Friction Access)
 
-For judges and evaluators:
+**For judges and evaluators, click to test instantly:**
 
-| Item | Access |
-|------|--------|
-| **Live URL** | https://agenticpay-ai.onrender.com |
-| **Full Access Guide** | See [JUDGE_ACCESS.md](./JUDGE_ACCESS.md) |
-| **Test Credentials** | Provided in JUDGE_ACCESS.md (temporary; deleted post-hackathon) |
+| Item | Details |
+|------|---------|
+| **🎬 Click Here: [Live Demo on Render](https://agenticpay-ai.onrender.com)** | **No login required • Full feature access • Automatic judge session** |
+| **Demo Mode Enabled** | `NEXT_PUBLIC_DEMO_MODE=true` on Render deployment |
+| **Full Walkthrough** | See [JUDGE_ACCESS.md](./JUDGE_ACCESS.md) for step-by-step guide |
 
-**Demo Walkthrough:**
-1. Log in with provided credentials
-2. Browse dual-perspective portfolio (Outgoing & Incoming contracts)
-3. Create a test milestone
-4. Submit a deliverable (GitHub PR URL or text)
-5. Watch real-time AI audit (confidence score, risk level, rationale)
-6. Trigger settlement (observe PayPal Sandbox payout execution)
-7. Inspect immutable ledger (real batch IDs, timestamps, deterministic event IDs)
+### Demo Features (Available Immediately)
+
+1. ✅ **Zero setup** — Click the link above; you're logged in as "Hackathon Judge"
+2. ✅ **Dual portfolio** — Create and manage Outgoing (you're funding) and Incoming (you're delivering) contracts
+3. ✅ **AI audit in real-time** — Submit deliverables (GitHub PRs, text); watch deterministic confidence scores
+4. ✅ **Settlement execution** — Release milestones; observe real PayPal Sandbox Payouts API calls
+5. ✅ **Inspect ledger** — View immutable transaction records with real batch IDs, timestamps, and payout evidence
+6. ✅ **All guardrails active** — Budget ceilings, kill-switch, audit confidence gating, daily limits enforced
+
+**How to Use:**
+1. Click the link above (or go to https://agenticpay-ai.onrender.com)
+2. You'll see a small "🎬 Hackathon Demo Mode" banner at the top confirming demo access
+3. Entire interface is unlocked; no authentication screen
+4. Full access to all settlement and audit workflows
+5. Real-time PayPal Sandbox integration verified live
+
+**Demo Reset:** After the hackathon, set `NEXT_PUBLIC_DEMO_MODE=false` to re-enable login/register screens.
 
 ---
 
