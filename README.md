@@ -119,33 +119,47 @@ npm run dev
 | `OPENAI_API_KEY` | AI provider key (optional) | `sk-...` |
 | `DATABASE_URL` | PostgreSQL connection | `postgresql://user:pass@localhost:5432/agentipay` |
 
-### Live Evaluation Environment (Render Deployment)
+---
 
-**For judges and evaluators, click to access the evaluation workspace instantly:**
+## 🏢 Live Evaluation Environment
 
-| Item | Details |
-|------|---------|
-| **🎬 Click Here: [Launch Evaluator Session](https://agenticpay-ai.onrender.com)** | **Automatic authentication • Full feature access • Production Sandbox Workspace** |
-| **Evaluator Access** | `NEXT_PUBLIC_EVALUATOR_MODE=true` on Render deployment |
-| **Full Technical Review Guide** | See [JUDGE_ACCESS.md](./JUDGE_ACCESS.md) for detailed walkthrough |
+<div align="center">
 
-### Capabilities in Evaluation Environment
+### ⚡ Instant Evaluator Access — No Setup Required
 
-1. ✅ **Instant access** — Click the link; you're authenticated as "Evaluator" with enterprise privileges
-2. ✅ **Dual perspective portfolio** — Create and manage Outgoing (you're funding) and Incoming (you're delivering) contracts
-3. ✅ **AI audit in real-time** — Submit deliverables (GitHub PRs, text); watch deterministic confidence scores
-4. ✅ **Settlement execution** — Release milestones; observe real PayPal Sandbox Payouts API calls
-5. ✅ **Immutable ledger inspection** — View transaction records with real batch IDs, timestamps, and payout evidence
-6. ✅ **All enterprise guardrails active** — Budget ceilings, kill-switch, audit confidence gating, daily limits enforced
+**[🚀 LAUNCH EVALUATOR SESSION](https://agentipay-ai.onrender.com)**
 
-**How to Access:**
-1. Click the link above (or go to https://agenticpay-ai.onrender.com)
-2. You'll see a subtle "🏢 Enterprise Evaluation Session Active" banner confirming evaluator access
-3. Full interface available; integrated with production-grade PayPal Sandbox settlement
-4. All settlement and audit workflows unlocked
-5. Real-time PayPal Sandbox integration verified live with genuine batch IDs and settlement records
+*Automatic authentication • Full feature access • Production-grade PayPal integration*
 
-**Post-Evaluation:** After the hackathon review, set `NEXT_PUBLIC_EVALUATOR_MODE=false` to restore full authentication workflow.
+---
+
+</div>
+
+### What You Can Test Instantly
+
+1. ✅ **Dual perspective portfolio** — Create and manage Outgoing (you're funding) and Incoming (you're delivering) contracts
+2. ✅ **Real-time AI audit** — Submit deliverables (GitHub PRs, text); watch deterministic confidence scores (85%+ confidence triggers autonomous settlement)
+3. ✅ **PayPal Sandbox settlement** — Release milestones; observe real PayPal Payouts API execution with genuine batch IDs
+4. ✅ **Immutable audit ledger** — Inspect transaction records with timestamps, payout evidence, and deterministic event IDs
+5. ✅ **Enterprise guardrails** — Budget ceilings ($250/transaction, $1,000/day), kill-switch, audit confidence gating, contract freeze
+6. ✅ **Zero friction entry** — No email, no password required; automatic enterprise evaluator session
+
+### Access Instructions
+
+1. **Click the button above** to access the live evaluation workspace
+2. **You'll see the banner:** "🏢 Enterprise Evaluation Session Active"
+3. **Full dashboard loads:** Dual portfolio with all settlement workflows unlocked
+4. **Real PayPal Sandbox:** Every settlement creates real batch IDs and ledger records
+5. **Typical review time:** 5–10 minutes for complete workflow assessment
+
+### Technical Environment
+
+- **URL:** https://agentipay-ai.onrender.com
+- **Backend:** Production Sandbox (Render-hosted PostgreSQL)
+- **PayPal Integration:** Real Sandbox Payouts API (deterministic idempotency, real batch IDs)
+- **Authentication:** Automatic evaluator session with enterprise privileges
+- **Guardrails:** All production-grade controls active (budget validation, atomicity, row-level locking)
+- **Post-evaluation reset:** Set `NEXT_PUBLIC_EVALUATOR_MODE=false` to restore normal authentication workflow
 
 ---
 

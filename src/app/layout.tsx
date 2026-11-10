@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   description: "Top-tier enterprise AI-powered escrow and settlement platform with PayPal integration and zero-trust budget protection.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
