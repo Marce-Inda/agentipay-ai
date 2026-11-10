@@ -96,6 +96,13 @@ export interface AgenticPayRepository {
     event: TransactionLog
   ): Promise<AppendEventResult>;
   listLedgerEvents(userId: string, limit: number): Promise<LedgerEventRecord[]>;
+  /**
+   * Get all ledger events for a user (no limit)
+   * Used by settlement tools to query all events for a given user
+   * @param userId User ID
+   * @returns All ledger events for the user
+   */
+  getLedgerEventsByUser(userId: string): Promise<TransactionLog[]>;
   listProjects(userId: string): Promise<ProjectContract[]>;
   getProject(userId: string, projectId: string): Promise<ProjectContract | null>;
   upsertProject(userId: string, project: ProjectContract): Promise<ProjectContract>;
@@ -408,6 +415,13 @@ function createMemoryRepository(): AgenticPayRepository {
         .filter((record) => record.userId === userId)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .slice(0, limit);
+    },
+
+    async getLedgerEventsByUser(userId) {
+      return Array.from(getMemoryState().ledger.values())
+        .filter((record) => record.userId === userId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((record) => record.event);
     },
 
     async listProjects(userId) {
@@ -980,6 +994,18 @@ function createPostgresRepository(): AgenticPayRepository {
         event: row.payload as TransactionLog,
         createdAt: new Date(row.created_at).toISOString(),
       }));
+    },
+
+    async getLedgerEventsByUser(userId) {
+      await ensurePostgresSchema();
+      const result = await getPostgresPool().query(
+        `SELECT payload
+         FROM agenticpay_ledger_events
+         WHERE user_id = $1
+         ORDER BY created_at DESC`,
+        [userId]
+      );
+      return result.rows.map((row) => row.payload as TransactionLog);
     },
 
     async listProjects(userId) {

@@ -125,7 +125,7 @@ export class SettlementToolsExecutor {
         amountUSD: result.event.amountUSD,
         settlement: result,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         success: false,
@@ -187,7 +187,10 @@ export class SettlementToolsExecutor {
       // Get ledger events to find settlement details
       const events = await this.repository.getLedgerEventsByUser(this.userId);
       const settlementEvent = events?.find(
-        (e) => e.projectId === projectId && e.payPalTransactionId === milestone.payPalBatchId
+        (e: unknown) => {
+          const evt = e as any;
+          return evt.projectId === projectId && evt.payPalTransactionId === milestone.payPalBatchId;
+        }
       );
 
       if (!settlementEvent) {
@@ -208,7 +211,7 @@ export class SettlementToolsExecutor {
         payoutAttempted: true, // If we have a batch ID, payout was attempted
         payPalHttpLog: settlementEvent.httpPayloadLog,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         success: false,
@@ -299,7 +302,7 @@ export class SettlementToolsExecutor {
         amountUSD: milestone.amountUSD,
         recipientEmail: project.vendorEmail,
         auditConfidenceScore: milestone.auditScore || 0,
-        status: 'SETTLEMENT_CANCELLED',
+        status: 'REJECTED',
         riskLevel: 'MEDIUM', // Cancellations are medium risk
         httpPayloadLog: JSON.stringify({
           milestoneId,
@@ -315,7 +318,7 @@ export class SettlementToolsExecutor {
         batchId: milestone.payPalBatchId,
         reason,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         success: false,
@@ -384,7 +387,10 @@ export class SettlementToolsExecutor {
       // Get settlement event from ledger
       const events = await this.repository.getLedgerEventsByUser(this.userId);
       const settlementEvent = events?.find(
-        (e) => e.projectId === projectId && e.payPalTransactionId === milestone.payPalBatchId
+        (e: unknown) => {
+          const evt = e as any;
+          return evt.projectId === projectId && evt.payPalTransactionId === milestone.payPalBatchId;
+        }
       );
 
       if (!settlementEvent) {
@@ -402,7 +408,7 @@ export class SettlementToolsExecutor {
         status: settlementEvent.status,
         amountUSD: settlementEvent.amountUSD,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         success: false,

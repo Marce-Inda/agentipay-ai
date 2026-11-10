@@ -253,7 +253,7 @@ export class ProposalToolsExecutor {
         amountUSD: milestone.amountUSD,
         recipientEmail: project.vendorEmail,
         auditConfidenceScore: auditScore,
-        status: 'PROPOSAL_CREATED',
+        status: 'PROPOSED',
         riskLevel: recommendation === 'APPROVE' ? 'LOW' : 'MEDIUM',
         httpPayloadLog: JSON.stringify({
           proposalId,
@@ -419,7 +419,7 @@ export class ProposalToolsExecutor {
         amountUSD: refundAmountUSD,
         recipientEmail: project.vendorEmail,
         auditConfidenceScore: 0, // Refund proposals don't have audit scores
-        status: 'PROPOSAL_CREATED',
+        status: 'PROPOSED',
         riskLevel: 'HIGH', // Refunds are higher risk
         httpPayloadLog: JSON.stringify({
           proposalId,
@@ -546,7 +546,7 @@ export class ProposalToolsExecutor {
         amountUSD: updatedProposal.type === 'RELEASE' ? updatedProposal.amountUSD : updatedProposal.refundAmountUSD,
         recipientEmail: '', // Would need to fetch for real implementation
         auditConfidenceScore: updatedProposal.type === 'RELEASE' ? updatedProposal.auditScore : 0,
-        status: 'PROPOSAL_CONFIRMED',
+        status: 'PROPOSED',
         riskLevel: 'MEDIUM',
       });
 
@@ -610,7 +610,7 @@ export class ProposalToolsExecutor {
         amountUSD: rejectedProposal.type === 'RELEASE' ? rejectedProposal.amountUSD : rejectedProposal.refundAmountUSD,
         recipientEmail: '',
         auditConfidenceScore: 0,
-        status: 'PROPOSAL_DISMISSED',
+        status: 'REJECTED',
         riskLevel: 'LOW',
       });
 

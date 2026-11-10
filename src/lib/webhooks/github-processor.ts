@@ -142,19 +142,23 @@ export class GitHubWebhookProcessor {
       };
     }
 
-    if (!parsed.prNumber || !parsed.mergedAt) {
+    if (!parsed.prNumber || !parsed.mergedAt || !parsed.prUrl) {
       return {
         deliveryId,
         success: false,
-        error: 'Missing required PR metadata (prNumber or mergedAt)',
+        error: 'Missing required PR metadata (prNumber, prUrl, or mergedAt)',
         timestamp
       };
     }
 
+    // At this point, mergedAt and prUrl are guaranteed to be strings (non-empty)
+    const mergedAt = parsed.mergedAt;
+    const prUrl = parsed.prUrl;
+
     // Create deduplication key
     const deduplicationKey: WebhookDeduplicationKey = {
       prNumber: parsed.prNumber,
-      mergedAt: parsed.mergedAt
+      mergedAt
     };
 
     // Check for duplicates
@@ -192,11 +196,11 @@ export class GitHubWebhookProcessor {
       timestamp,
       deduplicationKey,
       prNumber: parsed.prNumber,
-      prUrl: parsed.prUrl,
+      prUrl,
       mergeCommitSha: parsed.mergeCommitSha || 'unknown',
       author: parsed.author || 'unknown',
       repositoryName: parsed.repositoryName || 'unknown',
-      mergedAt: parsed.mergedAt
+      mergedAt
     };
 
     return {

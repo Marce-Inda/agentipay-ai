@@ -49,7 +49,7 @@ export const EscrowFundingPanel: React.FC<EscrowFundingPanelProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Calculate funding metrics
-  const totalContractUSD = (project.milestones || []).reduce((sum, m) => sum + (m.budgetUSD || 0), 0);
+  const totalContractUSD = (project.milestones || []).reduce((sum, m) => sum + (m.amountUSD || 0), 0);
   const fundedUSD = project.fundedUSD || 0;
   const releasedUSD = project.releasedUSD || 0;
   const refundableUSD = fundedUSD - releasedUSD;
@@ -96,7 +96,7 @@ export const EscrowFundingPanel: React.FC<EscrowFundingPanelProps> = ({
 
   // Milestone release breakdown
   const releasedMilestones = (project.milestones || []).filter(
-    (m) => m.status === 'COMPLETED' || m.status === 'APPROVED'
+    (m) => m.status === 'COMPLETED' || m.status === 'AUDITED_PENDING_APPROVAL'
   );
 
   // Handle deposit initiation
@@ -188,7 +188,7 @@ export const EscrowFundingPanel: React.FC<EscrowFundingPanelProps> = ({
                 </div>
                 <div className="text-right flex-shrink-0 ml-2">
                   <p className="text-xs font-mono font-bold text-emerald-400">
-                    ${milestone.budgetUSD?.toFixed(2) || '0.00'}
+                    ${milestone.amountUSD?.toFixed(2) || '0.00'}
                   </p>
                 </div>
               </div>

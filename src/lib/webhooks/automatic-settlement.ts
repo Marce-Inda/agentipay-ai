@@ -136,6 +136,19 @@ export class AutomaticSettlementEngine {
 
       // Verify kill-switch is not active
       const envelope = await repository.getEnvelope(userId);
+      if (!envelope) {
+        const result: AutomaticSettlementResult = {
+          success: false,
+          projectId: request.projectId,
+          milestoneId: request.milestoneId,
+          amountUSD: request.amountUSD,
+          auditScore: request.auditScore,
+          blockingReason: 'Budget envelope not found',
+          action: 'PAYOUT_BLOCKED',
+          timestamp,
+        };
+        return result;
+      }
       if (envelope.killSwitchActive) {
         const result: AutomaticSettlementResult = {
           success: false,
