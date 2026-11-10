@@ -6,7 +6,6 @@ import { ProjectPortfolioView } from '../components/ProjectPortfolioView';
 import { ProjectWorkspaceView } from '../components/ProjectWorkspaceView';
 import { AccountSettingsModal } from '../components/AccountSettingsModal';
 import { CreateProjectModal } from '../components/CreateProjectModal';
-import { AuthScreen, type AuthenticatedUser } from '../components/AuthScreen';
 import { BudgetEnvelope, ProjectContract, TransactionLog, UserProfile } from '../lib/types';
 import { applyTransactionLogToProjects } from '../lib/ledger';
 import {
@@ -15,6 +14,12 @@ import {
   mergeStoredProfile,
   splitProfileForStorage,
 } from '../lib/privacy/storage';
+
+type AuthenticatedUser = {
+  id: string;
+  email: string;
+  displayName: string;
+};
 
 const INITIAL_PROFILE: UserProfile = {
   id: 'usr-biz-1',
@@ -238,26 +243,12 @@ function tenantStorageKey(baseKey: string, userId: string): string {
 }
 
 export default function Home() {
-  // EVALUATOR MODE: Check for NEXT_PUBLIC_EVALUATOR_MODE flag (set at build time)
-  // When true, auto-authenticates evaluators without requiring credentials.
-  // This allows judges/evaluators to access the production sandbox workspace
-  // for technical assessment without authentication friction.
-  const isEvaluatorMode = process.env.NEXT_PUBLIC_EVALUATOR_MODE === 'true';
-  
-  const evaluatorUser: AuthenticatedUser = {
+  // DIRECT MODE: No authentication required. Dashboard renders immediately.
+  const sessionUser: AuthenticatedUser = {
     id: 'evaluator-2026',
     email: 'evaluator@agenticpay.enterprise',
     displayName: 'Enterprise Evaluator',
   };
-
-  // In evaluator mode, start directly authenticated. Otherwise, start as loading.
-  const [authState, setAuthState] = useState<'LOADING' | 'ANONYMOUS' | 'AUTHENTICATED'>(
-    isEvaluatorMode ? 'AUTHENTICATED' : 'LOADING'
-  );
-  
-  const [sessionUser, setSessionUser] = useState<AuthenticatedUser | null>(
-    isEvaluatorMode ? evaluatorUser : null
-  );
   
   const [activeView, setActiveView] = useState<'PORTFOLIO' | 'PROJECT_WORKSPACE'>('PORTFOLIO');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
@@ -271,59 +262,8 @@ export default function Home() {
   const [envelope, setEnvelope] = useState<BudgetEnvelope>(INITIAL_ENVELOPE);
   const [logs, setLogs] = useState<TransactionLog[]>(INITIAL_LOGS);
 
-  // Only load server session if NOT in evaluator mode
+  // Hydrate tenant-scoped state immediately (no auth check needed)
   useEffect(() => {
-    if (isEvaluatorMode) {
-      // Already authenticated as evaluator
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadSession = async () => {
-      try {
-        const response = await fetch('/api/auth/session', {
-          credentials: 'same-origin',
-          cache: 'no-store',
-        });
-        if (response.status === 401) {
-          if (!cancelled) {
-            setSessionUser(null);
-            setAuthState('ANONYMOUS');
-          }
-          return;
-        }
-        const data = (await response.json().catch(() => null)) as
-          | { user?: AuthenticatedUser }
-          | null;
-        if (!response.ok || !data?.user) {
-          throw new Error('Invalid session response');
-        }
-        if (!cancelled) {
-          setSessionUser(data.user);
-          setAuthState('AUTHENTICATED');
-        }
-      } catch {
-        if (!cancelled) {
-          setSessionUser(null);
-          setAuthState('ANONYMOUS');
-        }
-      }
-    };
-
-    void loadSession();
-    return () => {
-      cancelled = true;
-    };
-  }, [isEvaluatorMode]);
-
-  // Hydrate tenant-scoped state only after authentication resolves.
-  useEffect(() => {
-    if (!sessionUser) {
-      setIsHydrated(false);
-      return;
-    }
-
     const scope = sessionUser.id;
     setCurrentProfile(INITIAL_PROFILE);
     setProjects(INITIAL_PROJECTS);
@@ -384,7 +324,7 @@ export default function Home() {
     } finally {
       setIsHydrated(true);
     }
-  }, [sessionUser]);
+  }, [sessionUser.id]);
 
   // Reconcile tenant state with the server-authoritative project store.
   useEffect(() => {
@@ -507,33 +447,9 @@ export default function Home() {
     };
   }, [isHydrated, sessionUser]);
 
-  const handleAuthenticated = (user: AuthenticatedUser) => {
-    setSessionUser(user);
-    setAuthState('AUTHENTICATED');
-    setIsHydrated(false);
-  };
-
   const handleLogout = async () => {
-    try {
-      // In evaluator mode, don't allow logout (keep session active)
-      if (isEvaluatorMode) {
-        console.info('[Auth] Logout attempted in evaluator mode - keeping session active');
-        return;
-      }
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'same-origin',
-      });
-    } catch (err) {
-      console.warn('[Auth] Logout request failed:', err);
-    } finally {
-      if (!isEvaluatorMode) {
-        setAuthState('ANONYMOUS');
-        setSessionUser(null);
-        setIsHydrated(false);
-        serverSyncScopeRef.current = null;
-      }
-    }
+    // Logout disabled - session is always active
+    console.info('[Dashboard] Logout not available in evaluator mode');
   };
 
   const handleAddLog = (newLog: TransactionLog) => {
@@ -542,7 +458,7 @@ export default function Home() {
 
     // Settlement payouts are written exclusively by the server settlement route.
     if (newLog.status === 'PAYOUT_EXECUTED') return;
-    if (authState !== 'AUTHENTICATED') return;
+    
     void fetch('/api/ledger/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -729,31 +645,12 @@ export default function Home() {
 
   const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
 
-  if (authState === 'LOADING') {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-3 text-slate-400">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-amber-500" />
-        <p className="text-xs font-mono uppercase tracking-widest">Verifying secure session</p>
-      </div>
-    );
-  }
-
-  // NEVER show login screen in evaluator mode
-  if (isEvaluatorMode && authState === 'AUTHENTICATED' && sessionUser) {
-    // Render dashboard immediately (skip authentication screen)
-  } else if (!isEvaluatorMode && (authState === 'ANONYMOUS' || !sessionUser)) {
-    // Normal mode: show login if not authenticated
-    return <AuthScreen onAuthenticated={handleAuthenticated} />;
-  }
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-white">
-      {/* EVALUATOR MODE BANNER (only shown when NEXT_PUBLIC_EVALUATOR_MODE=true) */}
-      {isEvaluatorMode && (
-        <div className="bg-blue-900 border-b border-blue-700 px-6 py-2 text-center text-sm font-semibold text-blue-100">
-          🏢 Enterprise Evaluation Session Active • Production Sandbox Environment
-        </div>
-      )}
+      {/* EVALUATOR MODE BANNER */}
+      <div className="bg-blue-900 border-b border-blue-700 px-6 py-2 text-center text-sm font-semibold text-blue-100">
+        🏢 Enterprise Evaluation Session Active • Production Sandbox Environment
+      </div>
 
       {/* Top Header */}
       <Header
