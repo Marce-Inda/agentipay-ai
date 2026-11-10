@@ -238,8 +238,27 @@ function tenantStorageKey(baseKey: string, userId: string): string {
 }
 
 export default function Home() {
-  const [authState, setAuthState] = useState<'LOADING' | 'ANONYMOUS' | 'AUTHENTICATED'>('LOADING');
-  const [sessionUser, setSessionUser] = useState<AuthenticatedUser | null>(null);
+  // EVALUATOR MODE: Check for NEXT_PUBLIC_EVALUATOR_MODE flag (set at build time)
+  // When true, auto-authenticates evaluators without requiring credentials.
+  // This allows judges/evaluators to access the production sandbox workspace
+  // for technical assessment without authentication friction.
+  const isEvaluatorMode = process.env.NEXT_PUBLIC_EVALUATOR_MODE === 'true';
+  
+  const evaluatorUser: AuthenticatedUser = {
+    id: 'evaluator-2026',
+    email: 'evaluator@agenticpay.enterprise',
+    displayName: 'Enterprise Evaluator',
+  };
+
+  // In evaluator mode, start directly authenticated. Otherwise, start as loading.
+  const [authState, setAuthState] = useState<'LOADING' | 'ANONYMOUS' | 'AUTHENTICATED'>(
+    isEvaluatorMode ? 'AUTHENTICATED' : 'LOADING'
+  );
+  
+  const [sessionUser, setSessionUser] = useState<AuthenticatedUser | null>(
+    isEvaluatorMode ? evaluatorUser : null
+  );
+  
   const [activeView, setActiveView] = useState<'PORTFOLIO' | 'PROJECT_WORKSPACE'>('PORTFOLIO');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -252,33 +271,17 @@ export default function Home() {
   const [envelope, setEnvelope] = useState<BudgetEnvelope>(INITIAL_ENVELOPE);
   const [logs, setLogs] = useState<TransactionLog[]>(INITIAL_LOGS);
 
-  // EVALUATOR MODE: Check for NEXT_PUBLIC_EVALUATOR_MODE flag
-  // When true, auto-authenticates evaluators without requiring credentials.
-  // This allows judges/evaluators to access the production sandbox workspace
-  // for technical assessment without authentication friction.
-  // All auth logic remains intact and can be re-enabled by setting NEXT_PUBLIC_EVALUATOR_MODE=false.
-  const isEvaluatorMode = process.env.NEXT_PUBLIC_EVALUATOR_MODE === 'true';
-  const evaluatorUser: AuthenticatedUser = {
-    id: 'evaluator-2026',
-    email: 'evaluator@agenticpay.enterprise',
-    displayName: 'Enterprise Evaluator',
-  };
-
-  // Resolve the server session before exposing any tenant data.
+  // Only load server session if NOT in evaluator mode
   useEffect(() => {
+    if (isEvaluatorMode) {
+      // Already authenticated as evaluator
+      return;
+    }
+
     let cancelled = false;
 
     const loadSession = async () => {
       try {
-        // EVALUATOR MODE: Skip server session check and auto-authenticate immediately
-        if (isEvaluatorMode) {
-          if (!cancelled) {
-            setSessionUser(evaluatorUser);
-            setAuthState('AUTHENTICATED');
-          }
-          return;
-        }
-
         const response = await fetch('/api/auth/session', {
           credentials: 'same-origin',
           cache: 'no-store',
@@ -308,22 +311,20 @@ export default function Home() {
       }
     };
 
-    // Start session load immediately on mount
     void loadSession();
     return () => {
       cancelled = true;
     };
-  }, [isEvaluatorMode, evaluatorUser]);
+  }, [isEvaluatorMode]);
 
   // Hydrate tenant-scoped state only after authentication resolves.
   useEffect(() => {
-    const user = sessionUser || (isEvaluatorMode ? evaluatorUser : null);
-    if (!user) {
+    if (!sessionUser) {
       setIsHydrated(false);
       return;
     }
 
-    const scope = user.id;
+    const scope = sessionUser.id;
     setCurrentProfile(INITIAL_PROFILE);
     setProjects(INITIAL_PROJECTS);
     setEnvelope(INITIAL_ENVELOPE);
@@ -383,15 +384,13 @@ export default function Home() {
     } finally {
       setIsHydrated(true);
     }
-  }, [sessionUser, isEvaluatorMode, evaluatorUser]);
+  }, [sessionUser]);
 
   // Reconcile tenant state with the server-authoritative project store.
   useEffect(() => {
-    if (!isHydrated) return;
-    const user = sessionUser || (isEvaluatorMode ? evaluatorUser : null);
-    if (!user) return;
-    if (serverSyncScopeRef.current === user.id) return;
-    serverSyncScopeRef.current = user.id;
+    if (!isHydrated || !sessionUser) return;
+    if (serverSyncScopeRef.current === sessionUser.id) return;
+    serverSyncScopeRef.current = sessionUser.id;
     let cancelled = false;
 
     const syncProjects = async () => {
@@ -442,7 +441,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [isHydrated, sessionUser, isEvaluatorMode, evaluatorUser, projects, envelope]);
+  }, [isHydrated, sessionUser, projects, envelope]);
 
   // Persist only under the authenticated user's namespace.
   useEffect(() => {
@@ -477,9 +476,7 @@ export default function Home() {
 
   // Merge durable server ledger entries into the local view.
   useEffect(() => {
-    if (!isHydrated) return;
-    const user = sessionUser || (isEvaluatorMode ? evaluatorUser : null);
-    if (!user) return;
+    if (!isHydrated || !sessionUser) return;
     let cancelled = false;
 
     const loadLedger = async () => {
@@ -508,7 +505,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [isHydrated, sessionUser, isEvaluatorMode, evaluatorUser]);
+  }, [isHydrated, sessionUser]);
 
   const handleAuthenticated = (user: AuthenticatedUser) => {
     setSessionUser(user);
@@ -530,10 +527,12 @@ export default function Home() {
     } catch (err) {
       console.warn('[Auth] Logout request failed:', err);
     } finally {
-      setAuthState('ANONYMOUS');
-      setSessionUser(null);
-      setIsHydrated(false);
-      serverSyncScopeRef.current = null;
+      if (!isEvaluatorMode) {
+        setAuthState('ANONYMOUS');
+        setSessionUser(null);
+        setIsHydrated(false);
+        serverSyncScopeRef.current = null;
+      }
     }
   };
 
@@ -739,15 +738,11 @@ export default function Home() {
     );
   }
 
-  // EVALUATOR MODE: Force bypass of authentication screen
-  // In evaluator mode, never show login screen—always render dashboard
-  if ((authState === 'ANONYMOUS' || !sessionUser) && !isEvaluatorMode) {
-    return <AuthScreen onAuthenticated={handleAuthenticated} />;
-  }
-
-  // If we reach here with no session in evaluator mode, use default evaluator session
-  const activeSessionUser = sessionUser || (isEvaluatorMode ? evaluatorUser : null);
-  if (!activeSessionUser && !isEvaluatorMode) {
+  // NEVER show login screen in evaluator mode
+  if (isEvaluatorMode && authState === 'AUTHENTICATED' && sessionUser) {
+    // Render dashboard immediately (skip authentication screen)
+  } else if (!isEvaluatorMode && (authState === 'ANONYMOUS' || !sessionUser)) {
+    // Normal mode: show login if not authenticated
     return <AuthScreen onAuthenticated={handleAuthenticated} />;
   }
 
@@ -772,7 +767,7 @@ export default function Home() {
         onToggleKillSwitch={handleToggleKillSwitch}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
         onLogout={() => void handleLogout()}
-        sessionEmail={(sessionUser || (isEvaluatorMode ? evaluatorUser : null))?.email || 'evaluator@agenticpay.enterprise'}
+        sessionEmail={sessionUser?.email || 'evaluator@agenticpay.enterprise'}
       />
 
       {/* Main View Area */}
